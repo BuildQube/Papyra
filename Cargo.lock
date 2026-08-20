@@ -605,6 +605,7 @@ dependencies = [
  "hayro",
  "hayro-interpret",
  "hayro-syntax",
+ "kurbo",
  "papyra-core",
  "rayon",
 ]

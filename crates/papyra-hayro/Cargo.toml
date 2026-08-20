@@ -14,3 +14,6 @@ hayro-interpret = { workspace = true }
 hayro-syntax = { workspace = true }
 bytemuck = { workspace = true }
 rayon = { workspace = true }
+
+[dev-dependencies]
+kurbo = "0.13"

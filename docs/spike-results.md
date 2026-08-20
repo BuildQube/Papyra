@@ -698,3 +698,90 @@ are simply expensive.
 **This is the case for the recording `Device`.** If the interpreted draw commands were
 captured once and replayed per scale, a thumbnail after the first render would cost
 rasterisation only — tens of milliseconds — and the residual wait would collapse with it.
+
+---
+
+# Addendum 10: the recording device is the wrong optimisation
+
+Addendum 6 concluded that a page render is dominated by a fixed cost independent of
+output size, and attributed that cost to content-stream interpretation. That attribution
+was **wrong**, and the recording/replay device proposed on top of it would address about
+a tenth of the problem. Measuring before building caught it.
+
+## Two blockers, one fatal
+
+**hayro's rasterising `Device` is private.** `mod renderer;` is not public and
+`Renderer::new` is `pub(crate)`, so commands can be recorded but cannot be replayed
+through hayro. Replay would mean reimplementing ~42 KB of renderer on `vello_cpu` —
+and losing the correctness hayro was chosen for.
+
+**The ceiling does not justify it.** `DummyDevice` is public, so interpretation can be
+timed exactly by discarding every draw call
+(`examples/interpret_vs_raster.rs`, ARCH-E page):
+
+| fitWidth | interpret | full | raster | interpret share |
+|---|---|---|---|---|
+| 200  | 12.0ms | 95.0ms | 83.0ms | **13%** |
+| 800  |  9.9ms | 99.0ms | 89.1ms | **10%** |
+| 1600 | 10.1ms | 105.5ms | 95.5ms | **10%** |
+| 3200 | 10.3ms | 120.9ms | 110.6ms | **9%** |
+
+Interpretation is ~10ms flat. The fixed cost is in **rasterisation**, which is itself
+nearly flat in output size — the signature of per-draw-call overhead, not per-pixel work.
+A recording device saves the 10ms.
+
+## Tiling does not help either
+
+If rasterisation dominates, restricting the viewport ought to help. It does not
+(`examples/crop.rs`, same scale, shrinking viewport):
+
+| viewport | pixels | ms |
+|---|---|---|
+| 1600x1142 (100%) | 1.83MP | 104.6ms |
+| 800x571 (50%)    | 0.46MP |  94.9ms |
+| 400x285 (25%)    | 0.11MP |  94.3ms |
+| 160x114 (10%)    | 0.02MP |  93.7ms |
+
+Rendering a tenth of the page costs the same as all of it. **There is no viewport
+culling**: the work is done and then clipped.
+
+## What the floor actually is
+
+`examples/count_ops.rs` counts what reaches the device:
+
+```
+page 0: 42.0x30.0in
+  paths               1517
+  glyphs              6754
+  images             16310
+  groups             16310  (16310 trivial: opacity 1, Normal, no mask)
+```
+
+**16,310 images, each wrapped in its own transparency group, and every one of those
+groups is a no-op.** Other pages carry up to 41,832. It is a CAD-export pattern, not
+general: tracemonkey has 0 images and 0 groups, the AcroForm has 2.
+
+Per page, at 0.2x scale (a 605px-wide output):
+
+| page | images/groups | ms |
+|---|---|---|
+| 0 | 16,310 | 100.5ms |
+| 2 | 41,817 | 158.4ms |
+| 6 | 19,661 | 167.5ms |
+
+Cost tracks page content, not output size, and it is paid on every render.
+
+## Recommendation
+
+1. **Do not build the recording device.** 10% ceiling, and blocked on a private API.
+2. **Build a render cache.** Every render of these pages costs >=93ms no matter how small
+   the output, and a viewer re-renders constantly — zoom, scroll back, thumbnail then
+   full. An LRU keyed by `(page, width)` under a memory budget is the only large lever
+   fully inside our layer, and it needs nothing from upstream.
+3. **Two upstream issues for hayro**, both with reproductions in `crates/papyra-hayro/examples`:
+   trivial transparency groups around every image XObject, and the absence of viewport
+   culling. Either would cut this document's cost substantially.
+
+The general lesson: "fixed cost independent of output size" was measured correctly in
+Addendum 6, but the cause was assumed rather than measured. `DummyDevice` gave the real
+split in an afternoon and saved building the wrong thing.
