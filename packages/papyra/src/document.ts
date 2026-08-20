@@ -37,7 +37,7 @@ export async function open(
     options.password === undefined
       ? NativeDocument.load(bytes)
       : NativeDocument.loadWithPassword(bytes, options.password);
-  return new Document(inner, options.concurrency);
+  return new Document(inner, options);
 }
 
 export class Document {
@@ -46,17 +46,20 @@ export class Document {
   readonly #limit: number;
 
   /** @internal — construct via {@link open}. */
-  constructor(inner: NativeDocument, concurrency?: number) {
+  constructor(inner: NativeDocument, options: OpenOptions = {}) {
     this.#inner = inner;
-    this.#limit = Math.max(1, concurrency ?? defaultConcurrency());
-    this.#scheduler = new Scheduler<RenderedPage>(this.#limit);
+    this.#limit = Math.max(1, options.concurrency ?? defaultConcurrency());
+    this.#scheduler = new Scheduler<RenderedPage>(this.#limit, {
+      yieldToUrgent: options.yieldToUrgent,
+    });
   }
 
-  /** Pages queued but not yet started, and pages currently rendering. */
-  get queued(): { pending: number; running: number } {
+  /** Pages queued but not yet started, pages rendering, and the longest wait so far. */
+  get queued(): { pending: number; running: number; oldestWaitMs: number } {
     return {
       pending: this.#scheduler.pendingCount,
       running: this.#scheduler.runningCount,
+      oldestWaitMs: this.#scheduler.oldestWaitMs,
     };
   }
 

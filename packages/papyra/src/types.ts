@@ -75,4 +75,11 @@ export interface OpenOptions {
    * it wide.
    */
   concurrency?: number;
+  /**
+   * Hold back lower-priority renders while something more urgent is still running.
+   *
+   * Defaults to on, and is a no-op when every request shares a priority. Turn it off
+   * to maximise throughput at the cost of making urgent work wait.
+   */
+  yieldToUrgent?: boolean;
 }

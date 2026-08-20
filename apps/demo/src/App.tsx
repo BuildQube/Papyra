@@ -10,6 +10,10 @@ import { PageView, type PageViewHandle } from './components/PageView.js';
 import { Thumbnails } from './components/Thumbnails.js';
 
 interface Timing {
+  /** Queued behind other work before this render started. */
+  wait: number;
+  /** Actually rendering. */
+  run: number;
   /** Submitted to the scheduler until the bitmap came back. */
   render: number;
   /** Bitmap in hand until React committed and the paint effect ran. */
@@ -89,8 +93,11 @@ export function App() {
     let cancelled = false;
     const started = performance.now();
     setTiming(null);
-    loaded.doc
-      .renderPage(pageIndex, { fitWidth: VIEW_WIDTH, priority: 0 })
+    const job = loaded.doc.render(pageIndex, {
+      fitWidth: VIEW_WIDTH,
+      priority: 0,
+    });
+    job.promise
       .then(async (rendered) => {
         if (cancelled) return;
         const render = performance.now() - started;
@@ -103,6 +110,8 @@ export function App() {
         if (cancelled) return;
         const visible = performance.now() - started;
         const t: Timing = {
+          wait: job.timing?.waitMs ?? 0,
+          run: job.timing?.runMs ?? 0,
           render,
           commit: visible - render - painted.paintMs - painted.presentMs,
           paint: painted.paintMs,
@@ -129,9 +138,10 @@ export function App() {
     let i = 0;
     probe.current = (t) => {
       rows.push(
-        `page ${String(i + 1).padStart(2)}  render ${t.render.toFixed(0).padStart(5)}  ` +
-          `commit ${t.commit.toFixed(0).padStart(5)}  paint ${t.paint.toFixed(0).padStart(4)}  ` +
-          `present ${t.present.toFixed(0).padStart(4)}  = visible ${t.visible.toFixed(0).padStart(5)}ms`,
+        `page ${String(i + 1).padStart(2)}  wait ${t.wait.toFixed(0).padStart(5)}  ` +
+          `run ${t.run.toFixed(0).padStart(4)}  commit ${t.commit.toFixed(0).padStart(4)}  ` +
+          `paint ${t.paint.toFixed(0).padStart(3)}  present ${t.present.toFixed(0).padStart(3)}  ` +
+          `= visible ${t.visible.toFixed(0).padStart(5)}ms`,
       );
       if (++i >= n) {
         probe.current = null;

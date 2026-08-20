@@ -22,8 +22,24 @@ export interface SchedulerJob<T> {
   run: () => Promise<T>;
 }
 
+/** Where a job's wall-clock time actually went. */
+export interface JobTiming {
+  /** Submitted until a slot freed and it started. */
+  waitMs: number;
+  /** Started until it finished. */
+  runMs: number;
+}
+
 export interface JobHandle<T> {
   readonly key: string;
+  /**
+   * Populated once the job settles, `null` before that.
+   *
+   * The point is to tell a slow render from a long queue: if `waitMs` dominates the
+   * pool is too busy or the priority is wrong, and if `runMs` dominates the render
+   * itself is the cost. Guessing between those two is how you optimise the wrong half.
+   */
+  readonly timing: JobTiming | null;
   /** Reassign urgency while the job is still pending. A no-op once it is running. */
   setPriority(priority: number): void;
   readonly promise: Promise<T>;
@@ -37,6 +53,9 @@ export interface JobHandle<T> {
 interface Entry<T> {
   key: string;
   priority: number;
+  queuedAt: number;
+  startedAt: number;
+  finishedAt: number;
   /** Insertion order, so equal priorities stay FIFO. */
   seq: number;
   run: () => Promise<T>;
@@ -54,14 +73,31 @@ export class AbortError extends Error {
   }
 }
 
+export interface SchedulerOptions {
+  /**
+   * Hold back lower-priority work while something more urgent is still running.
+   *
+   * Ordering the queue is not enough on its own: once a job starts it competes for CPU
+   * for its whole duration, so a page rendered alongside three thumbnails takes ~4x as
+   * long as one rendered alone. With this on, a job only starts if nothing strictly
+   * more urgent is running — already-running work is left to finish, never preempted.
+   *
+   * It is a no-op when every job shares a priority, so batch throughput is unaffected
+   * and it only engages once a caller has expressed intent. On by default.
+   */
+  yieldToUrgent?: boolean;
+}
+
 export class Scheduler<T> {
   readonly #limit: number;
+  readonly #yieldToUrgent: boolean;
   readonly #pending = new Map<string, Entry<T>>();
   readonly #running = new Map<string, Entry<T>>();
   #seq = 0;
 
-  constructor(limit: number) {
+  constructor(limit: number, options: SchedulerOptions = {}) {
     this.#limit = Math.max(1, limit);
+    this.#yieldToUrgent = options.yieldToUrgent ?? true;
   }
 
   get pendingCount(): number {
@@ -70,6 +106,23 @@ export class Scheduler<T> {
 
   get runningCount(): number {
     return this.#running.size;
+  }
+
+  #hasMoreUrgentRunning(priority: number): boolean {
+    for (const entry of this.#running.values()) {
+      if (entry.priority < priority) return true;
+    }
+    return false;
+  }
+
+  /** How long the longest-waiting pending job has been queued. */
+  get oldestWaitMs(): number {
+    let oldest = 0;
+    const now = performance.now();
+    for (const entry of this.#pending.values()) {
+      oldest = Math.max(oldest, now - entry.queuedAt);
+    }
+    return oldest;
   }
 
   submit(job: SchedulerJob<T>): JobHandle<T> {
@@ -92,6 +145,9 @@ export class Scheduler<T> {
     const entry: Entry<T> = {
       key: job.key,
       priority: job.priority,
+      queuedAt: performance.now(),
+      startedAt: 0,
+      finishedAt: 0,
       seq: this.#seq++,
       run: job.run,
       waiters: 1,
@@ -110,6 +166,14 @@ export class Scheduler<T> {
     return {
       key: entry.key,
       promise: entry.promise,
+      get timing() {
+        return entry.finishedAt
+          ? {
+              waitMs: entry.startedAt - entry.queuedAt,
+              runMs: entry.finishedAt - entry.startedAt,
+            }
+          : null;
+      },
       setPriority: (priority: number) => {
         if (!entry.started) entry.priority = priority;
       },
@@ -145,13 +209,30 @@ export class Scheduler<T> {
       }
       if (!next) return;
 
+      // Do not pile lower-priority work on top of something more urgent that is
+      // already running; it would only steal CPU from it.
+      if (this.#yieldToUrgent && this.#hasMoreUrgentRunning(next.priority))
+        return;
+
       this.#pending.delete(next.key);
       this.#running.set(next.key, next);
       next.started = true;
+      next.startedAt = performance.now();
 
+      // Stamp the finish time before settling, so `timing` is already populated by
+      // the time an awaiting caller resumes — a `.finally()` would run after them.
       next
         .run()
-        .then(next.resolve, next.reject)
+        .then(
+          (value) => {
+            next.finishedAt = performance.now();
+            next.resolve(value);
+          },
+          (error) => {
+            next.finishedAt = performance.now();
+            next.reject(error);
+          },
+        )
         .finally(() => {
           this.#running.delete(next.key);
           this.#drain();

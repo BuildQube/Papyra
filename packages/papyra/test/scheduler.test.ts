@@ -295,3 +295,130 @@ describe('Scheduler', () => {
     expect(await after.promise).toBe('ok');
   });
 });
+
+describe('Scheduler timing', () => {
+  test('separates queue wait from run time', async () => {
+    const s = new Scheduler<string>(1);
+    const block = deferred<string>();
+    const blocker = s.submit({
+      key: 'blocker',
+      priority: 0,
+      run: () => block.promise,
+    });
+
+    const waiting = s.submit({
+      key: 'waiting',
+      priority: 0,
+      run: () => new Promise<string>((r) => setTimeout(() => r('done'), 30)),
+    });
+    expect(waiting.timing).toBeNull();
+
+    await new Promise((r) => setTimeout(r, 40));
+    block.resolve('unblocked');
+    await blocker.promise;
+    await waiting.promise;
+
+    const t = waiting.timing;
+    expect(t).not.toBeNull();
+    // Queued behind the blocker for ~40ms, then ran for ~30ms.
+    expect(t?.waitMs).toBeGreaterThan(20);
+    expect(t?.runMs).toBeGreaterThan(20);
+    expect(t?.runMs).toBeLessThan(t?.waitMs ?? 0 + 1000);
+  });
+
+  test('a job that starts immediately reports near-zero wait', async () => {
+    const s = new Scheduler<string>(2);
+    const h = s.submit({ key: 'a', priority: 0, run: async () => 'x' });
+    await h.promise;
+    expect(h.timing?.waitMs).toBeLessThan(5);
+  });
+
+  test('oldestWaitMs tracks the longest-queued pending job', async () => {
+    const s = new Scheduler<string>(1);
+    const block = deferred<string>();
+    s.submit({ key: 'blocker', priority: 0, run: () => block.promise });
+    s.submit({ key: 'q', priority: 0, run: async () => 'x' });
+
+    expect(s.oldestWaitMs).toBeLessThan(5);
+    await new Promise((r) => setTimeout(r, 25));
+    expect(s.oldestWaitMs).toBeGreaterThan(20);
+
+    block.resolve('b');
+    await new Promise((r) => setTimeout(r, 10));
+    expect(s.oldestWaitMs).toBe(0); // nothing pending
+  });
+});
+
+describe('Scheduler yieldToUrgent', () => {
+  test('holds back lower-priority work while urgent work runs', async () => {
+    const s = new Scheduler<string>(4);
+    const urgent = deferred<string>();
+    let lowStarted = 0;
+
+    s.submit({ key: 'urgent', priority: 0, run: () => urgent.promise });
+    for (let i = 0; i < 3; i++) {
+      s.submit({
+        key: `low${i}`,
+        priority: 5,
+        run: async () => {
+          lowStarted++;
+          return 'low';
+        },
+      });
+    }
+
+    await tick();
+    // Slots are free, but starting them would steal CPU from the urgent render.
+    expect(lowStarted).toBe(0);
+
+    urgent.resolve('done');
+    await tick();
+    await tick();
+    expect(lowStarted).toBe(3);
+  });
+
+  test('does nothing when every job shares a priority', async () => {
+    let live = 0;
+    let peak = 0;
+    const gates = Array.from({ length: 4 }, () => deferred<void>());
+    const s = new Scheduler<void>(4);
+
+    for (const [i, gate] of gates.entries()) {
+      s.submit({
+        key: `k${i}`,
+        priority: 3,
+        run: async () => {
+          live++;
+          peak = Math.max(peak, live);
+          await gate.promise;
+          live--;
+        },
+      });
+    }
+    await tick();
+    expect(peak).toBe(4); // batch throughput is untouched
+    for (const g of gates) g.resolve();
+    await tick();
+  });
+
+  test('can be turned off', async () => {
+    const s = new Scheduler<string>(4, { yieldToUrgent: false });
+    const urgent = deferred<string>();
+    let lowStarted = 0;
+
+    s.submit({ key: 'urgent', priority: 0, run: () => urgent.promise });
+    s.submit({
+      key: 'low',
+      priority: 5,
+      run: async () => {
+        lowStarted++;
+        return 'low';
+      },
+    });
+
+    await tick();
+    expect(lowStarted).toBe(1);
+    urgent.resolve('done');
+    await tick();
+  });
+});

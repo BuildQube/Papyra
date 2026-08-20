@@ -27,6 +27,6 @@ apps/demo/public/*.pdf
 .DS_Store
 *.log
 
-# local agent/skill scaffolding, not part of the project
-.agents/
+# .claude/skills symlinks into .agents/skills, so the skill content is tracked but
+# the resolver's lockfile is not.
 skills-lock.json

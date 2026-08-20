@@ -37,7 +37,13 @@ onScroll(() => job.setPriority(isVisible(12) ? 0 : 3));
 ```
 
 Requests for the same page at the same size coalesce into one render. Pending work
-reorders freely; work already running is never interrupted. Priority only helps when the
+reorders freely; work already running is never interrupted. Lower-priority renders are
+also held back while something more urgent is still running (`yieldToUrgent`, on by
+default) — ordering the queue is not enough on its own, since a job that has already
+started competes for CPU for its whole duration.
+
+`doc.render()`'s handle reports `timing: { waitMs, runMs }` once it settles, which is how
+you tell a long queue from a slow render. Priority only helps when the
 queue is deeper than the pool — measured 5.2x faster to the visible page at concurrency
 4, but only 1.1x at 18.
 

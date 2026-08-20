@@ -639,3 +639,62 @@ Reproduce any of this with:
 `bun run --filter papyra-demo dev` then a clean headless browser against
 `/?file=/big.pdf&probe=6[&thumbs=0][&width=N]` — results POST to the dev server's
 `/__perf` route. Never measure in an automated tab; see Addendum 5.
+
+---
+
+# Addendum 9: closing out the thumbnail contention
+
+Addendum 8 left the viewport render inflating from ~220ms to ~1030ms whenever the
+thumbnail strip was streaming, with no explanation. The scheduler could report *what*
+was queued but not *how long anything waited*, which is exactly the measurement needed
+to tell a slow render from a long queue.
+
+## Instrumentation
+
+`JobHandle.timing` now reports `{ waitMs, runMs }` once a job settles, and
+`doc.queued.oldestWaitMs` exposes the longest current wait. The finish timestamp is
+stamped **before** the promise settles — a `.finally()` runs after an awaiting caller
+resumes, so `timing` would still have been `null` at the point anyone could read it.
+
+That immediately split the problem in two:
+
+| page | wait | run | visible |
+|---|---|---|---|
+| 1 | 576ms | 450ms | 1029ms |
+| 3 |  62ms | **895ms** |  963ms |
+
+Priority ordering was working — `wait` fell to 62ms once the queue drained. But `run`
+was **4x** its solo cost of ~220ms. Ordering the queue is not enough: once a thumbnail
+*starts* it competes for CPU for its entire duration, and the viewport render was
+sharing four slots with three of them.
+
+## Fix: admission control, not just ordering
+
+`yieldToUrgent` (on by default) refuses to start a job while anything strictly more
+urgent is running. Already-running work is never preempted — Addendum 6 showed a render
+is ~95ms of non-preemptible interpretation, so there is nothing useful to interrupt. It
+is a no-op when every job shares a priority, so batch throughput is untouched and it
+only engages once a caller has expressed intent.
+
+| | wait | run | visible |
+|---|---|---|---|
+| before | 62-576ms | **450-912ms** | ~1030ms |
+| after  | 440-657ms | **213-296ms** | ~660-870ms |
+
+`run` is back to its solo cost. The contention is closed.
+
+## What is left is not a scheduling problem
+
+Wait is now the whole remainder, and it is fully explained: an ARCH-E thumbnail costs
+**~450ms in wasm** (44 of them stream in 4915ms at concurrency 4). A newly-urgent page
+therefore queues behind up to one thumbnail duration — 440-657ms measured, ~447ms
+predicted.
+
+A 160px thumbnail of a 42x30in sheet is 0.07 MB of output. Almost all of that ~450ms is
+the fixed interpretation cost from Addendum 6, not rasterisation. No amount of further
+scheduler tuning touches it: the queue is short and correctly ordered, the jobs in it
+are simply expensive.
+
+**This is the case for the recording `Device`.** If the interpreted draw commands were
+captured once and replayed per scale, a thumbnail after the first render would cost
+rasterisation only — tens of milliseconds — and the residual wait would collapse with it.

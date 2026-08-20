@@ -23,7 +23,7 @@ export {
   hardwareConcurrency,
   init,
 } from './runtime.js';
-export type { JobHandle } from './scheduler.js';
+export type { JobHandle, JobTiming } from './scheduler.js';
 export { AbortError, DEFAULT_PRIORITY } from './scheduler.js';
 export type {
   OpenOptions,
