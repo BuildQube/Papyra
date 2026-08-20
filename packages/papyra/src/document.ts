@@ -18,6 +18,13 @@ import type {
 
 const DEFAULT_DPI = 72;
 
+/**
+ * Refuse renders large enough to take down the tab.
+ *
+ * 100 MP is ~400 MB of RGBA — beyond this you almost certainly meant `fitWidth`.
+ */
+const MAX_PIXELS = 100_000_000;
+
 /** Open a PDF from bytes, an `ArrayBuffer`, a `Blob`, or a `File`. */
 export async function open(
   source: PdfSource,
@@ -56,8 +63,34 @@ export class Document {
   ): Promise<RenderedPage> {
     return (await this.#inner.renderPageAsync(
       index,
-      options.dpi ?? DEFAULT_DPI,
+      this.#resolveDpi(index, options),
     )) as RenderedPage;
+  }
+
+  /**
+   * Turn `fitWidth`/`dpi` into a concrete DPI, and refuse absurd outputs.
+   *
+   * `fitWidth` exists because page sizes vary by two orders of magnitude in area: a
+   * DPI that is sensible for US Letter produces a 113 MB bitmap for an ARCH-E drawing.
+   */
+  #resolveDpi(index: number, options: RenderOptions): number {
+    const { width, height } = this.pageSize(index);
+    const dpi =
+      options.fitWidth !== undefined && width > 0
+        ? (options.fitWidth / width) * 72
+        : (options.dpi ?? DEFAULT_DPI);
+
+    const pixels = ((width * dpi) / 72) * ((height * dpi) / 72);
+    if (pixels > MAX_PIXELS) {
+      const mb = Math.round((pixels * 4) / 1e6);
+      throw new RangeError(
+        `papyra: page ${index} at ${dpi.toFixed(1)} DPI would be ` +
+          `${Math.round((width * dpi) / 72)}x${Math.round((height * dpi) / 72)} ` +
+          `(${mb} MB). The page is ${(width / 72).toFixed(1)}x${(height / 72).toFixed(1)}in — ` +
+          'use { fitWidth } to size by output pixels instead of DPI.',
+      );
+    }
+    return dpi;
   }
 
   /**
@@ -77,8 +110,11 @@ export class Document {
     end: number,
     options: RenderOptions = {},
   ): Promise<RenderedPage[]> {
-    const dpi = options.dpi ?? DEFAULT_DPI;
-    if (currentRuntime() === 'native') {
+    if (currentRuntime() === 'native' && options.fitWidth === undefined) {
+      // One DPI for the whole batch, so every page in range has to pass the guard —
+      // a document can mix a letter-size cover sheet with ARCH-E drawings.
+      let dpi = DEFAULT_DPI;
+      for (let i = start; i < end; i++) dpi = this.#resolveDpi(i, options);
       return (await this.#inner.renderPagesAsync(
         start,
         end,
@@ -87,7 +123,7 @@ export class Document {
     }
     const out: RenderedPage[] = [];
     for await (const { page, bitmap } of this.stream({
-      dpi,
+      ...options,
       order: range(start, end),
     })) {
       out[page - start] = bitmap;
@@ -111,7 +147,6 @@ export class Document {
    * ```
    */
   async *stream(options: StreamOptions = {}): AsyncGenerator<StreamedPage> {
-    const dpi = options.dpi ?? DEFAULT_DPI;
     const pages = options.order ?? range(0, this.pageCount);
     // napi-rs fixes the browser async-work pool at 4, so oversubscribing it just
     // holds more pixel buffers in memory for nothing: measured 6.1 ms/page flat from
@@ -136,7 +171,7 @@ export class Document {
       if (page === undefined) return;
       inflight.set(
         slot,
-        this.renderPage(page, { dpi }).then((bitmap) => ({
+        this.renderPage(page, options).then((bitmap) => ({
           slot,
           page,
           bitmap,

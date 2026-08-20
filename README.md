@@ -17,10 +17,15 @@ const page = await doc.renderPage(0, { dpi: 150 });
 paintToCanvas(page, canvas);
 
 // stream thumbnails, bounded concurrency, yields as they finish
-for await (const { page, bitmap } of doc.stream({ dpi: 48 })) {
+for await (const { page, bitmap } of doc.stream({ fitWidth: 160 })) {
   paint(page, bitmap);
 }
 ```
+
+Size thumbnails and viewports with `fitWidth` (output pixels), not `dpi`. Page sizes
+vary enormously: 36 DPI is a 306x396 thumbnail for US Letter but 1512x1080 — 6.5 MB —
+for a 42x30in drawing. papyra rejects renders over 100 MP and tells you to use
+`fitWidth`.
 
 ## Layout
 

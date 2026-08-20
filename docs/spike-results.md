@@ -460,3 +460,69 @@ So the browser story is **batch work, not viewing**: thumbnail grids, prerenderi
 export, bulk rasterisation. For "open a PDF and look at one page", pdf.js is still the
 better tool in the browser. The 5.59x aggregate advantage is a **Node** result and
 should be quoted as such.
+
+---
+
+# Addendum 6: large-format pages (the Attachment-C-Drawings failure)
+
+A 39 MB, 44-page set of ARCH-E architectural drawings (42x30in) killed the demo.
+
+**The engine was never at fault.** That file loads and renders fine everywhere —
+native, wasm-in-Node, and wasm in a clean headless browser; single page, four
+concurrent, and all 44 streaming. The demo was the problem.
+
+## Cause: sizing renders by DPI
+
+The demo asked for thumbnails at a fixed 36 DPI and the viewport at 150 DPI. Those are
+reasonable numbers for US Letter. On a 42x30in sheet they are not:
+
+| | US Letter @36 DPI | ARCH-E @36 DPI |
+|---|---|---|
+| pixels | 306x396 | **1512x1080** |
+| bytes  | 0.5 MB  | **6.5 MB**    |
+
+Multiplied out across the demo:
+
+```
+44 thumbnails @36 DPI, all retained     287 MB
+  + one <canvas> each                   287 MB
+  + viewport page @150 DPI              113 MB buffer + 113 MB canvas
+  --------------------------------------------
+                                        802 MB in one tab
+```
+
+Chrome died. (The exact error was not captured — the browser went down hard enough to
+take the automation extension's connection with it.)
+
+## Fix: size by output pixels, not DPI
+
+`RenderOptions.fitWidth` sets the target output width and derives DPI per page, so cost
+tracks what is actually displayed rather than how big the paper is. A guard rejects
+anything over 100 MP with a message that points at `fitWidth`:
+
+```
+papyra: page 0 at 300.0 DPI would be 12600x9000 (454 MB). The page is 42.0x30.0in
+— use { fitWidth } to size by output pixels instead of DPI.
+```
+
+The guard checks every page in a `renderPages` range, since a document can mix a
+letter-size cover sheet with ARCH-E drawings.
+
+Measured in-browser, same document, old pattern vs new:
+
+| | buffers | JS heap |
+|---|---|---|
+| `{ dpi: 36 }` thumbnails    | 287 MB | 153 MB |
+| `{ fitWidth: 160 }`         | **3 MB** | **62 MB** |
+
+Viewport went from 113 MB (6300x4500, thrown away by a ~900px-wide pane) to 11 MB
+(2000x1428). Whole-demo footprint: ~800 MB to ~15 MB.
+
+`apps/bench/src/large-format.ts` keeps this honest:
+`bun run --filter papyra-bench large-format <file.pdf>`.
+
+## The general lesson
+
+Page area varies by two orders of magnitude in real corpora, and construction drawings
+are exactly the case a takeoff product hits daily. Any API that takes DPI invites this
+bug; `fitWidth` should be the documented default for thumbnails and viewports.

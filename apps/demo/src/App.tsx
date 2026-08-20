@@ -16,7 +16,14 @@ interface Loaded {
   name: string;
 }
 
-const VIEW_DPI = 150;
+/**
+ * Render the viewport by output width rather than DPI: 150 DPI is 6300x4500 (113 MB)
+ * for an ARCH-E drawing, all of it thrown away by a ~900px-wide viewport.
+ */
+const VIEW_WIDTH = Math.min(
+  2000,
+  Math.round(window.screen.width * (window.devicePixelRatio || 1)),
+);
 
 export function App() {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
@@ -40,12 +47,28 @@ export function App() {
     }
   }, []);
 
+  // ?file=/some.pdf loads without a file picker — handy for reproducing a specific
+  // document, and for driving the demo from a script.
+  useEffect(() => {
+    const url = new URLSearchParams(window.location.search).get('file');
+    if (!url) return;
+    void (async () => {
+      try {
+        const res = await fetch(url);
+        const blob = await res.blob();
+        await load(new File([blob], url.split('/').pop() ?? 'document.pdf'));
+      } catch (e) {
+        setError(`could not load ${url}: ${(e as Error).message}`);
+      }
+    })();
+  }, [load]);
+
   useEffect(() => {
     if (!loaded) return;
     let cancelled = false;
     const started = performance.now();
     loaded.doc
-      .renderPage(pageIndex, { dpi: VIEW_DPI })
+      .renderPage(pageIndex, { fitWidth: VIEW_WIDTH })
       .then((rendered) => {
         if (cancelled) return;
         setPage(rendered);
@@ -77,7 +100,8 @@ export function App() {
         </label>
         {renderMs !== null && (
           <span className="muted">
-            page {pageIndex + 1} in {renderMs.toFixed(1)}ms @ {VIEW_DPI} DPI
+            page {pageIndex + 1} in {renderMs.toFixed(1)}ms
+            {page && ` · ${page.width}×${page.height}`}
           </span>
         )}
       </header>

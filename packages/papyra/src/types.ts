@@ -4,6 +4,15 @@ export type PdfSource = Uint8Array | ArrayBuffer | ArrayBufferView | Blob;
 export interface RenderOptions {
   /** Dots per inch. 72 is the PDF's natural size. Defaults to 72. */
   dpi?: number;
+  /**
+   * Target output width in pixels. Overrides `dpi`.
+   *
+   * Prefer this for thumbnails and for fitting a viewport. A fixed DPI silently
+   * explodes on large-format pages: 36 DPI is a 216x279 thumbnail for US Letter but
+   * a 1512x1080, 6.5 MB image for a 42x30in drawing. Sizing by output width keeps
+   * cost proportional to what is actually displayed.
+   */
+  fitWidth?: number;
 }
 
 export interface StreamOptions extends RenderOptions {

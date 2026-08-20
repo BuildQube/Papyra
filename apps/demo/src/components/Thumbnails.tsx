@@ -14,7 +14,12 @@ interface Props {
   enabled: boolean;
 }
 
-const THUMB_DPI = 36;
+/**
+ * Thumbnails are sized by output width, not DPI. At a fixed 36 DPI a 42x30in drawing
+ * renders 1512x1080 (6.5 MB) per "thumbnail" — 44 of those is ~290 MB of buffers plus
+ * as much again in canvases, which is enough to take the tab down.
+ */
+const THUMB_WIDTH = 160;
 
 /**
  * Streams thumbnails in, yielding each as it finishes rather than waiting for the
@@ -32,7 +37,9 @@ export function Thumbnails({ doc, current, onSelect, enabled }: Props) {
     const started = performance.now();
 
     (async () => {
-      for await (const { page, bitmap } of doc.stream({ dpi: THUMB_DPI })) {
+      for await (const { page, bitmap } of doc.stream({
+        fitWidth: THUMB_WIDTH,
+      })) {
         if (cancelled) return;
         setThumbs((prev) => new Map(prev).set(page, bitmap));
       }
