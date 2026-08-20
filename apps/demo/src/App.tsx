@@ -31,17 +31,18 @@ export function App() {
   const [page, setPage] = useState<RenderedPage | null>(null);
   const [renderMs, setRenderMs] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [firstPageDone, setFirstPageDone] = useState(false);
 
   const load = useCallback(async (file: File) => {
     setError(null);
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
       // papyra takes the File directly; we keep the bytes for the benchmark panel.
-      const doc = await open(file);
+      // A viewer wants a narrow pool: priority can only reorder work that has not
+      // started, so a wide pool makes the visible page wait behind more in-flight
+      // renders. Measured 5.2x faster to the visible page at 4 vs 1.1x at 18.
+      const doc = await open(file, { concurrency: 4 });
       setLoaded({ doc, bytes, name: file.name });
       setPageIndex(0);
-      setFirstPageDone(false);
     } catch (e) {
       setError((e as Error).message);
     }
@@ -68,12 +69,11 @@ export function App() {
     let cancelled = false;
     const started = performance.now();
     loaded.doc
-      .renderPage(pageIndex, { fitWidth: VIEW_WIDTH })
+      .renderPage(pageIndex, { fitWidth: VIEW_WIDTH, priority: 0 })
       .then((rendered) => {
         if (cancelled) return;
         setPage(rendered);
         setRenderMs(performance.now() - started);
-        setFirstPageDone(true);
       })
       .catch((e: Error) => !cancelled && setError(e.message));
     return () => {
@@ -130,7 +130,6 @@ export function App() {
             doc={loaded.doc}
             current={pageIndex}
             onSelect={setPageIndex}
-            enabled={firstPageDone}
           />
           <section className="viewer">
             <PageCanvas page={page} className="page" />

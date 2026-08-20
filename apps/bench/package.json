@@ -9,7 +9,9 @@
     "smoke": "bun run src/smoke.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "clean": "rm -rf .turbo *.tsbuildinfo",
-    "large-format": "bun run src/large-format.ts"
+    "large-format": "bun run src/large-format.ts",
+    "scaling": "bun run src/scaling.ts",
+    "priority": "bun run src/priority.ts"
   },
   "dependencies": {
     "@build-qube/papyra": "workspace:*"

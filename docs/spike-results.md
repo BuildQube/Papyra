@@ -526,3 +526,58 @@ Viewport went from 113 MB (6300x4500, thrown away by a ~900px-wide pane) to 11 M
 Page area varies by two orders of magnitude in real corpora, and construction drawings
 are exactly the case a takeoff product hits daily. Any API that takes DPI invites this
 bug; `fitWidth` should be the documented default for thumbnails and viewports.
+
+---
+
+# Addendum 7: the render scheduler
+
+## Why the queue is in TypeScript, not Rust
+
+Priority comes from the caller — papyra has no idea what is on screen. That information
+lives in the UI, changes at 60Hz while scrolling, and would be pure FFI chatter to push
+across the boundary on every scroll event. The scheduler also has to sit *above* the
+native/wasm concurrency split, which is already a TypeScript concern.
+
+The one thing only Rust could offer is cancelling a render mid-flight, and Addendum 6's
+measurement says that is worth little: a render is dominated by a fixed, non-preemptible
+content-stream interpretation cost (~95ms of a ~150ms render on an ARCH-E drawing,
+independent of output size). `interpret_page` has no early exit; the best available is a
+`Device` wrapper that no-ops draw calls after a flag is set, which skips only the
+rasterisation tail. Reordering work that has not started captures nearly all the benefit,
+and that is free in JS.
+
+## Design
+
+- **Lower number runs first**, default `0`, so an unprioritised request is the most
+  urgent tier. Callers pick their own scale.
+- **Coalescing by `(page, dpi)`.** Two live requests for the same render share one job;
+  if the second is more urgent, the existing job is promoted rather than duplicated —
+  the common case when a queued thumbnail scrolls into view.
+- **Mutable priority** via `doc.render()`'s handle, so a viewer reprioritises on scroll
+  instead of cancelling and resubmitting.
+- **Cancel detaches a waiter.** The job is dropped only if nothing else wants it and it
+  has not started; running work is left to finish (see above). Breaking out of a
+  `stream()` now drops everything still queued.
+- **Linear scan, not a heap.** Queues are page-sized and jobs cost milliseconds, so the
+  scan is free — and mutable priorities in a binary heap need re-heapification on every
+  change, which is a rich source of bugs.
+
+## Priority is only as good as the queue is deep
+
+Reordering cannot help work that has already started, so a wide pool defeats it.
+44-page drawing set, backlog of thumbnails queued, then a jump to page 20:
+
+| concurrency | same priority as backlog | priority 0 | |
+|---|---|---|---|
+| 4  | 1410 ms | **271 ms** | **5.2x faster** |
+| 18 |  732 ms |   657 ms | 1.1x |
+
+So `concurrency` is now an `open()` option, and it is a genuine responsiveness/throughput
+dial rather than a tuning constant: **viewers want it narrow (2-4), batch jobs want it
+wide.** The demo opens at 4.
+
+`bun run --filter papyra-bench priority <file.pdf> [concurrency]` reproduces the table.
+
+Scheduler behaviour is covered by unit tests in `packages/papyra/test/scheduler.test.ts`
+— ordering, FIFO within a tier, the concurrency cap, coalescing, promotion, mutation,
+cancellation semantics, and error propagation.

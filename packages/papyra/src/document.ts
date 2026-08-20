@@ -5,6 +5,7 @@ import {
   init,
   MAX_WASM_CONCURRENCY,
 } from './runtime.js';
+import { DEFAULT_PRIORITY, type JobHandle, Scheduler } from './scheduler.js';
 import { toBytes } from './source.js';
 import type {
   OpenOptions,
@@ -36,15 +37,27 @@ export async function open(
     options.password === undefined
       ? NativeDocument.load(bytes)
       : NativeDocument.loadWithPassword(bytes, options.password);
-  return new Document(inner);
+  return new Document(inner, options.concurrency);
 }
 
 export class Document {
   readonly #inner: NativeDocument;
+  readonly #scheduler: Scheduler<RenderedPage>;
+  readonly #limit: number;
 
   /** @internal — construct via {@link open}. */
-  constructor(inner: NativeDocument) {
+  constructor(inner: NativeDocument, concurrency?: number) {
     this.#inner = inner;
+    this.#limit = Math.max(1, concurrency ?? defaultConcurrency());
+    this.#scheduler = new Scheduler<RenderedPage>(this.#limit);
+  }
+
+  /** Pages queued but not yet started, and pages currently rendering. */
+  get queued(): { pending: number; running: number } {
+    return {
+      pending: this.#scheduler.pendingCount,
+      running: this.#scheduler.runningCount,
+    };
   }
 
   get pageCount(): number {
@@ -61,10 +74,47 @@ export class Document {
     index: number,
     options: RenderOptions = {},
   ): Promise<RenderedPage> {
-    return (await this.#inner.renderPageAsync(
-      index,
-      this.#resolveDpi(index, options),
-    )) as RenderedPage;
+    return this.render(index, options).promise;
+  }
+
+  /**
+   * Render a page, returning a handle you can reprioritise or drop.
+   *
+   * This is the viewer path: as the user scrolls, promote what came into view and
+   * demote what left, without re-submitting or duplicating work. Requests for the same
+   * page at the same size coalesce into one render, taking the most urgent priority
+   * asked for.
+   *
+   * @example
+   * ```ts
+   * const jobs = visible.map((p) => doc.render(p, { fitWidth: 1600, priority: 0 }));
+   * onScroll(() => {
+   *   for (const [i, job] of jobs.entries()) job.setPriority(distanceFromViewport(i));
+   * });
+   * ```
+   */
+  render(index: number, options: RenderOptions = {}): JobHandle<RenderedPage> {
+    const dpi = this.#resolveDpi(index, options);
+    const handle = this.#scheduler.submit({
+      key: `${index}@${dpi.toFixed(4)}`,
+      priority: options.priority ?? DEFAULT_PRIORITY,
+      run: () =>
+        this.#inner.renderPageAsync(index, dpi) as Promise<RenderedPage>,
+    });
+
+    const { signal } = options;
+    if (signal) {
+      if (signal.aborted) handle.cancel('signal aborted');
+      else
+        signal.addEventListener(
+          'abort',
+          () => handle.cancel('signal aborted'),
+          {
+            once: true,
+          },
+        );
+    }
+    return handle;
   }
 
   /**
@@ -148,52 +198,59 @@ export class Document {
    */
   async *stream(options: StreamOptions = {}): AsyncGenerator<StreamedPage> {
     const pages = options.order ?? range(0, this.pageCount);
-    // napi-rs fixes the browser async-work pool at 4, so oversubscribing it just
-    // holds more pixel buffers in memory for nothing: measured 6.1 ms/page flat from
-    // concurrency 4 through 16 on an 18-core machine. See docs/spike-results.md.
-    const ceiling =
-      currentRuntime() === 'wasm'
-        ? MAX_WASM_CONCURRENCY
-        : hardwareConcurrency();
-    const limit = Math.max(
+    const window = Math.max(
       1,
-      options.concurrency ?? Math.min(ceiling, pages.length || 1),
+      options.concurrency ?? Math.min(this.#limit, pages.length || 1),
     );
 
-    const inflight = new Map<
-      number,
-      Promise<StreamedPage & { slot: number }>
-    >();
+    type Completion = { slot: number; page: number; bitmap: RenderedPage };
+    const inflight = new Map<number, Promise<Completion>>();
+    const handles = new Map<number, JobHandle<RenderedPage>>();
     let next = 0;
 
     const schedule = (slot: number): void => {
       const page = pages[slot];
       if (page === undefined) return;
+      const handle = this.render(page, options);
+      handles.set(slot, handle);
       inflight.set(
         slot,
-        this.renderPage(page, options).then((bitmap) => ({
-          slot,
-          page,
-          bitmap,
-        })),
+        handle.promise.then((bitmap) => ({ slot, page, bitmap })),
       );
     };
 
     try {
-      while (next < pages.length && inflight.size < limit) schedule(next++);
+      while (next < pages.length && inflight.size < window) schedule(next++);
       while (inflight.size > 0) {
-        options.signal?.throwIfAborted();
         const { slot, page, bitmap } = await Promise.race(inflight.values());
         inflight.delete(slot);
+        handles.delete(slot);
         if (next < pages.length) schedule(next++);
         yield { page, bitmap };
       }
     } finally {
-      // Nothing to cancel: in-flight renders are already running on worker threads
-      // and their results are simply dropped. We just stop scheduling new ones.
+      // Breaking out of the loop drops everything still queued, so "thumbnails for
+      // the rows I can see" does not keep rendering the rows I cannot.
+      for (const [slot, handle] of handles) {
+        handle.cancel('stream ended');
+        // The derived promise rejects once cancelled; nobody is listening any more.
+        inflight.get(slot)?.catch(() => {});
+      }
       inflight.clear();
+      handles.clear();
     }
   }
+
+  /** How many pages this document will render at once. */
+  get concurrency(): number {
+    return this.#limit;
+  }
+}
+
+function defaultConcurrency(): number {
+  return currentRuntime() === 'wasm'
+    ? MAX_WASM_CONCURRENCY
+    : hardwareConcurrency();
 }
 
 function range(start: number, end: number): number[] {

@@ -22,6 +22,25 @@ for await (const { page, bitmap } of doc.stream({ fitWidth: 160 })) {
 }
 ```
 
+Rendering is scheduled: **you** supply the priority, papyra honours the order. Lower runs
+first and the default is the most urgent tier, so callers who do not care can ignore it.
+
+```ts
+const doc = await open(file, { concurrency: 4 });   // viewers want a narrow pool
+
+// Thumbnails yield to whatever is on screen.
+for await (const { page, bitmap } of doc.stream({ fitWidth: 160, priority: 2 })) { … }
+
+// Reprioritise on scroll instead of cancelling and resubmitting.
+const job = doc.render(12, { fitWidth: 1600, priority: 2 });
+onScroll(() => job.setPriority(isVisible(12) ? 0 : 3));
+```
+
+Requests for the same page at the same size coalesce into one render. Pending work
+reorders freely; work already running is never interrupted. Priority only helps when the
+queue is deeper than the pool — measured 5.2x faster to the visible page at concurrency
+4, but only 1.1x at 18.
+
 Size thumbnails and viewports with `fitWidth` (output pixels), not `dpi`. Page sizes
 vary enormously: 36 DPI is a 306x396 thumbnail for US Letter but 1512x1080 — 6.5 MB —
 for a 42x30in drawing. papyra rejects renders over 100 MP and tells you to use

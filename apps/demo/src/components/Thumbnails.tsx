@@ -6,13 +6,10 @@ interface Props {
   doc: Document;
   current: number;
   onSelect: (index: number) => void;
-  /**
-   * Hold off until the visible page is on screen. Thumbnails and the main page share
-   * one render pool, so starting them together makes the page the user is actually
-   * looking at queue behind every thumbnail.
-   */
-  enabled: boolean;
 }
+
+/** Thumbnails yield to the page on screen; the scheduler enforces it. */
+const THUMB_PRIORITY = 2;
 
 /**
  * Thumbnails are sized by output width, not DPI. At a fixed 36 DPI a 42x30in drawing
@@ -25,12 +22,11 @@ const THUMB_WIDTH = 160;
  * Streams thumbnails in, yielding each as it finishes rather than waiting for the
  * whole document. Rendering is abandoned if the document changes mid-stream.
  */
-export function Thumbnails({ doc, current, onSelect, enabled }: Props) {
+export function Thumbnails({ doc, current, onSelect }: Props) {
   const [thumbs, setThumbs] = useState<Map<number, RenderedPage>>(new Map());
   const [elapsed, setElapsed] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!enabled) return;
     let cancelled = false;
     setThumbs(new Map());
     setElapsed(null);
@@ -39,6 +35,7 @@ export function Thumbnails({ doc, current, onSelect, enabled }: Props) {
     (async () => {
       for await (const { page, bitmap } of doc.stream({
         fitWidth: THUMB_WIDTH,
+        priority: THUMB_PRIORITY,
       })) {
         if (cancelled) return;
         setThumbs((prev) => new Map(prev).set(page, bitmap));
@@ -49,7 +46,7 @@ export function Thumbnails({ doc, current, onSelect, enabled }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [doc, enabled]);
+  }, [doc]);
 
   return (
     <aside className="thumbs">
