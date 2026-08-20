@@ -1,0 +1,66 @@
+{
+  "name": "@build-qube/papyra-native",
+  "version": "0.0.1",
+  "description": "Node-API bindings for papyra — prefer the @build-qube/papyra wrapper",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BuildQube/papyra.git",
+    "directory": "packages/bindings"
+  },
+  "keywords": [
+    "pdf",
+    "render",
+    "napi-rs",
+    "wasm",
+    "rust",
+    "hayro"
+  ],
+  "main": "index.js",
+  "types": "index.d.ts",
+  "browser": "browser.js",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "browser.js"
+  ],
+  "napi": {
+    "binaryName": "papyra",
+    "targets": [
+      "aarch64-apple-darwin",
+      "x86_64-apple-darwin",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-unknown-linux-gnu",
+      "x86_64-pc-windows-msvc",
+      "wasm32-wasip1-threads"
+    ],
+    "wasm": {
+      "browser": {
+        "fs": false,
+        "asyncInit": true
+      }
+    }
+  },
+  "engines": {
+    "node": ">= 18"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "scripts": {
+    "artifacts": "napi artifacts",
+    "build": "napi build --platform --release",
+    "build:debug": "napi build --platform",
+    "build:wasm": "napi build --platform --release --target wasm32-wasip1-threads",
+    "create-npm-dirs": "napi create-npm-dirs",
+    "clean": "rm -rf *.node *.wasm index.js index.d.ts browser.js papyra.wasi*.* wasi-worker*.mjs npm"
+  },
+  "devDependencies": {
+    "@emnapi/core": "1.11.2",
+    "@emnapi/runtime": "1.11.2",
+    "@napi-rs/cli": "^3.8.6",
+    "@napi-rs/wasm-runtime": "^1.2.3",
+    "emnapi": "1.11.2"
+  }
+}

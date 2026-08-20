@@ -1,0 +1,46 @@
+{
+  "name": "@build-qube/papyra",
+  "version": "0.0.1",
+  "description": "Fast PDF rendering for Node and the browser, powered by Rust",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BuildQube/papyra.git",
+    "directory": "packages/papyra"
+  },
+  "keywords": [
+    "pdf",
+    "render",
+    "thumbnail",
+    "rust",
+    "wasm",
+    "pdfjs"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@build-qube/papyra-native": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}

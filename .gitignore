@@ -1,0 +1,27 @@
+# rust
+/target
+**/*.rs.bk
+
+# node
+node_modules
+.turbo
+dist
+*.tsbuildinfo
+
+# napi build output (generated, never committed)
+packages/bindings/*.node
+packages/bindings/*.wasm
+packages/bindings/index.js
+packages/bindings/index.d.ts
+packages/bindings/browser.js
+packages/bindings/papyra.wasi*.
+packages/bindings/papyra.wasi*
+packages/bindings/wasi-worker*.mjs
+packages/bindings/npm
+
+# third-party test PDFs are fetched, never vendored (mixed provenance)
+/corpus
+
+# misc
+.DS_Store
+*.log

@@ -1,0 +1,16 @@
+[package]
+name = "papyra-hayro"
+description = "hayro-backed papyra engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+papyra-core = { workspace = true }
+hayro = { workspace = true }
+hayro-interpret = { workspace = true }
+hayro-syntax = { workspace = true }
+bytemuck = { workspace = true }
+rayon = { workspace = true }

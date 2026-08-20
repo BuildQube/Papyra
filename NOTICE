@@ -1,0 +1,11 @@
+papyra bundles no third-party binaries, but links the following Rust crates:
+
+  hayro, hayro-interpret, hayro-syntax and related crates
+  Copyright the hayro authors — https://github.com/LaurenzV/hayro
+  Licensed under the Apache License, Version 2.0.
+
+  vello_cpu, vello_common, kurbo, peniko, skrifa
+  Copyright the Linebender authors — https://github.com/linebender
+  Licensed under Apache-2.0 OR MIT.
+
+Full license texts are reproduced in the source distributions of those crates.

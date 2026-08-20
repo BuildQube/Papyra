@@ -1,0 +1,4 @@
+# vello_cpu is a SIMD rasteriser. Without simd128 the wasm build is ~1.7x slower.
+# See docs/spike-results.md.
+[target.wasm32-wasip1-threads]
+rustflags = ["-C", "target-feature=+simd128"]

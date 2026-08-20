@@ -1,0 +1,38 @@
+{
+  "name": "papyra-monorepo",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "bun@1.3.11",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "build:wasm": "turbo run build:wasm",
+    "dev": "turbo run dev",
+    "test": "turbo run test",
+    "test:rust": "cargo test --workspace",
+    "test:all": "turbo run test && cargo test --workspace",
+    "bench": "turbo run bench",
+    "typecheck": "turbo run typecheck",
+    "lint": "biome check",
+    "format": "biome check --write && cargo fmt && taplo format",
+    "check": "biome check && cargo fmt --check && cargo clippy --workspace -- -D warnings",
+    "corpus": "bun run scripts/fetch-corpus.ts",
+    "change": "changeset",
+    "release": "bun run --filter @build-qube/papyra-native create-npm-dirs && bun run --filter @build-qube/papyra-native artifacts && changeset publish",
+    "clean": "turbo run clean && git clean -xdf node_modules .turbo target corpus",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.3.14",
+    "@changesets/cli": "^2.29.8",
+    "@taplo/cli": "^0.7.0",
+    "@types/bun": "^1.3.14",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.1.6",
+    "turbo": "^2.8.3",
+    "typescript": "^5.7.3"
+  }
+}

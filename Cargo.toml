@@ -1,0 +1,38 @@
+[workspace]
+members = ["crates/papyra-core", "crates/papyra-hayro", "packages/bindings"]
+resolver = "2"
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/BuildQube/papyra"
+rust-version = "1.92"
+
+[workspace.dependencies]
+papyra-core = { path = "crates/papyra-core" }
+papyra-hayro = { path = "crates/papyra-hayro" }
+
+hayro = "0.7.1"
+hayro-interpret = "0.7.0"
+hayro-syntax = "0.7.2"
+
+bytemuck = "1"
+rayon = "1"
+thiserror = "2"
+
+napi = { version = "3", default-features = false, features = ["napi4"] }
+napi-derive = "3"
+napi-build = "2"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+# Deliberately NOT panic = "abort": napi-rs converts caught panics into JS exceptions.
+# papyra parses untrusted PDFs, so a malformed file must reject a promise, not kill the
+# host process. (wasm32-wasip1-threads is abort-only regardless — see docs/spike-results.md.)
+
+# Rendering is allocation-heavy; keep debug builds usable for the demo app.
+[profile.dev.package."*"]
+opt-level = 2
