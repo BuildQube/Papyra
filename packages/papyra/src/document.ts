@@ -1,4 +1,5 @@
 import { PdfDocument as NativeDocument } from '@build-qube/papyra-native';
+import { type CacheStats, RenderCache } from './cache.js';
 import {
   currentRuntime,
   hardwareConcurrency,
@@ -26,6 +27,14 @@ const DEFAULT_DPI = 72;
  */
 const MAX_PIXELS = 100_000_000;
 
+/** Default bytes of rendered pages to keep. Roughly eleven 2000px ARCH-E sheets. */
+const DEFAULT_CACHE_BYTES = 128 * 1024 * 1024;
+
+/** A queued render, plus whether it was served from cache without rendering at all. */
+export interface RenderHandle extends JobHandle<RenderedPage> {
+  readonly cached: boolean;
+}
+
 /** Open a PDF from bytes, an `ArrayBuffer`, a `Blob`, or a `File`. */
 export async function open(
   source: PdfSource,
@@ -44,6 +53,7 @@ export class Document {
   readonly #inner: NativeDocument;
   readonly #scheduler: Scheduler<RenderedPage>;
   readonly #limit: number;
+  readonly #cache: RenderCache<RenderedPage>;
 
   /** @internal — construct via {@link open}. */
   constructor(inner: NativeDocument, options: OpenOptions = {}) {
@@ -52,6 +62,20 @@ export class Document {
     this.#scheduler = new Scheduler<RenderedPage>(this.#limit, {
       yieldToUrgent: options.yieldToUrgent,
     });
+    this.#cache = new RenderCache<RenderedPage>(
+      options.cacheBytes ?? DEFAULT_CACHE_BYTES,
+      (page) => page.data.byteLength,
+    );
+  }
+
+  /** Rendered pages held for reuse, and how often that has paid off. */
+  get cache(): CacheStats {
+    return this.#cache.stats;
+  }
+
+  /** Drop every cached page. */
+  clearCache(): void {
+    this.#cache.clear();
   }
 
   /** Pages queued but not yet started, pages rendering, and the longest wait so far. */
@@ -96,13 +120,23 @@ export class Document {
    * });
    * ```
    */
-  render(index: number, options: RenderOptions = {}): JobHandle<RenderedPage> {
+  render(index: number, options: RenderOptions = {}): RenderHandle {
     const dpi = this.#resolveDpi(index, options);
+    const key = `${index}@${dpi.toFixed(4)}`;
+
+    const hit = this.#cache.get(key);
+    if (hit) return cachedHandle(key, hit);
+
     const handle = this.#scheduler.submit({
-      key: `${index}@${dpi.toFixed(4)}`,
+      key,
       priority: options.priority ?? DEFAULT_PRIORITY,
       run: () =>
-        this.#inner.renderPageAsync(index, dpi) as Promise<RenderedPage>,
+        (this.#inner.renderPageAsync(index, dpi) as Promise<RenderedPage>).then(
+          (page) => {
+            this.#cache.set(key, page);
+            return page;
+          },
+        ),
     });
 
     const { signal } = options;
@@ -117,7 +151,7 @@ export class Document {
           },
         );
     }
-    return handle;
+    return liveHandle(handle);
   }
 
   /**
@@ -254,6 +288,37 @@ function defaultConcurrency(): number {
   return currentRuntime() === 'wasm'
     ? MAX_WASM_CONCURRENCY
     : hardwareConcurrency();
+}
+
+/**
+ * Wrap a scheduler handle as a {@link RenderHandle}.
+ *
+ * Delegates rather than spreading: `timing` is a getter that is null until the job
+ * settles, and a spread would freeze it at null forever.
+ */
+function liveHandle(handle: JobHandle<RenderedPage>): RenderHandle {
+  return {
+    key: handle.key,
+    cached: false,
+    promise: handle.promise,
+    get timing() {
+      return handle.timing;
+    },
+    setPriority: (priority: number) => handle.setPriority(priority),
+    cancel: (reason?: string) => handle.cancel(reason),
+  };
+}
+
+/** A handle for work that never had to happen. */
+function cachedHandle(key: string, page: RenderedPage): RenderHandle {
+  return {
+    key,
+    cached: true,
+    promise: Promise.resolve(page),
+    timing: { waitMs: 0, runMs: 0 },
+    setPriority: () => {},
+    cancel: () => {},
+  };
 }
 
 function range(start: number, end: number): number[] {

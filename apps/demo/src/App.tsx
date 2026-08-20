@@ -54,6 +54,7 @@ export function App() {
   const view = useRef<PageViewHandle>(null);
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
   const [timing, setTiming] = useState<Timing | null>(null);
+  const [cacheHits, setCacheHits] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async (file: File) => {
@@ -119,6 +120,7 @@ export function App() {
           visible,
         };
         setSize({ w: rendered.width, h: rendered.height });
+        setCacheHits(loaded.doc.cache.hits);
         setTiming(t);
         probe.current?.(t);
       })
@@ -138,17 +140,20 @@ export function App() {
     let i = 0;
     probe.current = (t) => {
       rows.push(
-        `page ${String(i + 1).padStart(2)}  wait ${t.wait.toFixed(0).padStart(5)}  ` +
+        `visit ${String(i + 1).padStart(2)} (page ${(i % 4) + 1})  ` +
+          `wait ${t.wait.toFixed(0).padStart(5)}  ` +
           `run ${t.run.toFixed(0).padStart(4)}  commit ${t.commit.toFixed(0).padStart(4)}  ` +
           `paint ${t.paint.toFixed(0).padStart(3)}  present ${t.present.toFixed(0).padStart(3)}  ` +
           `= visible ${t.visible.toFixed(0).padStart(5)}ms`,
       );
+      // Cycle over a few pages so the back half of the run revisits pages the front
+      // half already rendered — that is where a cache shows up.
       if (++i >= n) {
         probe.current = null;
         void fetch('/__perf', { method: 'POST', body: rows.join('\n') });
         return;
       }
-      setTimeout(() => setPageIndex(i), 50);
+      setTimeout(() => setPageIndex(i % 4), 50);
     };
     return () => {
       probe.current = null;
@@ -175,10 +180,9 @@ export function App() {
         {timing && (
           <span className="muted">
             page {pageIndex + 1}
-            {size && ` · ${size.w}×${size.h}`} · render{' '}
-            {timing.render.toFixed(0)} · commit {timing.commit.toFixed(0)} ·
-            paint {timing.paint.toFixed(0)} · present{' '}
-            {timing.present.toFixed(0)} ·{' '}
+            {size && ` · ${size.w}×${size.h}`} · wait {timing.wait.toFixed(0)} ·
+            run {timing.run.toFixed(0)} · paint {timing.paint.toFixed(0)} ·
+            present {timing.present.toFixed(0)} · {cacheHits} cached ·{' '}
             <strong>visible {timing.visible.toFixed(0)}ms</strong>
           </span>
         )}

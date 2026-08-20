@@ -82,4 +82,15 @@ export interface OpenOptions {
    * to maximise throughput at the cost of making urgent work wait.
    */
   yieldToUrgent?: boolean;
+  /**
+   * Bytes of rendered pages to keep for reuse. Defaults to 128 MB; `0` disables it.
+   *
+   * A render is never cheap — on a large CAD drawing every page costs >=93ms however
+   * small the output — and viewers re-render the same page constantly. Bounded by bytes
+   * rather than entries because page bitmaps span three orders of magnitude.
+   *
+   * Only the single-page path is cached (`render`, `renderPage`, `stream`).
+   * `renderPages` is a throughput API and would evict everything useful in one call.
+   */
+  cacheBytes?: number;
 }

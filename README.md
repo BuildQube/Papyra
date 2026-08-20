@@ -43,7 +43,18 @@ default) — ordering the queue is not enough on its own, since a job that has a
 started competes for CPU for its whole duration.
 
 `doc.render()`'s handle reports `timing: { waitMs, runMs }` once it settles, which is how
-you tell a long queue from a slow render. Priority only helps when the
+you tell a long queue from a slow render.
+
+Rendered pages are cached by `(page, size)` under a byte budget — 128 MB by default,
+`cacheBytes: 0` to disable. It matters more than it sounds: on a large CAD drawing every
+page costs >=93 ms however small the output, because the cost is per-draw-call rather
+than per-pixel. Revisiting a page you have already seen is ~50x faster, and a lookup
+never occupies a render slot.
+
+```ts
+doc.cache;        // { bytes, entries, hits, misses, evictions }
+doc.clearCache();
+``` Priority only helps when the
 queue is deeper than the pool — measured 5.2x faster to the visible page at concurrency
 4, but only 1.1x at 18.
 

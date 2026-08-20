@@ -14,7 +14,9 @@
  * ```
  */
 
+export type { CacheStats } from './cache.js';
 export { paintToCanvas, toImageData } from './canvas.js';
+export type { RenderHandle } from './document.js';
 export { Document, open } from './document.js';
 export type { Runtime } from './runtime.js';
 export {

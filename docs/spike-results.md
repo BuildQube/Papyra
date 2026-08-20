@@ -785,3 +785,62 @@ Cost tracks page content, not output size, and it is paid on every render.
 The general lesson: "fixed cost independent of output size" was measured correctly in
 Addendum 6, but the cause was assumed rather than measured. `DummyDevice` gave the real
 split in an afternoon and saved building the wrong thing.
+
+---
+
+# Addendum 11: the render cache
+
+Addendum 10 ruled out the recording device and tiling, and left caching as the only
+large lever inside our own layer. It is worth more than either would have been.
+
+## Why bytes, not entries
+
+Page bitmaps span three orders of magnitude: a 160px thumbnail of an ARCH-E sheet is
+0.07 MB, the same page at 2000px is 11.4 MB. An entry-count limit would hold almost
+nothing on one document and hundreds of megabytes on another. The budget is bytes,
+defaulting to 128 MB, and `cacheBytes: 0` disables it.
+
+An item larger than the whole budget is refused rather than admitted — otherwise a
+single huge page would evict everything and still not fit.
+
+## Where it sits
+
+In TypeScript, above the scheduler. The bitmaps have already crossed into JS, so a hit
+costs nothing; caching in Rust would mean re-copying out of wasm memory on every hit.
+
+Only the single-page path is cached — `render`, `renderPage`, `stream`. `renderPages` is
+a throughput API and one call would evict everything useful.
+
+Cache lookup happens *before* the scheduler, so a hit never occupies a render slot and
+never competes with live work.
+
+## Measured
+
+44-page ARCH-E drawing set, native:
+
+```
+page 0 @1600      cold 118.3ms   warm 0.05ms      2255x
+zoom to 2400 (miss)    115.6ms
+back to 1600 (hit)       0.07ms
+all 44 thumbnails first 715ms    again 0.3ms      2512x
+cache: 46 entries, 27.0MB, 46 hits / 46 misses, 0 evictions
+```
+
+Under a deliberately tight 2 MB budget it degrades rather than thrashing to uselessness:
+27 hits / 61 misses with 34 evictions.
+
+In the browser demo, visiting four pages and then revisiting them:
+
+| visit | wait | run | commit | paint | present | **visible** |
+|---|---|---|---|---|---|---|
+| 1 (page 1) | 601ms | 234ms | 0 | 1ms | 10ms | **846ms** |
+| 4 (page 4) | 430ms | 234ms | 0 | 1ms |  6ms | **671ms** |
+| 5 (page 1) | **0** | **0** | 0 | 1ms | 13ms | **14ms** |
+| 8 (page 4) | **0** | **0** | 0 | 1ms | 13ms | **14ms** |
+
+**~50x faster to a page already seen**, and the residual 14ms is entirely paint plus
+compositing an 11 MB canvas — there is nothing left to remove.
+
+This also softens the thumbnail contention from Addendum 9 without touching the
+scheduler: a thumbnail already rendered never queues again, so the strip stops competing
+for slots the moment it has been through once.
