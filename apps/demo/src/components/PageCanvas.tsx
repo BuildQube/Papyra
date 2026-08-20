@@ -6,6 +6,13 @@ interface Props {
   className?: string;
 }
 
+/**
+ * Declarative canvas for small bitmaps.
+ *
+ * Fine for thumbnails, which are tens of kilobytes. The main viewport uses
+ * {@link PageView} instead, because holding a multi-megabyte page in React state
+ * costs hundreds of milliseconds per page change.
+ */
 export function PageCanvas({ page, className }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
 

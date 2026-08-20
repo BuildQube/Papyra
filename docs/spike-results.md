@@ -581,3 +581,61 @@ wide.** The demo opens at 4.
 Scheduler behaviour is covered by unit tests in `packages/papyra/test/scheduler.test.ts`
 — ordering, FIFO within a tier, the concurrency cap, coalescing, promotion, mutation,
 cancellation semantics, and error propagation.
+
+---
+
+# Addendum 8: the demo's timing readout was lying
+
+Reported symptom: the demo showed fast render times while the page visibly took much
+longer to appear. Both halves were true — the readout measured the wrong thing.
+
+`renderMs` was the time from submitting the render to the promise resolving. What the
+user waits for is the time until pixels are on screen. Instrumenting the whole path
+(`render` -> `commit` -> `paint` -> `present`) on the 44-page ARCH-E drawing set:
+
+```
+page 1  render  999ms  commit  ...  paint 1ms  present 3ms  = visible 1338ms
+```
+
+Two hypotheses were wrong before the right one. `toImageData` uses
+`Uint8ClampedArray.from()` on an 11 MB buffer, which looked like an O(n) iterator walk —
+V8 has a fast path, it costs 1.1 ms. Painting looked expensive — `putImageData` is 1 ms
+and compositing is 1-7 ms. Neither mattered.
+
+## Cause: multi-megabyte bitmaps in React state
+
+The gap was between the render promise resolving and the paint effect running: **~577 ms**
+of "commit" for a trivial component tree. A 2000px-wide ARCH-E page is 11.4 MB, and
+`setPage(bitmap)` put that in React state — allocating a new multi-megabyte buffer per
+page change, holding it across a render pass, and dropping the previous one.
+
+`PageView` now paints imperatively through a ref, so the bitmap never enters React state
+and dies as soon as the canvas has the pixels:
+
+| | render | commit | paint | present | **visible** |
+|---|---|---|---|---|---|
+| bitmap in React state | 209ms | 577ms | 1ms | 3ms | **790ms** |
+| painted imperatively  | 221ms | **0ms** | 1ms | 1ms | **223ms** |
+
+**3.5x faster to pixels on screen**, and the readout now reports `visible` rather than
+flattering itself with `render`. Letter-size pages are 22-39 ms end-to-end.
+
+Thumbnails keep the declarative `PageCanvas`: at tens of kilobytes they are nowhere near
+the threshold where this matters.
+
+## Still open: thumbnail contention
+
+With the strip streaming, the viewport render inflates from ~220 ms to ~1030 ms even
+though it is submitted at priority 0 and thumbnails at 2. The scheduler is ordering
+correctly — this is contention for the four render slots, plus something not yet
+identified, since batching the strip's React updates into animation frames changed
+nothing (that change was measured and reverted rather than shipped on intuition).
+
+Worth investigating: how long the priority-0 job actually sits queued versus how long it
+runs. The scheduler currently exposes counts (`doc.queued`) but not wait time, and that
+is the measurement needed to tell queue delay from render slowdown.
+
+Reproduce any of this with:
+`bun run --filter papyra-demo dev` then a clean headless browser against
+`/?file=/big.pdf&probe=6[&thumbs=0][&width=N]` — results POST to the dev server's
+`/__perf` route. Never measure in an automated tab; see Addendum 5.

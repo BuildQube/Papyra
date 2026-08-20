@@ -3,12 +3,24 @@ import {
   currentRuntime,
   type Document,
   open,
-  type RenderedPage,
 } from '@build-qube/papyra';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { BenchPanel } from './components/BenchPanel.js';
-import { PageCanvas } from './components/PageCanvas.js';
+import { PageView, type PageViewHandle } from './components/PageView.js';
 import { Thumbnails } from './components/Thumbnails.js';
+
+interface Timing {
+  /** Submitted to the scheduler until the bitmap came back. */
+  render: number;
+  /** Bitmap in hand until React committed and the paint effect ran. */
+  commit: number;
+  /** putImageData. */
+  paint: number;
+  /** putImageData done until the compositor showed the frame. */
+  present: number;
+  /** Request until the pixels were actually on screen. */
+  visible: number;
+}
 
 interface Loaded {
   doc: Document;
@@ -20,16 +32,24 @@ interface Loaded {
  * Render the viewport by output width rather than DPI: 150 DPI is 6300x4500 (113 MB)
  * for an ARCH-E drawing, all of it thrown away by a ~900px-wide viewport.
  */
-const VIEW_WIDTH = Math.min(
-  2000,
-  Math.round(window.screen.width * (window.devicePixelRatio || 1)),
-);
+const VIEW_WIDTH =
+  Number(new URLSearchParams(window.location.search).get('width')) ||
+  Math.min(
+    2000,
+    Math.round(window.screen.width * (window.devicePixelRatio || 1)),
+  );
+
+// ?thumbs=0 disables the strip, to separate render-queue contention from main-thread
+// contention when measuring.
+const showThumbs =
+  new URLSearchParams(window.location.search).get('thumbs') !== '0';
 
 export function App() {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
-  const [page, setPage] = useState<RenderedPage | null>(null);
-  const [renderMs, setRenderMs] = useState<number | null>(null);
+  const view = useRef<PageViewHandle>(null);
+  const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+  const [timing, setTiming] = useState<Timing | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async (file: File) => {
@@ -68,18 +88,62 @@ export function App() {
     if (!loaded) return;
     let cancelled = false;
     const started = performance.now();
+    setTiming(null);
     loaded.doc
       .renderPage(pageIndex, { fitWidth: VIEW_WIDTH, priority: 0 })
-      .then((rendered) => {
+      .then(async (rendered) => {
         if (cancelled) return;
-        setPage(rendered);
-        setRenderMs(performance.now() - started);
+        const render = performance.now() - started;
+        // Paint straight through: the bitmap never enters React state, so it can be
+        // collected as soon as the canvas has the pixels.
+        const painted = (await view.current?.paint(rendered)) ?? {
+          paintMs: 0,
+          presentMs: 0,
+        };
+        if (cancelled) return;
+        const visible = performance.now() - started;
+        const t: Timing = {
+          render,
+          commit: visible - render - painted.paintMs - painted.presentMs,
+          paint: painted.paintMs,
+          present: painted.presentMs,
+          visible,
+        };
+        setSize({ w: rendered.width, h: rendered.height });
+        setTiming(t);
+        probe.current?.(t);
       })
       .catch((e: Error) => !cancelled && setError(e.message));
     return () => {
       cancelled = true;
     };
   }, [loaded, pageIndex]);
+
+  // ?probe=N steps through N pages and reports timings to the dev server, so page
+  // navigation can be measured without a human clicking. Dev affordance only.
+  const probe = useRef<((t: Timing) => void) | null>(null);
+  useEffect(() => {
+    const n = Number(new URLSearchParams(window.location.search).get('probe'));
+    if (!loaded || !Number.isFinite(n) || n <= 0) return;
+    const rows: string[] = [];
+    let i = 0;
+    probe.current = (t) => {
+      rows.push(
+        `page ${String(i + 1).padStart(2)}  render ${t.render.toFixed(0).padStart(5)}  ` +
+          `commit ${t.commit.toFixed(0).padStart(5)}  paint ${t.paint.toFixed(0).padStart(4)}  ` +
+          `present ${t.present.toFixed(0).padStart(4)}  = visible ${t.visible.toFixed(0).padStart(5)}ms`,
+      );
+      if (++i >= n) {
+        probe.current = null;
+        void fetch('/__perf', { method: 'POST', body: rows.join('\n') });
+        return;
+      }
+      setTimeout(() => setPageIndex(i), 50);
+    };
+    return () => {
+      probe.current = null;
+    };
+  }, [loaded]);
 
   return (
     <div className="app">
@@ -98,10 +162,14 @@ export function App() {
             }}
           />
         </label>
-        {renderMs !== null && (
+        {timing && (
           <span className="muted">
-            page {pageIndex + 1} in {renderMs.toFixed(1)}ms
-            {page && ` · ${page.width}×${page.height}`}
+            page {pageIndex + 1}
+            {size && ` · ${size.w}×${size.h}`} · render{' '}
+            {timing.render.toFixed(0)} · commit {timing.commit.toFixed(0)} ·
+            paint {timing.paint.toFixed(0)} · present{' '}
+            {timing.present.toFixed(0)} ·{' '}
+            <strong>visible {timing.visible.toFixed(0)}ms</strong>
           </span>
         )}
       </header>
@@ -126,13 +194,15 @@ export function App() {
         </section>
       ) : (
         <main className="workspace">
-          <Thumbnails
-            doc={loaded.doc}
-            current={pageIndex}
-            onSelect={setPageIndex}
-          />
+          {showThumbs && (
+            <Thumbnails
+              doc={loaded.doc}
+              current={pageIndex}
+              onSelect={setPageIndex}
+            />
+          )}
           <section className="viewer">
-            <PageCanvas page={page} className="page" />
+            <PageView ref={view} className="page" />
           </section>
           <BenchPanel bytes={loaded.bytes} name={loaded.name} />
         </main>
