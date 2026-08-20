@@ -844,3 +844,75 @@ compositing an 11 MB canvas — there is nothing left to remove.
 This also softens the thumbnail contention from Addendum 9 without touching the
 scheduler: a thumbnail already rendered never queues again, so the strip stops competing
 for slots the moment it has been through once.
+
+---
+
+# Addendum 12: profiling the floor — it is redundant image decoding
+
+Addendum 10 proposed two upstream issues: trivial transparency groups, and absent
+viewport culling. Profiling says **the first one is wrong** and there is a better issue
+underneath both.
+
+## Profile
+
+`examples/hot_loop.rs` renders one page in a loop; `sample` attributes the cost. Page 0
+of the ARCH-E set at 0.2x (a 605px output, so per-pixel work is negligible):
+
+| leaf function | share |
+|---|---|
+| `miniz_oxide::inflate::core::init_tree` | **14.6%** |
+| `_platform_memmove` | 12.5% |
+| `__bzero` | 8.1% |
+| `zune_jpeg::…::decode_mcu_block` | 7.3% |
+| `hayro_syntax::bit_reader` | 5.1% |
+| `hayro_syntax::filter::lzw_flate::apply` | 3.1% |
+| `vello_cpu::fine::run_cmd` | 2.1% |
+| `vello_common::clip::intersect` | 1.9% |
+
+By category: **~30% image decoding** (inflate 19%, JPEG 11%) and **~24% memory**
+(memmove/bzero/memset/free, the buffers those decodes allocate). Actual rasterisation is
+~2%. Transparency-group handling does not appear at all — the Addendum 10 hypothesis was
+not supported.
+
+`init_tree` being the single hottest function is the tell: it is Huffman table setup, paid
+once **per inflate stream**, so it scales with the number of images rather than their size.
+
+## The redundancy
+
+`examples/count_ops.rs` now counts distinct images by `CacheKey`:
+
+| page | image draws | distinct | redundancy |
+|---|---|---|---|
+| 0  | 16,310 | 255 | **64x** |
+| 2  | 41,817 | 497 | **84x** |
+| 5  | 41,832 | 512 | **82x** |
+| 20 | 16,308 | 253 | **64x** |
+| 43 |    101 | 101 | 1x |
+
+Ordinary documents are unaffected: tracemonkey has 0 images, the AcroForm has 2.
+
+**The same ~255 images are decoded ~64 times each, on every render.**
+
+## hayro already has the pattern
+
+`hayro::renderer::Renderer` holds `soft_mask_cache: HashMap<u128, Mask>` and
+`outline_cache: Rc<RefCell<HashMap<u128, Rc<BezPath>>>>`, and `cached_outline()` is
+exactly the shape needed: key by `cache_key()`, look up, insert. Decoded images have no
+equivalent.
+
+`Image` already implements `CacheKey`, so the key exists.
+
+## Revised upstream position
+
+1. **No decoded-image cache** — the real issue. Small, precedented by `cached_outline`,
+   and bounded upside is large: if ~55% of a render is decode plus the allocation feeding
+   it, and 63 of every 64 decodes are redundant, this document's floor should roughly
+   halve.
+2. ~~Trivial transparency groups~~ — **withdrawn.** Hypothesised in Addendum 10, not
+   supported by the profile.
+3. **Viewport culling** — still real (Addendum 10's crop test stands), but second-order
+   and architecturally much larger. Culling would also avoid decoding images that are not
+   visible, so it overlaps with (1) while being far harder.
+
+Our own render cache (Addendum 11) makes *repeat* renders free but cannot help the first
+render of a page. This is the fix for that half.

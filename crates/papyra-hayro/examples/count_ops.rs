@@ -6,10 +6,11 @@ use hayro_interpret::font::Glyph;
 use hayro_interpret::hayro_syntax::Pdf;
 use hayro_interpret::util::TransformExt;
 use hayro_interpret::{
-  BlendMode, ClipPath, Context, Device, GlyphDrawMode, Image, InterpreterCache,
+  BlendMode, CacheKey, ClipPath, Context, Device, GlyphDrawMode, Image, InterpreterCache,
   InterpreterSettings, Paint, PathDrawMode, SoftMask, interpret_page,
 };
 use kurbo::{Affine, BezPath, Rect};
+use std::collections::HashSet;
 
 #[derive(Default)]
 struct Counter {
@@ -22,6 +23,9 @@ struct Counter {
   /// Groups with opacity 1.0, Normal blend and no soft mask — i.e. groups that make no
   /// difference to the output and could in principle be elided.
   trivial_groups: u64,
+  /// Distinct images by cache key. If this is far below `images`, the same image is
+  /// being drawn — and decoded — over and over.
+  distinct_images: HashSet<u128>,
 }
 
 impl<'a> Device<'a> for Counter {
@@ -48,8 +52,9 @@ impl<'a> Device<'a> for Counter {
   fn draw_glyph(&mut self, _: &Glyph<'a>, _: Affine, _: Affine, _: &Paint<'a>, _: &GlyphDrawMode) {
     self.glyphs += 1;
   }
-  fn draw_image(&mut self, _: Image<'a, '_>, _: Affine) {
+  fn draw_image(&mut self, image: Image<'a, '_>, _: Affine) {
     self.images += 1;
+    self.distinct_images.insert(image.cache_key());
   }
   fn pop_clip_path(&mut self) {}
   fn pop_transparency_group(&mut self) {}
@@ -81,7 +86,11 @@ fn main() {
   println!("  paths          {:>9}", counter.paths);
   println!("  path segments  {:>9}", counter.path_segments);
   println!("  glyphs         {:>9}", counter.glyphs);
-  println!("  images         {:>9}", counter.images);
+  println!(
+    "  images         {:>9}  ({} distinct)",
+    counter.images,
+    counter.distinct_images.len()
+  );
   println!("  clip pushes    {:>9}", counter.clips);
   println!(
     "  groups         {:>9}  ({} trivial: opacity 1, Normal, no mask)",
