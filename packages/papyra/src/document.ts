@@ -1,5 +1,10 @@
 import { PdfDocument as NativeDocument } from '@build-qube/papyra-native';
-import { currentRuntime, hardwareConcurrency, init } from './runtime.js';
+import {
+  currentRuntime,
+  hardwareConcurrency,
+  init,
+  MAX_WASM_CONCURRENCY,
+} from './runtime.js';
 import { toBytes } from './source.js';
 import type {
   OpenOptions,
@@ -108,9 +113,16 @@ export class Document {
   async *stream(options: StreamOptions = {}): AsyncGenerator<StreamedPage> {
     const dpi = options.dpi ?? DEFAULT_DPI;
     const pages = options.order ?? range(0, this.pageCount);
+    // napi-rs fixes the browser async-work pool at 4, so oversubscribing it just
+    // holds more pixel buffers in memory for nothing: measured 6.1 ms/page flat from
+    // concurrency 4 through 16 on an 18-core machine. See docs/spike-results.md.
+    const ceiling =
+      currentRuntime() === 'wasm'
+        ? MAX_WASM_CONCURRENCY
+        : hardwareConcurrency();
     const limit = Math.max(
       1,
-      options.concurrency ?? Math.min(hardwareConcurrency(), pages.length || 1),
+      options.concurrency ?? Math.min(ceiling, pages.length || 1),
     );
 
     const inflight = new Map<

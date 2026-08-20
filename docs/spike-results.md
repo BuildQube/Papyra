@@ -371,3 +371,92 @@ work. This is deterministic, not flaky, and explains the earlier intermittent "h
 Both keep the event loop free. `configureThreadPool()` remains wasm-only and must be
 called before any other rayon use (`available_parallelism` is unsupported there, so rayon
 otherwise pins itself to one thread).
+
+---
+
+# Addendum 5: browser wasm perf — the problem was the measurement
+
+The scaffold landed with "browser wasm is ~3000 ms/page vs 8.7 ms/page in Node" as the
+top open risk. That number was wrong, for two independent reasons.
+
+## Cause 1: the debugger was suppressing JIT tiering
+
+Every earlier browser measurement was taken in a tab with the browser-automation
+extension attached. An attached debugger stops V8 tiering wasm up from Liftoff to
+TurboFan, so the numbers reflected unoptimised code.
+
+Same page, same build, same machine — the only difference is the debugger:
+
+| measurement           | debugger attached | clean headless |
+|-----------------------|-------------------|----------------|
+| single page @150 DPI  |          56.1 ms  |    **14.5 ms** |
+| stream, concurrency 1 |       79.1 ms/pg  | **17.7 ms/pg** |
+| stream, concurrency 4 |       25.2 ms/pg  |  **6.2 ms/pg** |
+
+**Never benchmark wasm in an automated/instrumented tab.** `apps/demo/perf.html` +
+`src/perf.ts` POST their results to a `/__perf` dev-server route precisely so they can
+be run in a plain headless browser:
+
+```bash
+bun run --filter papyra-demo dev
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --headless=new --disable-gpu --no-sandbox --user-data-dir=/tmp/chrome-perf \
+  http://localhost:5173/perf.html
+# results appear in the vite output between ===PERF=== markers
+```
+
+Use a fresh `--user-data-dir` each run; a reused dirty profile produced misleading
+degradation at high concurrency.
+
+## Cause 2: the demo starved its own viewport
+
+The remaining slowness was the app, not the engine. `App` rendered the visible page
+while `Thumbnails` simultaneously scheduled a render for every page in the document.
+They share one pool, so the page the user was looking at queued behind 14 thumbnails.
+Fixed by gating thumbnail streaming on the first page being on screen.
+
+## Real browser numbers
+
+tracemonkey.pdf, 14 pages @ 150 DPI, clean headless Chrome, best of 5 after 3 warmup
+passes. Single-threaded browser (17.6 ms/pg) now matches Node wasm (~18.9 ms/pg), which
+is the sanity check that the wasm build itself was never the problem.
+
+| in-flight renders | ms/page |
+|-------------------|---------|
+| 1                 |   17.58 |
+| 2                 |    9.86 |
+| 3                 |    7.37 |
+| 4                 |  **6.18** |
+| 6                 |    6.10 |
+| 8                 |    6.11 |
+| 16                |    6.12 |
+
+Throughput plateaus at 4 in-flight renders — exactly napi-rs's hardcoded
+`asyncWorkPoolSize = 4` in the generated browser glue. Patching that constant to scale
+with `navigator.hardwareConcurrency` did **not** help and made concurrency 8–16 *worse*
+(6.2 → 9.1 → 11.7 ms/pg), so the patch was reverted rather than shipped. Instead the
+wrapper caps wasm concurrency at `MAX_WASM_CONCURRENCY = 4`; going higher only inflates
+peak memory.
+
+## papyra vs pdf.js, same browser, same page
+
+This is the comparison that counts, and it is far more modest than the Node one:
+
+| | papyra | pdf.js | |
+|---|---|---|---|
+| all 14 pages @150 | 6.13 ms/pg | 8.21 ms/pg | **papyra 1.30x** |
+| single page @150  | 14.3 ms    | 6.4 ms     | **pdf.js 2.3x**  |
+
+Two things to absorb:
+
+- **pdf.js is much faster in a real browser than in Node** (8.2 vs 16.3 ms/pg): it
+  renders into a canvas backed by Chrome's own accelerated rasteriser, where the Node
+  comparison used CPU-only `@napi-rs/canvas`. Our Node benchmark flatters us.
+- **pdf.js wins decisively on a single page.** papyra rasterises on the CPU in wasm and
+  then hands pixels back across the boundary; pdf.js draws straight into the canvas with
+  no copy. papyra's 14.3 ms does not even include `paintToCanvas`.
+
+So the browser story is **batch work, not viewing**: thumbnail grids, prerendering,
+export, bulk rasterisation. For "open a PDF and look at one page", pdf.js is still the
+better tool in the browser. The 5.59x aggregate advantage is a **Node** result and
+should be quoted as such.

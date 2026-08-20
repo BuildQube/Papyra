@@ -63,9 +63,21 @@ Cross-Origin-Embedder-Policy: require-corp
 false.
 
 **Concurrency works differently per runtime**, and the wrapper handles it for you:
-native uses one async task with rayon inside, wasm uses per-page async tasks. See
-`docs/spike-results.md` for why — including a memory-growth race and a rayon deadlock
-that shaped the design.
+native uses one async task with rayon inside, wasm uses per-page async tasks capped at
+4 in flight. See `docs/spike-results.md` for why — including a memory-growth race and a
+rayon deadlock that shaped the design.
+
+## Performance, honestly
+
+- **Node**: ~5.6x pdf.js aggregate on the test corpus (`bun run --filter papyra-bench bench`).
+- **Browser**: ~1.3x pdf.js on multi-page throughput, but pdf.js is ~2.3x faster on a
+  single page — it draws straight into an accelerated canvas while papyra rasterises on
+  the CPU and copies pixels out. papyra's browser win is batch work (thumbnails,
+  prerendering, export), not single-page viewing.
+
+Benchmark wasm only in a clean headless browser; an attached debugger suppresses JIT
+tiering and inflates timings ~4x. `apps/demo/perf.html` exists for this — see
+`docs/spike-results.md`.
 
 ## Licence
 

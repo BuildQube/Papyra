@@ -6,6 +6,15 @@ import {
 
 export type Runtime = 'native' | 'wasm';
 
+/**
+ * Useful concurrency ceiling on wasm.
+ *
+ * napi-rs hardcodes `asyncWorkPoolSize = 4` in its generated browser glue, and
+ * `AsyncTask` work is dispatched through that pool. Measured throughput is flat from
+ * 4 through 16 in-flight renders, so anything above this only inflates peak memory.
+ */
+export const MAX_WASM_CONCURRENCY = 4;
+
 let initialised = false;
 
 /** Best guess at how many renders this host can genuinely run at once. */

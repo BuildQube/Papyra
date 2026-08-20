@@ -16,8 +16,30 @@ const crossOriginIsolation = {
   'Cross-Origin-Embedder-Policy': 'require-corp',
 };
 
+/**
+ * Lets the perf probe report back over HTTP, so it can be run in a plain headless
+ * browser with no debugger attached — an attached debugger can suppress JIT tiering
+ * and make wasm measurements meaningless.
+ */
+const perfSink = {
+  name: 'perf-sink',
+  configureServer(server: import('vite').ViteDevServer) {
+    server.middlewares.use('/__perf', (req, res) => {
+      let body = '';
+      req.on('data', (c: Buffer) => {
+        body += c;
+      });
+      req.on('end', () => {
+        console.log(`\n===PERF===\n${body}\n===END===`);
+        res.statusCode = 204;
+        res.end();
+      });
+    });
+  },
+};
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), perfSink],
   resolve: {
     alias: {
       // In the published package `browser.js` re-exports the per-platform wasm
@@ -40,5 +62,13 @@ export default defineConfig({
   // napi-rs's generated wasi glue uses top-level await; esbuild only allows that at
   // esnext with an ES module output.
   esbuild: { target: 'esnext' },
-  build: { target: 'esnext' },
+  build: {
+    target: 'esnext',
+    rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL('index.html', import.meta.url)),
+        perf: fileURLToPath(new URL('perf.html', import.meta.url)),
+      },
+    },
+  },
 });

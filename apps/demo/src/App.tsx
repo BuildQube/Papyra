@@ -24,6 +24,7 @@ export function App() {
   const [page, setPage] = useState<RenderedPage | null>(null);
   const [renderMs, setRenderMs] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [firstPageDone, setFirstPageDone] = useState(false);
 
   const load = useCallback(async (file: File) => {
     setError(null);
@@ -33,6 +34,7 @@ export function App() {
       const doc = await open(file);
       setLoaded({ doc, bytes, name: file.name });
       setPageIndex(0);
+      setFirstPageDone(false);
     } catch (e) {
       setError((e as Error).message);
     }
@@ -48,6 +50,7 @@ export function App() {
         if (cancelled) return;
         setPage(rendered);
         setRenderMs(performance.now() - started);
+        setFirstPageDone(true);
       })
       .catch((e: Error) => !cancelled && setError(e.message));
     return () => {
@@ -103,6 +106,7 @@ export function App() {
             doc={loaded.doc}
             current={pageIndex}
             onSelect={setPageIndex}
+            enabled={firstPageDone}
           />
           <section className="viewer">
             <PageCanvas page={page} className="page" />
