@@ -35,6 +35,8 @@
       "wasm32-wasip1-threads"
     ],
     "wasm": {
+      "//": "napi omits the wasm flavour from the root optionalDependencies by default, so every Node consumer avoids downloading a wasm they never load. papyra ships browser.js, which re-exports the wasm package by name, so for us that default leaves browser bundlers with an unresolvable import.",
+      "optionalDependency": true,
       "browser": {
         "fs": false,
         "asyncInit": true
@@ -55,7 +57,7 @@
     "build:wasm": "napi build --platform --release --target wasm32-wasip1-threads",
     "create-npm-dirs": "napi create-npm-dirs",
     "test": "node --test \"__test__/**/*.test.mts\"",
-    "prepublishOnly": "napi prepublish -t npm --no-gh-release",
+    "publish-platforms": "napi prepublish -t npm --no-gh-release",
     "clean": "rm -rf *.node *.wasm index.js index.d.ts browser.js papyra.wasi*.* wasi-worker*.mjs npm"
   },
   "devDependencies": {

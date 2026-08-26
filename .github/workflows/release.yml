@@ -126,8 +126,8 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: 1.3.11 }
 
-      # Trusted publishing is npm's, not bun's: `changeset publish` shells out to
-      # `npm publish`, and so does napi's prepublish hook. Both need npm >= 11.5.1
+      # Trusted publishing is npm's, not bun's: `changeset publish` and napi's
+      # platform publish both shell out to `npm publish`. Both need npm >= 11.5.1
       # for OIDC, so pin Node and top up npm rather than trusting the image's.
       - uses: actions/setup-node@v7
         with:
@@ -141,6 +141,17 @@ jobs:
         run: |
           npm install -g npm@latest
           npm --version
+
+      # Fails fast and legibly on a credential problem. Without it the first thing
+      # to touch the registry is a publish buried inside `npm publish --json`,
+      # which reports a rejection only as "command failed".
+      - name: Check registry credentials
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "authenticated to npm as: $(npm whoami)"
+          echo "--- write access to the @build-qube scope ---"
+          npm access list packages @build-qube 2>&1 | head -20 || true
 
       - run: bun install --frozen-lockfile
 
@@ -162,10 +173,17 @@ jobs:
 
       # `script` runs the root `release` script rather than letting the action call
       # `changeset publish` itself, because napi has to lay out and fill
-      # packages/bindings/npm/<platform>/ first. The per-platform packages are then
-      # published by the bindings package's `prepublishOnly` hook, which is why the
-      # pack/publish split is not used here — npm skips lifecycle scripts when
-      # publishing a pre-packed tarball, and the platform packages would never ship.
+      # packages/bindings/npm/<platform>/ and publish those six packages first.
+      #
+      # That step used to be the bindings package's `prepublishOnly` hook, which
+      # made failures undiagnosable: `changeset publish` invokes `npm publish
+      # --json`, and npm folds a lifecycle script's entire stderr into one
+      # "command failed" string. It now runs as its own step in the release
+      # script, where a registry rejection prints in full.
+      #
+      # It must still run before `changeset publish`: `napi prepublish` writes the
+      # root package's optionalDependencies, and those have to be in place before
+      # the root package is packed.
       - name: Publish
         uses: changesets/action/publish@v2
         with:
