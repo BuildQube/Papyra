@@ -181,7 +181,17 @@ it is what makes a highlight on rotated text a quadrilateral at the text's own a
 
 ## Conventions
 
-- Rust: 2-space indent (`rustfmt.toml`), edition 2024, MSRV 1.92. `clippy -D warnings` gates CI.
+- Rust: 2-space indent (`rustfmt.toml`), edition 2024, MSRV 1.92. `clippy -D warnings`
+  gates CI, and CI's `dtolnay/rust-toolchain@stable` **floats ahead of most local
+  toolchains** — a clean local clippy is not proof. New lints land as CI-only failures
+  (`chunks_exact_to_as_chunks` did exactly this). Check `rustup check`, and verify with
+  the version CI is on before pushing Rust:
+
+  ```bash
+  rustup toolchain install 1.98.0 --component clippy rustfmt   # whatever stable is
+  cargo +1.98.0 clippy --workspace --all-targets -- -D warnings
+  cargo +1.92 check --workspace                                # and the MSRV floor
+  ```
 - TS/JS: biome, 2-space, single quotes, 80 cols. `verbatimModuleSyntax` and
   `noUncheckedIndexedAccess` are on; imports use explicit `.js` extensions.
 - TOML: `taplo format`.

@@ -322,6 +322,16 @@ const PDF_DOC_ENCODING_C1: [char; 32] = [
   '\u{0178}', '\u{017D}', '\u{0131}', '\u{0142}', '\u{0153}', '\u{0161}', '\u{017E}', '\u{FFFD}',
 ];
 
+/// Decode UTF-16 code units of a known endianness.
+///
+/// `as_chunks` leaves a trailing odd byte in the remainder, which is the right answer
+/// for a truncated string: half a code unit decodes to nothing.
+fn decode_utf16(bytes: &[u8], to_unit: fn([u8; 2]) -> u16) -> String {
+  let (pairs, _trailing) = bytes.as_chunks::<2>();
+  let units: Vec<u16> = pairs.iter().copied().map(to_unit).collect();
+  String::from_utf16_lossy(&units)
+}
+
 /// Decode a PDF text string.
 ///
 /// hayro hands back raw bytes, so the encoding is ours to sort out: UTF-16 and UTF-8
@@ -332,19 +342,11 @@ fn decode_text_string(bytes: &[u8]) -> Option<String> {
   }
 
   if let [0xFE, 0xFF, rest @ ..] = bytes {
-    let units: Vec<u16> = rest
-      .chunks_exact(2)
-      .map(|pair| u16::from_be_bytes([pair[0], pair[1]]))
-      .collect();
-    return Some(String::from_utf16_lossy(&units));
+    return Some(decode_utf16(rest, u16::from_be_bytes));
   }
 
   if let [0xFF, 0xFE, rest @ ..] = bytes {
-    let units: Vec<u16> = rest
-      .chunks_exact(2)
-      .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
-      .collect();
-    return Some(String::from_utf16_lossy(&units));
+    return Some(decode_utf16(rest, u16::from_le_bytes));
   }
 
   if let [0xEF, 0xBB, 0xBF, rest @ ..] = bytes {
