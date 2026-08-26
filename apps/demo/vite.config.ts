@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 
 const bindings = fileURLToPath(
   new URL('../../packages/bindings', import.meta.url),
@@ -38,8 +40,52 @@ const perfSink = {
   },
 };
 
+/**
+ * GitHub Pages serves static files and cannot set response headers, so the real
+ * COOP/COEP above are unavailable there — and without cross-origin isolation
+ * `SharedArrayBuffer` does not exist and the wasm module never starts.
+ *
+ * coi-serviceworker is the standard escape hatch: a service worker that
+ * re-serves every response with the isolation headers attached. The first visit
+ * registers it and reloads once; from then on the page is isolated.
+ *
+ * Build-only. `vite dev` and `vite preview` send the headers for real, and
+ * injecting a second mechanism there would just hide breakage in the real one.
+ */
+const COI_FILENAME = 'coi-serviceworker.min.js';
+
+const coiServiceWorker: Plugin = {
+  name: 'coi-service-worker',
+  apply: 'build',
+  generateBundle() {
+    this.emitFile({
+      type: 'asset',
+      fileName: COI_FILENAME,
+      source: readFileSync(
+        createRequire(import.meta.url).resolve(
+          `coi-serviceworker/${COI_FILENAME}`,
+        ),
+      ),
+    });
+  },
+  transformIndexHtml() {
+    return [
+      {
+        tag: 'script',
+        // Relative so it resolves under whatever `base` the site is served
+        // from, and head-prepended so the reload happens before the app loads.
+        attrs: { src: `./${COI_FILENAME}` },
+        injectTo: 'head-prepend',
+      },
+    ];
+  },
+};
+
 export default defineConfig({
-  plugins: [react(), perfSink],
+  // GitHub Pages serves the project site from /<repo>/, so the deploy workflow
+  // sets PAPYRA_BASE. Local dev and previews stay at the root.
+  base: process.env.PAPYRA_BASE ?? '/',
+  plugins: [react(), perfSink, coiServiceWorker],
   resolve: {
     alias: {
       // In the published package `browser.js` re-exports the per-platform wasm

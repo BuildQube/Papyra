@@ -29,6 +29,10 @@
     },
     "papyra-demo#build": {
       "dependsOn": ["^build", "@build-qube/papyra-native#build:wasm"],
+      // PAPYRA_BASE sets vite's base path. Turbo strips env vars a task has not
+      // declared, and declaring it also keys the cache on it, so a /Papyra/ build
+      // is never served out of a / build's cache entry.
+      "env": ["PAPYRA_BASE"],
       "inputs": [
         "src/**",
         "*.html",
@@ -39,7 +43,10 @@
       "outputs": ["dist/**"]
     },
     "dev": { "cache": false, "persistent": true },
-    "test": { "dependsOn": ["build"], "inputs": ["src/**", "test/**"] },
+    "test": {
+      "dependsOn": ["build"],
+      "inputs": ["src/**", "test/**", "__test__/**"]
+    },
     "bench": { "dependsOn": ["build"], "cache": false },
     "typecheck": {
       "dependsOn": ["^build"],
