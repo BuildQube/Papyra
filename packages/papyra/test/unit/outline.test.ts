@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { OutlineEntry } from '@build-qube/papyra-native';
-import { buildOutlineTree, walkOutline } from '../src/outline.js';
+import { buildOutlineTree, walkOutline } from '../../src/outline.js';
 
 /** A flat entry with everything but the fields under test defaulted. */
 function entry(

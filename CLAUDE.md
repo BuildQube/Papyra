@@ -26,9 +26,10 @@ bun run build           # napi native addon + tsc for the TS packages
 bun run --filter @build-qube/papyra-native build:wasm   # wasm32-wasip1-threads
 bun run --filter @build-qube/papyra-native build:debug  # unoptimised native addon
 
-bun run test            # bun tests (turbo: dependsOn build)
+bun run test            # pure-TypeScript units — no addon, no corpus, no build
+bun run test:integration  # wrapper against a real addon + fetched corpus
 bun run test:rust       # cargo test --workspace
-bun run test:all        # both
+bun run test:all        # all three
 
 bun run typecheck
 bun run lint            # biome check
@@ -39,10 +40,17 @@ bun run check           # biome + cargo fmt --check + clippy -D warnings (what C
 Single tests:
 
 ```bash
-bun test packages/papyra/test/scheduler.test.ts          # one file
-bun test packages/papyra/test/scheduler.test.ts -t "coalesce"   # one test by name
+bun test packages/papyra/test/unit/scheduler.test.ts     # one file
+bun test packages/papyra/test/unit/scheduler.test.ts -t "coalesce"   # one by name
 cargo test -p papyra-hayro pdf_is_send_and_sync          # one Rust test
 ```
+
+**`test/unit` and `test/integration` are split on purpose.** CI's `unit-test` job runs
+with no Rust toolchain, no build and no corpus, so anything under `test/unit` must not
+import the wrapper's entrypoint — `document.ts` loads the native addon at module scope
+and would fail the whole job. Type-only imports from `@build-qube/papyra-native` are
+fine; they are erased. Tests needing a real artifact go in `test/integration`, which the
+`smoke` job runs against a downloaded binding.
 
 Apps (both need `bun run corpus` first; the demo also needs the wasm build):
 

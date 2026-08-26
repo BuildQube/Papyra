@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { AbortError, Scheduler } from '../src/scheduler.js';
+import { AbortError, Scheduler } from '../../src/scheduler.js';
 
 /** A job whose completion we control, so ordering is deterministic. */
 function deferred<T>() {

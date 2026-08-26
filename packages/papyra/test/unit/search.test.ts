@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { findRanges, searchPageText } from '../src/search.js';
-import type { PageText, TextLine } from '../src/text.js';
+import { findRanges, searchPageText } from '../../src/search.js';
+import type { PageText, TextLine } from '../../src/text.js';
 
 /**
  * A line of 10pt-wide characters on a 12pt baseline, so offsets and quads are

@@ -1,14 +1,19 @@
 import { describe, expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { open } from '../src/index.js';
+import { open } from '../../src/index.js';
 
 /**
- * Fixtures come from pdf.js's regression suite, which is fetched rather than vendored
+ * These need the compiled addon and the corpus, which is why they live apart from
+ * `test/unit`: CI's `unit-test` job runs the pure units with no Rust toolchain and no
+ * build, and importing the wrapper's entrypoint here would load the native binding and
+ * fail that job. `bun run test:integration` runs these, against a real artifact.
+ *
+ * Fixtures come from pdf.js's regression suite, fetched rather than vendored
  * (`bun run corpus`). Skip rather than fail when it is absent, so a fresh clone can
- * run the unit tests without a network round trip.
+ * still run them without a network round trip.
  */
-const CORPUS = join(import.meta.dir, '..', '..', '..', 'corpus');
+const CORPUS = join(import.meta.dir, '..', '..', '..', '..', 'corpus');
 const has = (name: string) => existsSync(join(CORPUS, name));
 const load = (name: string) => open(readFileSync(join(CORPUS, name)));
 

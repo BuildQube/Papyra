@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -13,20 +16,24 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: 1.3.11 }
       - uses: dtolnay/rust-toolchain@stable
-        with: { components: rustfmt, clippy }
+        with: { components: "rustfmt, clippy" }
+      - uses: Swatinem/rust-cache@v2
       - run: bun install --frozen-lockfile
       - run: bun run lint
+      # Catches a `workspace:` range in a publishable manifest before it can reach
+      # the registry, where it makes the package uninstallable under npm.
+      - run: bun run check:publishable
       - run: cargo fmt --check
       - run: cargo clippy --workspace -- -D warnings
 
   typecheck:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: 1.3.11 }
       # turbo's `typecheck` task dependsOn `^build`, and packages/bindings ships no
@@ -37,55 +44,219 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
 
-  test:
+  rust-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --workspace
+
+  # The wrapper's pure-TypeScript units. cache.ts and scheduler.ts have no imports
+  # at all, so this needs no addon, no Rust and no build — run it directly rather
+  # than through `turbo run test`, whose `test` task dependsOn `build`.
+  # The compiled binding is covered per-target by test-binding / test-wasi below.
+  unit-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: 1.3.11 }
-      # papyra-demo's build depends on @build-qube/papyra-native#build:wasm, so
-      # this job compiles for wasm as well as the host.
-      - uses: dtolnay/rust-toolchain@stable
-        with: { targets: wasm32-wasip1-threads }
       - run: bun install --frozen-lockfile
-      - run: cargo test --workspace
-      - run: bun run corpus
-      - run: bun run build
-      # `bun run test` covers the TypeScript wrapper's own logic — the scheduler, the
-      # cache, outline tree building — which nothing else in this job exercises.
-      - run: bun run test
-      - run: bun run --filter papyra-bench smoke
+      - run: bun run --filter @build-qube/papyra test
 
   build:
+    name: build ${{ matrix.target }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { host: macos-latest,   target: aarch64-apple-darwin }
-          - { host: macos-latest,   target: x86_64-apple-darwin }
-          - { host: ubuntu-latest,  target: x86_64-unknown-linux-gnu }
+          - { host: macos-latest, target: aarch64-apple-darwin }
+          - { host: macos-latest, target: x86_64-apple-darwin }
+          - { host: ubuntu-latest, target: x86_64-unknown-linux-gnu }
           # Built natively on an arm64 runner: cross-linking aarch64 from the
           # x64 host picks up the host linker, which rejects AArch64-only flags.
           - { host: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu }
           - { host: windows-latest, target: x86_64-pc-windows-msvc }
-          - { host: ubuntu-latest,  target: wasm32-wasip1-threads }
+          - { host: ubuntu-latest, target: wasm32-wasip1-threads }
     runs-on: ${{ matrix.host }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: 1.3.11 }
       - uses: dtolnay/rust-toolchain@stable
         with: { targets: "${{ matrix.target }}" }
+      - uses: Swatinem/rust-cache@v2
+        with: { key: "${{ matrix.target }}" }
       - run: bun install --frozen-lockfile
       - name: Build
         working-directory: packages/bindings
         run: bunx napi build --platform --release --target ${{ matrix.target }}
-      - uses: actions/upload-artifact@v4
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
         with:
           name: bindings-${{ matrix.target }}
-          # upload-artifact globs via @actions/glob, which has no brace
-          # expansion -- `*.{node,wasm}` matches nothing. One path per line.
+          # Includes the generated JS glue, not just the binary: index.js is the
+          # loader, and the WASI build additionally emits papyra.wasi.cjs and the
+          # worker entrypoints. All of it is gitignored, so a downstream job that
+          # only downloaded *.node/*.wasm would have nothing to require.
+          #
+          # `napi build` also writes an unstripped *.debug.wasm beside the release
+          # wasm, and the generated loader prefers the debug file whenever it is
+          # present. Excluding it is what makes test-wasi exercise the wasm we ship.
+          #
+          # upload-artifact globs via @actions/glob, which has no brace expansion --
+          # `*.{node,wasm}` matches nothing. One path per line.
           path: |
             packages/bindings/*.node
             packages/bindings/*.wasm
+            !packages/bindings/*.debug.wasm
+            packages/bindings/index.js
+            packages/bindings/index.d.ts
+            packages/bindings/browser.js
+            packages/bindings/papyra.wasi*.*
+            packages/bindings/wasi-worker*.mjs
           if-no-files-found: error
+
+  # Runs the real addon on the platform it was compiled for. Nothing here rebuilds
+  # Rust: each job downloads the artifact its target produced and runs the bindings
+  # package's own `test` script against it — the same command the WASI job below
+  # runs, with the environment as the only difference.
+  test-binding:
+    name: test ${{ matrix.target }} - node@${{ matrix.node }}
+    needs: build
+    strategy:
+      fail-fast: false
+      # `target` and `node` must both be real matrix keys so the product expands to
+      # ten jobs. `include` entries whose keys are all absent from the base matrix
+      # get merged into *every* combination, each overwriting the last — a matrix of
+      # pure `include` plus a bare `node` list silently collapses to the final entry.
+      # Keying the includes on `target` makes each one apply to its own combinations.
+      matrix:
+        node: ["22", "24"]
+        target:
+          - aarch64-apple-darwin
+          - x86_64-apple-darwin
+          - x86_64-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
+          - x86_64-pc-windows-msvc
+        include:
+          - { target: aarch64-apple-darwin, host: macos-latest }
+          # macos-13 is retired; macos-15-intel is the remaining x86_64 macOS
+          # runner, supported until Fall 2027.
+          - { target: x86_64-apple-darwin, host: macos-15-intel }
+          - { target: x86_64-unknown-linux-gnu, host: ubuntu-latest }
+          - { target: aarch64-unknown-linux-gnu, host: ubuntu-24.04-arm }
+          - { target: x86_64-pc-windows-msvc, host: windows-latest }
+    runs-on: ${{ matrix.host }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: "${{ matrix.node }}" }
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: 1.3.11 }
+      - run: bun install --frozen-lockfile
+      - name: Download binding
+        uses: actions/download-artifact@v8
+        with:
+          name: bindings-${{ matrix.target }}
+          path: packages/bindings
+      - run: bun run corpus
+      # `--filter` runs the package script directly rather than through turbo,
+      # whose `test` task dependsOn `build` and would recompile the Rust we just
+      # downloaded. The Rust toolchain is deliberately absent from this job, so a
+      # missing artifact fails loudly instead of quietly rebuilding from source.
+      - name: Test binding
+        run: bun run --filter @build-qube/papyra-native test
+        env:
+          PAPYRA_EXPECT_RUNTIME: native
+
+  # The WASI build is the easiest one to test by accident: without a hard assertion
+  # the loader silently falls back to a native addon and the job goes green having
+  # tested nothing. Two belts here — NAPI_RS_FORCE_WASI=error makes the loader refuse
+  # to fall back, and PAPYRA_EXPECT_RUNTIME=wasm makes the test assert what loaded.
+  #
+  # `NAPI_RS_FORCE_WASI=1`/`true` is NOT enough: those only *prefer* WASI and keep a
+  # lazy native fallback. Only `error` requires a WASI flavor to load.
+  #
+  # Identical command to test-binding above; only the environment differs.
+  test-wasi:
+    name: test wasm32-wasip1-threads - node@${{ matrix.node }}
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: "${{ matrix.node }}" }
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: 1.3.11 }
+      - run: bun install --frozen-lockfile
+      - name: Download wasm binding
+        uses: actions/download-artifact@v8
+        with:
+          name: bindings-wasm32-wasip1-threads
+          path: packages/bindings
+      # Guards the guard: a native addon in this directory would be preferred by the
+      # loader, leaving NAPI_RS_FORCE_WASI nothing to catch.
+      - name: Assert no native addon present
+        run: |
+          if ls packages/bindings/*.node >/dev/null 2>&1; then
+            echo "::error::a .node addon is present alongside the wasm artifact — the WASI job would not be testing wasm"
+            exit 1
+          fi
+          ls -la packages/bindings
+      - run: bun run corpus
+      - name: Test binding on WASI
+        run: bun run --filter @build-qube/papyra-native test
+        env:
+          NAPI_RS_FORCE_WASI: error
+          PAPYRA_EXPECT_RUNTIME: wasm
+
+  # Exercises the wider surface (streaming, priorities, Blob input) against a real
+  # artifact, without the per-target matrix cost.
+  smoke:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: 1.3.11 }
+      - run: bun install --frozen-lockfile
+      - uses: actions/download-artifact@v8
+        with:
+          name: bindings-x86_64-unknown-linux-gnu
+          path: packages/bindings
+      - run: bun run --filter @build-qube/papyra build
+      - run: bun run corpus
+      # The wrapper's tests that need a real addon and real PDFs: outline walking,
+      # text extraction and search against the pdf.js corpus. `unit-test` above runs
+      # with no artifact, so these cannot live alongside the pure units.
+      - run: bun run --filter @build-qube/papyra test:integration
+      - run: bun run --filter papyra-bench smoke
+
+  # deploy-demo.yml only runs on main, so without this a demo that no longer builds
+  # would not surface until after merge, as a failed deploy. Builds against the wasm
+  # artifact — the demo runs papyra's wasm flavour and never loads a native addon —
+  # so no Rust toolchain is needed here.
+  demo:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: 1.3.11 }
+      - run: bun install --frozen-lockfile
+      - uses: actions/download-artifact@v8
+        with:
+          name: bindings-wasm32-wasip1-threads
+          path: packages/bindings
+      - run: bun run --filter @build-qube/papyra build
+      - name: Build demo
+        run: bun run --filter papyra-demo build
+        env:
+          # Same prefix the Pages deploy uses, so a base-path regression fails here.
+          PAPYRA_BASE: /${{ github.event.repository.name }}/
