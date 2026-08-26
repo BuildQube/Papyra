@@ -23,19 +23,35 @@ jobs:
       - run: cargo fmt --check
       - run: cargo clippy --workspace -- -D warnings
 
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: 1.3.11 }
+      # turbo's `typecheck` task dependsOn `^build`, and packages/bindings ships no
+      # checked-in index.d.ts — napi generates it from the crate — so tsc cannot run
+      # until the Rust bindings have been built. Hence the toolchain and the cache.
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: 1.3.11 }
+      # papyra-demo's build depends on @build-qube/papyra-native#build:wasm, so
+      # this job compiles for wasm as well as the host.
       - uses: dtolnay/rust-toolchain@stable
+        with: { targets: wasm32-wasip1-threads }
       - run: bun install --frozen-lockfile
       - run: cargo test --workspace
       - run: bun run corpus
       - run: bun run build
       - run: bun run --filter papyra-bench smoke
-      - run: bun run typecheck
 
   build:
     strategy:
@@ -45,7 +61,9 @@ jobs:
           - { host: macos-latest,   target: aarch64-apple-darwin }
           - { host: macos-latest,   target: x86_64-apple-darwin }
           - { host: ubuntu-latest,  target: x86_64-unknown-linux-gnu }
-          - { host: ubuntu-latest,  target: aarch64-unknown-linux-gnu }
+          # Built natively on an arm64 runner: cross-linking aarch64 from the
+          # x64 host picks up the host linker, which rejects AArch64-only flags.
+          - { host: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu }
           - { host: windows-latest, target: x86_64-pc-windows-msvc }
           - { host: ubuntu-latest,  target: wasm32-wasip1-threads }
     runs-on: ${{ matrix.host }}
@@ -54,7 +72,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: 1.3.11 }
       - uses: dtolnay/rust-toolchain@stable
-        with: { targets: ${{ matrix.target }} }
+        with: { targets: "${{ matrix.target }}" }
       - run: bun install --frozen-lockfile
       - name: Build
         working-directory: packages/bindings
@@ -62,5 +80,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: bindings-${{ matrix.target }}
-          path: packages/bindings/*.{node,wasm}
+          # upload-artifact globs via @actions/glob, which has no brace
+          # expansion -- `*.{node,wasm}` matches nothing. One path per line.
+          path: |
+            packages/bindings/*.node
+            packages/bindings/*.wasm
           if-no-files-found: error
