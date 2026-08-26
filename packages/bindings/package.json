@@ -57,10 +57,10 @@
     "clean": "rm -rf *.node *.wasm index.js index.d.ts browser.js papyra.wasi*.* wasi-worker*.mjs npm"
   },
   "devDependencies": {
-    "@emnapi/core": "1.11.2",
-    "@emnapi/runtime": "1.11.2",
+    "@emnapi/core": "2.0.0-alpha.4",
+    "@emnapi/runtime": "2.0.0-alpha.4",
     "@napi-rs/cli": "^3.8.6",
     "@napi-rs/wasm-runtime": "^1.2.3",
-    "emnapi": "1.11.2"
+    "emnapi": "2.0.0-alpha.4"
   }
 }
