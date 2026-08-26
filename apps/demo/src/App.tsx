@@ -3,11 +3,13 @@ import {
   currentRuntime,
   type Document,
   open,
+  type SearchMatch,
 } from '@build-qube/papyra';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BenchPanel } from './components/BenchPanel.js';
+import { Highlights } from './components/Highlights.js';
 import { PageView, type PageViewHandle } from './components/PageView.js';
-import { Thumbnails } from './components/Thumbnails.js';
+import { Sidebar } from './components/Sidebar.js';
 
 interface Timing {
   /** Queued behind other work before this render started. */
@@ -56,6 +58,8 @@ export function App() {
   const [timing, setTiming] = useState<Timing | null>(null);
   const [cacheHits, setCacheHits] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [matches, setMatches] = useState<SearchMatch[]>([]);
+  const [active, setActive] = useState<SearchMatch | null>(null);
 
   const load = useCallback(async (file: File) => {
     setError(null);
@@ -68,6 +72,8 @@ export function App() {
       const doc = await open(file, { concurrency: 4 });
       setLoaded({ doc, bytes, name: file.name });
       setPageIndex(0);
+      setMatches([]);
+      setActive(null);
     } catch (e) {
       setError((e as Error).message);
     }
@@ -209,14 +215,30 @@ export function App() {
       ) : (
         <main className="workspace">
           {showThumbs && (
-            <Thumbnails
+            <Sidebar
               doc={loaded.doc}
               current={pageIndex}
               onSelect={setPageIndex}
+              matches={matches}
+              onMatches={setMatches}
+              active={active}
+              onActive={setActive}
             />
           )}
           <section className="viewer">
-            <PageView ref={view} className="page" />
+            <div className="page-stack">
+              <PageView ref={view} className="page" />
+              {size && (
+                <Highlights
+                  matches={matches.filter((m) => m.page === pageIndex)}
+                  active={active?.page === pageIndex ? active : null}
+                  // Text is reported at 72 DPI, so this is the render's own ratio.
+                  scale={size.w / loaded.doc.pageSize(pageIndex).width}
+                  width={size.w}
+                  height={size.h}
+                />
+              )}
+            </div>
           </section>
           <BenchPanel bytes={loaded.bytes} name={loaded.name} />
         </main>

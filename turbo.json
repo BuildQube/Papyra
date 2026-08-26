@@ -47,6 +47,13 @@
       "dependsOn": ["build"],
       "inputs": ["src/**", "test/**", "__test__/**"]
     },
+    // Separate from `test` because these need the compiled addon and the fetched
+    // corpus, while `test` is pure TypeScript that CI runs with neither.
+    "test:integration": {
+      "dependsOn": ["build"],
+      "cache": false,
+      "inputs": ["src/**", "test/**"]
+    },
     "bench": { "dependsOn": ["build"], "cache": false },
     "typecheck": {
       "dependsOn": ["^build"],

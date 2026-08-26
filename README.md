@@ -45,6 +45,84 @@ started competes for CPU for its whole duration.
 `doc.render()`'s handle reports `timing: { waitMs, runMs }` once it settles, which is how
 you tell a long queue from a slow render.
 
+## Outlines
+
+```ts
+for (const node of await doc.outline()) {
+  console.log(node.title, node.page);   // page is null for a container or a URL
+  node.children;                        // nested, as the document nests it
+}
+```
+
+A tree, not a flat list, and containers that group children without pointing anywhere
+are kept — dropping them reparents their children and flattens the table of contents.
+`dest` carries the view as well as the page (`XYZ`, `FitH`, …) in PDF points from the
+page's bottom-left, because a bookmark is frequently a position two thirds of the way
+down a page rather than the page itself. `bold`, `italic` and `open` are the
+document's own presentation hints.
+
+hayro has no outline API, so papyra walks the object graph itself: explicit
+destinations, name trees, the legacy `/Dests` dictionary, and `GoTo` actions all
+resolve; `GoToR` and `URI` deliberately do not, and surface as `dest: null`. Malformed
+outlines with cyclic `/Next` or `/Kids` chains terminate rather than hang.
+
+## Text and search
+
+```ts
+for await (const hit of doc.search('site plan')) {
+  hit.page;      // where
+  hit.rects;     // one box per line the match covers, in 72-DPI page space
+  hit.context;   // surrounding text, for a results list
+}
+
+await doc.indexText();          // extract everything up front; a later search is instant
+const text = await doc.pageText(0);
+```
+
+Matching is case- and diacritic-insensitive by default (`annee` finds `année`),
+expands ligatures, collapses runs of whitespace, and **runs across line breaks** — a
+search for `dynamic languages` finds a title set as `… for Dynamic` / `Languages`, and
+returns a box for each of the two lines.
+
+Search order is yours: `{ order }` lets a viewer search outward from the page on
+screen, so the first result is the nearest one rather than whatever is on page 1.
+`{ limit }` and `{ signal }` stop it early.
+
+Geometry is stored along the baseline, not as rectangles, so a match on rotated text —
+a drawing's vertical dimension label — comes back as a quadrilateral at the text's own
+angle. `hit.rects` is the upright bounding box if that is all you need.
+
+Spaces are reconstructed. PDF encodes a word break as a position change at least as
+often as it writes a space character, so the gap is measured against each glyph's own
+advance; the signal is sharply bimodal in practice (0.000 within a word, 0.196 of an em
+between, on the test corpus).
+
+**What it cannot read.** Some documents draw text with no `ToUnicode` cmap and an
+encoding hayro's fallback chain does not resolve. Those glyphs are visible but
+unmappable, and `undecodedGlyphs` says so rather than quietly returning nothing:
+
+```ts
+const { lines, undecodedGlyphs } = await doc.pageText(n);
+// lines, zero undecoded  -> searchable
+// lines AND undecoded    -> partly readable — the case worth warning about, since the
+//                           page looks searchable and mostly is not
+// no lines, undecoded    -> text nothing can read; retrying will not help
+// neither                -> no text at all; probably a scan
+```
+
+`bun run --filter papyra-bench text` reports coverage against pdf.js per file. Compare
+*usable* characters, not raw counts: given a font with no Unicode information pdf.js
+passes the raw character codes through as if they were Unicode, so on `TAMReview.pdf`
+38,426 of the 59,313 characters it returns are control codes. papyra drops those and
+counts them in `undecodedGlyphs` instead.
+
+Against pdf.js's usable output, papyra reads 99-102% on twelve of the fourteen corpus
+files at ~15x the speed, and on the two pages of `TAMReview.pdf` that use ordinary
+fonts it reads slightly more. The rest of that file is Word-generated Cambria subsets
+with no `ToUnicode` cmap and opaque `gNN` glyph names in both the encoding and the CFF
+charset — no Unicode exists anywhere in the file for that text, and no tool recovers it
+without OCR.
+
 Rendered pages are cached by `(page, size)` under a byte budget — 128 MB by default,
 `cacheBytes: 0` to disable. It matters more than it sounds: on a large CAD drawing every
 page costs >=93 ms however small the output, because the cost is per-draw-call rather
@@ -80,6 +158,9 @@ The `papyra-core` trait boundary exists so the engine can be swapped or suppleme
 
 ## Getting started
 
+The toolchain is pinned by `rust-toolchain.toml`; rustup installs it on the first
+cargo command, so a local `cargo clippy` is the same compiler CI runs.
+
 ```bash
 bun install
 bun run corpus          # fetch test PDFs from the pdf.js suite (gitignored)
@@ -87,7 +168,9 @@ bun run build           # native addon + TypeScript
 bun run --filter @build-qube/papyra-native build:wasm
 bun run --filter papyra-bench smoke
 bun run --filter papyra-bench bench
+bun run --filter papyra-bench text      # text extraction vs pdf.js, with coverage
 bun run --filter papyra-demo dev
+bun run --filter papyra-demo fixtures   # corpus PDFs -> public/, open with ?file=/x.pdf
 ```
 
 ## Two things that will bite you
@@ -111,6 +194,8 @@ rayon deadlock that shaped the design.
 ## Performance, honestly
 
 - **Node**: ~5.6x pdf.js aggregate on the test corpus (`bun run --filter papyra-bench bench`).
+- **Text**: ~15x pdf.js aggregate on the test corpus (`bun run --filter papyra-bench text`),
+  at ~0.4ms per page. Read the coverage column with it — see "What it cannot read".
 - **Browser**: ~1.3x pdf.js on multi-page throughput, but pdf.js is ~2.3x faster on a
   single page — it draws straight into an accelerated canvas while papyra rasterises on
   the CPU and copies pixels out. papyra's browser win is batch work (thumbnails,

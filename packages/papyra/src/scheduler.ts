@@ -88,11 +88,19 @@ export interface SchedulerOptions {
   yieldToUrgent?: boolean;
 }
 
-export class Scheduler<T> {
+/**
+ * One queue for every kind of work a document does.
+ *
+ * Deliberately not parameterised by payload: renders and text extraction compete for
+ * the same cores, so they have to share a queue for priority to mean anything. Entries
+ * are stored opaquely and `submit` recovers the type — sound because coalescing is by
+ * key, and two jobs with the same key are by construction the same job.
+ */
+export class Scheduler {
   readonly #limit: number;
   readonly #yieldToUrgent: boolean;
-  readonly #pending = new Map<string, Entry<T>>();
-  readonly #running = new Map<string, Entry<T>>();
+  readonly #pending = new Map<string, Entry<unknown>>();
+  readonly #running = new Map<string, Entry<unknown>>();
   #seq = 0;
 
   constructor(limit: number, options: SchedulerOptions = {}) {
@@ -125,14 +133,14 @@ export class Scheduler<T> {
     return oldest;
   }
 
-  submit(job: SchedulerJob<T>): JobHandle<T> {
+  submit<T>(job: SchedulerJob<T>): JobHandle<T> {
     const existing = this.#pending.get(job.key) ?? this.#running.get(job.key);
     if (existing) {
       existing.waiters++;
       // A more urgent request for work already queued promotes it rather than
       // duplicating it — the common case when a thumbnail scrolls into view.
       if (job.priority < existing.priority) existing.priority = job.priority;
-      return this.#handle(existing);
+      return this.#handle(existing) as JobHandle<T>;
     }
 
     let resolve!: (value: T) => void;
@@ -156,12 +164,12 @@ export class Scheduler<T> {
       reject,
       promise,
     };
-    this.#pending.set(entry.key, entry);
+    this.#pending.set(entry.key, entry as Entry<unknown>);
     this.#drain();
-    return this.#handle(entry);
+    return this.#handle(entry as Entry<unknown>) as JobHandle<T>;
   }
 
-  #handle(entry: Entry<T>): JobHandle<T> {
+  #handle(entry: Entry<unknown>): JobHandle<unknown> {
     let detached = false;
     return {
       key: entry.key,
@@ -197,7 +205,7 @@ export class Scheduler<T> {
    */
   #drain(): void {
     while (this.#running.size < this.#limit && this.#pending.size > 0) {
-      let next: Entry<T> | undefined;
+      let next: Entry<unknown> | undefined;
       for (const entry of this.#pending.values()) {
         if (
           !next ||

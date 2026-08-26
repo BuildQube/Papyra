@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { RenderCache } from '../src/cache.js';
+import { RenderCache } from '../../src/cache.js';
 
 /** Stand-in for a rendered page: the number is its size in bytes. */
 const sizeOf = (n: number) => n;
