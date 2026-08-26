@@ -1,5 +1,16 @@
 # @build-qube/papyra
 
+## 0.0.4
+
+### Patch Changes
+
+- 9830c77: Depend on `@build-qube/papyra-native` by version rather than `workspace:*`.
+  
+  `workspace:` is a pnpm/yarn/bun protocol that those package managers rewrite while
+  packing. Changesets publishes through `npm publish`, which does not, so 0.0.3
+  shipped the literal string and failed to install with `EUNSUPPORTEDPROTOCOL`.
+- @build-qube/papyra-native@0.0.4
+
 ## 0.0.3
 
 ### Patch Changes

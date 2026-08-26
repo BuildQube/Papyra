@@ -1,6 +1,6 @@
 {
   "name": "@build-qube/papyra",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Fast PDF rendering for Node and the browser, powered by Rust",
   "license": "MIT",
   "repository": {
@@ -39,7 +39,7 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@build-qube/papyra-native": "0.0.3"
+    "@build-qube/papyra-native": "0.0.4"
   },
   "devDependencies": {
     "typescript": "^7.0.2"
