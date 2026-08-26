@@ -43,9 +43,15 @@ platform, and the loader in `index.js` picks the right one at runtime.
 
 The six platform packages are generated at release time from the `napi.targets`
 list in `packages/bindings/package.json`, filled with the CI build artifacts, and
-published by the `prepublishOnly` hook that runs when `@build-qube/papyra-native`
-itself is published. **Adding a target to `napi.targets` adds a ninth package**,
-which will need its own trusted publisher before it can go out.
+published by the `publish-platforms` step of the root `release` script, which runs
+before `changeset publish`. **Adding a target to `napi.targets` adds a ninth
+package**, which will need its own trusted publisher before it can go out.
+
+That step deliberately does *not* live in a `prepublishOnly` hook. `changeset
+publish` shells out to `npm publish --json`, and npm collapses a lifecycle
+script's entire stderr into a single `"command failed"` string — a registry
+rejection inside the hook is undiagnosable from the workflow log. Running it as
+its own step keeps the real error visible.
 
 ## One-time npm setup
 
@@ -69,10 +75,14 @@ publish to it. Check with `npm org ls build-qube`.
    packages with read *and write*. Give it the shortest expiry npm allows.
 2. Add it as the repo secret `NPM_TOKEN`
    (`gh secret set NPM_TOKEN --repo BuildQube/Papyra`).
-3. In `.github/workflows/release.yml`, uncomment the `NODE_AUTH_TOKEN` block on
-   the `Publish` step.
+3. `.github/workflows/release.yml` already passes `NODE_AUTH_TOKEN` on the
+   `Publish` step for exactly this. Leave it in place for the bootstrap.
 4. Land the Version Packages PR. The publish job runs and all eight packages go
    out for the first time.
+
+   The token must be able to create packages that do **not yet exist**. A
+   granular token restricted to "only select packages" cannot — there is nothing
+   to select — so scope it to the whole `@build-qube` scope, or to all packages.
 
 ### Step 3 — configure trusted publishers
 
@@ -95,7 +105,7 @@ filename instead, which fails the check.
 
 ### Step 4 — turn the token off
 
-1. Re-comment the `NODE_AUTH_TOKEN` block in `release.yml`.
+1. Delete the `NODE_AUTH_TOKEN` block from the `Publish` step in `release.yml`.
 2. Delete the `NPM_TOKEN` secret and revoke the token on npmjs.com.
 3. On each package: **Settings → Publishing access → Require two-factor
    authentication and disallow tokens**. This is the step that actually buys you
@@ -128,6 +138,13 @@ OIDC publish usually means that specific package has no trusted publisher
 configured — the scoped-package case is a
 [known sharp edge](https://github.com/npm/cli/issues/8976). Check all eight, not
 just the two obvious ones.
+
+**The publish job fails with nothing but `command failed`.** That is npm folding a
+lifecycle script's stderr into one string. If you see it, something has been moved
+back into a `prepublishOnly`/`prepack` hook — run it as its own step in the
+`release` script instead, where the real error prints. The `Check registry
+credentials` step exists to catch the common case (a bad or under-scoped token)
+before anything reaches that path.
 
 **A platform package is missing from a release.** `napi prepublish` only publishes
 what it finds under `packages/bindings/npm/<platform>/`, which is filled from the
