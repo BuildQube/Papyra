@@ -9,11 +9,13 @@ rust-version.workspace = true
 
 [dependencies]
 papyra-core = { workspace = true }
+# `hayro`'s default features turn on `hayro-interpret/embed-fonts`, which is what makes
+# the 14 standard fonts resolve without a font-resolver callback. Text extraction from
+# any document that does not embed its fonts depends on it, so dropping this dependency
+# would silently empty those pages rather than fail to build.
 hayro = { workspace = true }
 hayro-interpret = { workspace = true }
 hayro-syntax = { workspace = true }
 bytemuck = { workspace = true }
+kurbo = { workspace = true }
 rayon = { workspace = true }
-
-[dev-dependencies]
-kurbo = "0.13"

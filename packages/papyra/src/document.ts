@@ -1,5 +1,6 @@
 import { PdfDocument as NativeDocument } from '@build-qube/papyra-native';
 import { type CacheStats, RenderCache } from './cache.js';
+import { buildOutlineTree, type OutlineNode } from './outline.js';
 import {
   currentRuntime,
   hardwareConcurrency,
@@ -7,13 +8,16 @@ import {
   MAX_WASM_CONCURRENCY,
 } from './runtime.js';
 import { DEFAULT_PRIORITY, type JobHandle, Scheduler } from './scheduler.js';
+import { type SearchMatch, searchPageText } from './search.js';
 import { toBytes } from './source.js';
+import { type PageText, pageTextBytes, toPageText } from './text.js';
 import type {
   OpenOptions,
   PageSize,
   PdfSource,
   RenderedPage,
   RenderOptions,
+  SearchOptions,
   StreamedPage,
   StreamOptions,
 } from './types.js';
@@ -29,6 +33,23 @@ const MAX_PIXELS = 100_000_000;
 
 /** Default bytes of rendered pages to keep. Roughly eleven 2000px ARCH-E sheets. */
 const DEFAULT_CACHE_BYTES = 128 * 1024 * 1024;
+
+/**
+ * Default bytes of extracted text to keep.
+ *
+ * Text is three orders of magnitude smaller than the pixels of the same page — a
+ * dense page of a paper is ~80 KB against ~11 MB — so this holds hundreds of pages
+ * and a repeated search never re-extracts.
+ */
+const DEFAULT_TEXT_CACHE_BYTES = 32 * 1024 * 1024;
+
+/**
+ * Where text extraction sits in the queue by default.
+ *
+ * Behind rendering: a search that stalls the page the user is looking at is worse
+ * than one that takes another beat to fill in.
+ */
+const DEFAULT_TEXT_PRIORITY = 3;
 
 /** A queued render, plus whether it was served from cache without rendering at all. */
 export interface RenderHandle extends JobHandle<RenderedPage> {
@@ -51,20 +72,29 @@ export async function open(
 
 export class Document {
   readonly #inner: NativeDocument;
-  readonly #scheduler: Scheduler<RenderedPage>;
+  readonly #scheduler: Scheduler;
   readonly #limit: number;
   readonly #cache: RenderCache<RenderedPage>;
+  readonly #text: RenderCache<PageText>;
+  /** Memoised by {@link outline}; the outline cannot change under us. */
+  #outline: Promise<OutlineNode[]> | undefined;
+  /** Memoised by {@link indexText}. */
+  #indexed: Promise<void> | undefined;
 
   /** @internal — construct via {@link open}. */
   constructor(inner: NativeDocument, options: OpenOptions = {}) {
     this.#inner = inner;
     this.#limit = Math.max(1, options.concurrency ?? defaultConcurrency());
-    this.#scheduler = new Scheduler<RenderedPage>(this.#limit, {
+    this.#scheduler = new Scheduler(this.#limit, {
       yieldToUrgent: options.yieldToUrgent,
     });
     this.#cache = new RenderCache<RenderedPage>(
       options.cacheBytes ?? DEFAULT_CACHE_BYTES,
       (page) => page.data.byteLength,
+    );
+    this.#text = new RenderCache<PageText>(
+      options.textCacheBytes ?? DEFAULT_TEXT_CACHE_BYTES,
+      pageTextBytes,
     );
   }
 
@@ -89,6 +119,36 @@ export class Document {
 
   get pageCount(): number {
     return this.#inner.pageCount;
+  }
+
+  /**
+   * The document outline — bookmarks, the table of contents — as a tree.
+   *
+   * Resolves to an empty array when the document has no outline, which is the common
+   * case. The walk runs off the event loop and the result is memoised, so calling
+   * this on every render of a sidebar costs nothing after the first.
+   *
+   * Entries that point outside the document (a URL, another file) and containers that
+   * group children without a destination of their own both have a `dest` of `null`;
+   * they are kept because a viewer still lists them.
+   *
+   * @example
+   * ```ts
+   * for (const node of await doc.outline()) {
+   *   if (node.page !== null) void doc.render(node.page, { fitWidth: 1600 });
+   * }
+   * ```
+   */
+  async outline(): Promise<OutlineNode[]> {
+    this.#outline ??= this.#inner
+      .outline()
+      .then(buildOutlineTree)
+      // A failed walk must not be cached as a permanent empty outline.
+      .catch((e: unknown) => {
+        this.#outline = undefined;
+        throw e;
+      });
+    return this.#outline;
   }
 
   /** Page dimensions in PDF points (1/72 inch). */
@@ -127,7 +187,7 @@ export class Document {
     const hit = this.#cache.get(key);
     if (hit) return cachedHandle(key, hit);
 
-    const handle = this.#scheduler.submit({
+    const handle = this.#scheduler.submit<RenderedPage>({
       key,
       priority: options.priority ?? DEFAULT_PRIORITY,
       run: () =>
@@ -276,6 +336,140 @@ export class Document {
       inflight.clear();
       handles.clear();
     }
+  }
+
+  /**
+   * Extract the text of one page.
+   *
+   * Scheduled like a render, but behind one by default: a search should not stall the
+   * page the user is looking at. Results are cached, so searching the same document
+   * repeatedly extracts each page once.
+   *
+   * Extraction is interpretation without rasterisation, which makes it roughly a
+   * hundredth the cost of rendering the same page — about 1ms for a dense page of a
+   * paper. It is cheap enough to do speculatively.
+   */
+  async pageText(
+    index: number,
+    options: { priority?: number; signal?: AbortSignal } = {},
+  ): Promise<PageText> {
+    const key = `text:${index}`;
+    const hit = this.#text.get(key);
+    if (hit) return hit;
+
+    // One queue for renders and text both, so priority means something across them.
+    // Coalescing by key is what stops a search and a text selection extracting the
+    // same page twice.
+    const handle = this.#scheduler.submit<PageText>({
+      key,
+      priority: options.priority ?? DEFAULT_TEXT_PRIORITY,
+      run: async () => {
+        const text = toPageText(index, await this.#inner.pageTextAsync(index));
+        this.#text.set(key, text);
+        return text;
+      },
+    });
+
+    const { signal } = options;
+    if (signal) {
+      if (signal.aborted) handle.cancel('signal aborted');
+      else
+        signal.addEventListener(
+          'abort',
+          () => handle.cancel('signal aborted'),
+          {
+            once: true,
+          },
+        );
+    }
+
+    return handle.promise;
+  }
+
+  /**
+   * Extract every page's text up front, so a later search is immediate.
+   *
+   * Worth calling on a long document: on native this fans out across rayon rather
+   * than the JS thread pool, which an addon cannot resize past four threads —
+   * measured 15ms for a 14-page paper against ~1ms per page one at a time.
+   *
+   * On wasm it walks the pages through the scheduler instead. The rayon batch is a
+   * native-only path for the same reason `renderPages` is: rayon's wasm workers are
+   * Web Workers the JS event loop has to create, and driving a batch from a blocked
+   * thread traps (`docs/spike-results.md`, "wasm parallel rendering is UNSTABLE").
+   *
+   * Idempotent, and never necessary — {@link search} extracts what it needs as it
+   * goes. This only trades a pause now for instant results later.
+   */
+  async indexText(options: { priority?: number } = {}): Promise<void> {
+    this.#indexed ??= this.#index(options).catch((e: unknown) => {
+      // A failed pass must not be remembered as a completed one.
+      this.#indexed = undefined;
+      throw e;
+    });
+    return this.#indexed;
+  }
+
+  async #index(options: { priority?: number }): Promise<void> {
+    if (currentRuntime() === 'native') {
+      const all = await this.#inner.pageTextsAsync(0, this.pageCount);
+      for (const [i, native] of all.entries()) {
+        this.#text.set(`text:${i}`, toPageText(i, native));
+      }
+      return;
+    }
+    // The scheduler bounds how many run at once, so this stays within the four
+    // in-flight tasks napi-rs's browser glue allows.
+    await Promise.all(
+      range(0, this.pageCount).map((i) => this.pageText(i, options)),
+    );
+  }
+
+  /**
+   * Find `query` in the document, yielding matches as each page is searched.
+   *
+   * Streaming rather than collected, because the first hit is usually the one the user
+   * wants and a long document should not make them wait for the last. Breaking out of
+   * the loop stops the search.
+   *
+   * `order` is the lever a viewer wants: searching outward from the current page finds
+   * the nearest hit first, which is almost never page 1.
+   *
+   * @example
+   * ```ts
+   * for await (const hit of doc.search('site plan', { order: outward(current) })) {
+   *   show(hit.page, hit.rects);
+   *   break;
+   * }
+   * ```
+   */
+  async *search(
+    query: string,
+    options: SearchOptions = {},
+  ): AsyncGenerator<SearchMatch> {
+    if (query.trim() === '') return;
+
+    const pages = options.order ?? range(0, this.pageCount);
+    const limit = options.limit ?? Number.POSITIVE_INFINITY;
+    let found = 0;
+
+    for (const page of pages) {
+      if (options.signal?.aborted) return;
+      const text = await this.pageText(page, {
+        priority: options.priority ?? DEFAULT_TEXT_PRIORITY,
+        signal: options.signal,
+      });
+
+      for (const match of searchPageText(text, query, options)) {
+        yield match;
+        if (++found >= limit) return;
+      }
+    }
+  }
+
+  /** Extracted page text held for reuse, and how often that has paid off. */
+  get textCache(): CacheStats {
+    return this.#text.stats;
   }
 
   /** How many pages this document will render at once. */

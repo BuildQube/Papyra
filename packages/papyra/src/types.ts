@@ -1,3 +1,5 @@
+import type { MatchOptions } from './search.js';
+
 /** Anything we can turn into PDF bytes. `File` is a `Blob`, so it is covered. */
 export type PdfSource = Uint8Array | ArrayBuffer | ArrayBufferView | Blob;
 
@@ -93,4 +95,28 @@ export interface OpenOptions {
    * `renderPages` is a throughput API and would evict everything useful in one call.
    */
   cacheBytes?: number;
+  /**
+   * Bytes of extracted page text to keep. Defaults to 32 MB; `0` disables it.
+   *
+   * Text is three orders of magnitude smaller than the same page's pixels — a dense
+   * page of a paper is ~80 KB against ~11 MB — so the default holds hundreds of pages
+   * and a repeated search never re-extracts one.
+   */
+  textCacheBytes?: number;
+}
+
+/** Options for {@link Document.search}. */
+export interface SearchOptions extends MatchOptions {
+  /**
+   * Pages to search, in order. Defaults to every page from the first.
+   *
+   * A viewer wants to search outward from the page on screen: the nearest hit is
+   * almost never on page 1, and the first result is usually the one being looked for.
+   */
+  order?: readonly number[];
+  /** Stop after this many matches. */
+  limit?: number;
+  /** Where text extraction sits in the render queue. Defaults to behind rendering. */
+  priority?: number;
+  signal?: AbortSignal;
 }

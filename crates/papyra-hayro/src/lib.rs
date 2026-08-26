@@ -1,10 +1,19 @@
 //! hayro-backed implementation of the papyra engine traits.
 
+#[cfg(test)]
+mod fixtures;
+mod outline;
+mod text;
+
+pub use outline::read_outline;
+pub use text::extract as extract_text;
+
 use hayro::{RenderCache, RenderSettings};
 use hayro_interpret::InterpreterSettings;
 use hayro_syntax::Pdf;
 use papyra_core::{
-  Bitmap, Document, Engine, PageSize, PapyraError, PixelFormat, RenderOptions, Result,
+  Bitmap, Document, Engine, OutlineItem, PageSize, PageText, PapyraError, PixelFormat,
+  RenderOptions, Result,
 };
 use rayon::prelude::*;
 
@@ -87,6 +96,25 @@ impl HayroDocument {
   }
 }
 
+impl HayroDocument {
+  /// Extract the text of several pages across a rayon thread pool.
+  ///
+  /// Text extraction is interpretation without rasterisation, so it is the same order
+  /// of cost as a render and deserves the same treatment: one async task on the JS
+  /// side, the fan-out in Rust. Going through the JS thread pool instead would cap a
+  /// whole-document index at libuv's four threads, which an addon cannot resize.
+  pub fn page_texts_parallel(&self, indices: &[usize]) -> Result<Vec<PageText>> {
+    let pages = self.pdf.pages();
+    indices
+      .par_iter()
+      .map(|&i| {
+        let page = pages.get(i).ok_or(PapyraError::PageOutOfRange(i))?;
+        Ok(text::extract(page))
+      })
+      .collect()
+  }
+}
+
 fn render_settings(opts: &RenderOptions) -> RenderSettings {
   RenderSettings {
     x_scale: opts.scale,
@@ -123,6 +151,16 @@ impl Document for HayroDocument {
     let page = pages.get(index).ok_or(PapyraError::PageOutOfRange(index))?;
     let (width, height) = page.render_dimensions();
     Ok(PageSize { width, height })
+  }
+
+  fn outline(&self) -> Vec<OutlineItem> {
+    outline::read_outline(&self.pdf)
+  }
+
+  fn page_text(&self, index: usize) -> Result<PageText> {
+    let pages = self.pdf.pages();
+    let page = pages.get(index).ok_or(PapyraError::PageOutOfRange(index))?;
+    Ok(text::extract(page))
   }
 
   fn render_page(&self, index: usize, opts: &RenderOptions) -> Result<Bitmap> {

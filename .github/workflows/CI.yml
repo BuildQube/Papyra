@@ -51,6 +51,9 @@ jobs:
       - run: cargo test --workspace
       - run: bun run corpus
       - run: bun run build
+      # `bun run test` covers the TypeScript wrapper's own logic — the scheduler, the
+      # cache, outline tree building — which nothing else in this job exercises.
+      - run: bun run test
       - run: bun run --filter papyra-bench smoke
 
   build:
