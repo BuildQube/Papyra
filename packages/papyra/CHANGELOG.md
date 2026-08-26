@@ -1,5 +1,12 @@
 # @build-qube/papyra
 
+## 0.0.3
+
+### Patch Changes
+
+- Updated dependencies [4fb8f70]
+  - @build-qube/papyra-native@0.0.3
+
 ## 0.0.2
 
 ### Patch Changes
