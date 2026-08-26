@@ -54,6 +54,8 @@
     "build:debug": "napi build --platform",
     "build:wasm": "napi build --platform --release --target wasm32-wasip1-threads",
     "create-npm-dirs": "napi create-npm-dirs",
+    "test": "node --test \"__test__/**/*.test.mts\"",
+    "prepublishOnly": "napi prepublish -t npm --no-gh-release",
     "clean": "rm -rf *.node *.wasm index.js index.d.ts browser.js papyra.wasi*.* wasi-worker*.mjs npm"
   },
   "devDependencies": {
