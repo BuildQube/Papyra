@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "bench": "bun run src/render.ts",
+    "encode": "bun run src/encode.ts",
     "bench:thumbs": "bun run src/thumbnails.ts",
     "smoke": "bun run src/smoke.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",

@@ -15,7 +15,13 @@ import { readFileSync } from 'node:fs';
 import { before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { backendName, PdfDocument, runtime } from '../index.js';
+import {
+  backendName,
+  encodeBitmap,
+  encodeBitmapSync,
+  PdfDocument,
+  runtime,
+} from '../index.js';
 
 const corpus = (name: string) =>
   readFileSync(
@@ -123,5 +129,117 @@ describe('compiled binding', () => {
       'asdfasdf',
     );
     assert.ok(doc.pageCount > 0);
+  });
+});
+
+/** Leading bytes that identify each container, so we know the encoder really ran. */
+const MAGIC = {
+  webp: (b: Buffer) =>
+    b.subarray(0, 4).toString('latin1') === 'RIFF' &&
+    b.subarray(8, 12).toString('latin1') === 'WEBP',
+  png: (b: Buffer) =>
+    b.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47])),
+  jpeg: (b: Buffer) => b[0] === 0xff && b[1] === 0xd8,
+} as const;
+
+describe('encoding', () => {
+  test('renderPageImageAsync keeps the pixels in Rust but reports its size', async () => {
+    const doc = load('franz.pdf');
+    const img = await doc.renderPageImageAsync(0, 72);
+
+    assert.ok(img.width > 0 && img.height > 0);
+    assert.equal(img.byteLength, img.width * img.height * 4);
+    // The raw buffer is deliberately not reachable from JS.
+    assert.equal((img as unknown as { data?: unknown }).data, undefined);
+  });
+
+  for (const format of ['webp', 'png', 'jpeg'] as const) {
+    test(`encodes ${format} with the right magic bytes`, async () => {
+      const doc = load('franz.pdf');
+      const img = await doc.renderPageImageAsync(0, 72);
+      const out = await img.encode(format, 80);
+
+      assert.ok(out.length > 0);
+      assert.ok(
+        MAGIC[format](out),
+        `not a ${format}: ${out.subarray(0, 8).toString('hex')}`,
+      );
+    });
+  }
+
+  test('the sync path produces the same bytes as the async one', async () => {
+    const doc = load('franz.pdf');
+    const img = await doc.renderPageImageAsync(0, 72);
+
+    assert.deepEqual(await img.encode('png'), img.encodeSync('png'));
+  });
+
+  test('toDataUrl carries the format mime type', async () => {
+    const doc = load('franz.pdf');
+    const img = await doc.renderPageImageAsync(0, 72);
+
+    assert.match(
+      await img.toDataUrl('webp'),
+      /^data:image\/webp;base64,[A-Za-z0-9+/=]+$/,
+    );
+    assert.match(await img.toDataUrl('jpeg', 60), /^data:image\/jpeg;base64,/);
+  });
+
+  test('jpeg quality changes the output size', async () => {
+    const doc = load('tracemonkey.pdf');
+    const img = await doc.renderPageImageAsync(0, 150);
+
+    const low = await img.encode('jpeg', 20);
+    const high = await img.encode('jpeg', 95);
+    assert.ok(
+      low.length < high.length,
+      `${low.length} should be under ${high.length}`,
+    );
+  });
+
+  test('encodeBitmap accepts pixels that are already in JS', async () => {
+    const doc = load('franz.pdf');
+    const page = doc.renderPage(0, 72);
+
+    const out = await encodeBitmap(
+      page.data,
+      page.width,
+      page.height,
+      page.stride,
+      'webp',
+    );
+    assert.ok(MAGIC.webp(out));
+
+    const sync = encodeBitmapSync(
+      page.data,
+      page.width,
+      page.height,
+      page.stride,
+      'webp',
+    );
+    assert.deepEqual(out, sync);
+  });
+
+  test('both encode paths agree byte for byte', async () => {
+    const doc = load('franz.pdf');
+    const img = await doc.renderPageImageAsync(0, 72);
+    const page = doc.renderPage(0, 72);
+
+    const viaImage = await img.encode('png');
+    const viaBuffer = await encodeBitmap(
+      page.data,
+      page.width,
+      page.height,
+      page.stride,
+      'png',
+    );
+    assert.deepEqual(viaImage, viaBuffer);
+  });
+
+  test('rejects a buffer too small for its dimensions instead of crashing', async () => {
+    await assert.rejects(
+      () => encodeBitmap(new Uint8Array(16), 100, 100, 400, 'png'),
+      /encode/i,
+    );
   });
 });

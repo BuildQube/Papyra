@@ -14,6 +14,8 @@ pub enum PapyraError {
   PageOutOfRange(usize),
   #[error("unsupported: {0}")]
   Unsupported(String),
+  #[error("failed to encode image: {0}")]
+  Encode(String),
 }
 
 pub type Result<T> = std::result::Result<T, PapyraError>;

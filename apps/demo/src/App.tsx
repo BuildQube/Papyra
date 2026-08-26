@@ -2,6 +2,7 @@ import {
   backend,
   currentRuntime,
   type Document,
+  type EncodedFormat,
   open,
 } from '@build-qube/papyra';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -51,6 +52,8 @@ const showThumbs =
 export function App() {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
+  const [exporting, setExporting] = useState(false);
+  const [exported, setExported] = useState<string | null>(null);
   const view = useRef<PageViewHandle>(null);
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
   const [timing, setTiming] = useState<Timing | null>(null);
@@ -160,6 +163,40 @@ export function App() {
     };
   }, [loaded]);
 
+  /**
+   * Export the current page. This is the only path in the demo that exercises the
+   * encoders inside wasm, and the only one that produces a blob URL — a viewer-side
+   * download that never materialises the raw bitmap in JS.
+   */
+  const exportPage = useCallback(
+    async (format: EncodedFormat) => {
+      if (!loaded) return;
+      setExporting(true);
+      try {
+        const img = await loaded.doc.renderImage(pageIndex, { fitWidth: 2000 });
+        const encoded = await img.encode({ format });
+        const url = encoded.toBlobUrl();
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${loaded.name.replace(/\.pdf$/i, '')}-p${pageIndex + 1}.${
+          format === 'jpeg' ? 'jpg' : format
+        }`;
+        a.click();
+        // The anchor is gone; nothing else holds the blob.
+        URL.revokeObjectURL(url);
+        setExported(
+          `${format} · ${(encoded.bytes.length / 1024).toFixed(0)} KB ` +
+            `(raw ${(img.byteLength / 1e6).toFixed(1)} MB)`,
+        );
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setExporting(false);
+      }
+    },
+    [loaded, pageIndex],
+  );
+
   return (
     <div className="app">
       <header className="topbar">
@@ -217,6 +254,20 @@ export function App() {
           )}
           <section className="viewer">
             <PageView ref={view} className="page" />
+            <div className="export">
+              <span className="muted">export page {pageIndex + 1}:</span>
+              {(['webp', 'png', 'jpeg'] as const).map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  disabled={exporting}
+                  onClick={() => void exportPage(f)}
+                >
+                  {f}
+                </button>
+              ))}
+              {exported && <span className="muted">{exported}</span>}
+            </div>
           </section>
           <BenchPanel bytes={loaded.bytes} name={loaded.name} />
         </main>

@@ -1,5 +1,9 @@
-import { PdfDocument as NativeDocument } from '@build-qube/papyra-native';
+import {
+  PdfDocument as NativeDocument,
+  type PageImage as NativePageImage,
+} from '@build-qube/papyra-native';
 import { type CacheStats, RenderCache } from './cache.js';
+import { PageImage } from './encode.js';
 import {
   currentRuntime,
   hardwareConcurrency,
@@ -51,7 +55,9 @@ export async function open(
 
 export class Document {
   readonly #inner: NativeDocument;
-  readonly #scheduler: Scheduler<RenderedPage>;
+  // Widened so `renderImage` can share the one queue. Priority and concurrency are
+  // the point of this library: a bulk export must not starve the visible page.
+  readonly #scheduler: Scheduler<RenderedPage | PageImage>;
   readonly #limit: number;
   readonly #cache: RenderCache<RenderedPage>;
 
@@ -59,7 +65,7 @@ export class Document {
   constructor(inner: NativeDocument, options: OpenOptions = {}) {
     this.#inner = inner;
     this.#limit = Math.max(1, options.concurrency ?? defaultConcurrency());
-    this.#scheduler = new Scheduler<RenderedPage>(this.#limit, {
+    this.#scheduler = new Scheduler<RenderedPage | PageImage>(this.#limit, {
       yieldToUrgent: options.yieldToUrgent,
     });
     this.#cache = new RenderCache<RenderedPage>(
@@ -102,6 +108,64 @@ export class Document {
     options: RenderOptions = {},
   ): Promise<RenderedPage> {
     return this.render(index, options).promise;
+  }
+
+  /**
+   * Render a page for export, keeping the pixels in Rust.
+   *
+   * The returned {@link PageImage} encodes on demand — `toWebp()`, `toPng()`,
+   * `toJpeg()`, `toDataUrl()` — and never hands the raw bitmap to JS. A 42x30in
+   * drawing at 150 DPI is 6.5 MB raw and a fraction of that encoded, so for anything
+   * leaving the process that buffer is pure overhead.
+   *
+   * Use `renderPage` when you want to paint to a canvas, and `encode()` when you want
+   * both the pixels and a file.
+   *
+   * Shares the scheduler with every other render, so priority and concurrency behave
+   * exactly as they do for `render`. **Not cached** — the cache is keyed by page and
+   * size with no format dimension, and it measures raw bytes.
+   *
+   * @example
+   * ```ts
+   * const img = await doc.renderImage(0, { fitWidth: 2000 });
+   * await writeFile('page-0.webp', (await img.toWebp()).bytes);
+   * ```
+   */
+  async renderImage(
+    index: number,
+    options: RenderOptions = {},
+  ): Promise<PageImage> {
+    const dpi = this.#resolveDpi(index, options);
+
+    // A distinct key space from `render`, so an image request never coalesces onto a
+    // pending raw render (different return type) or vice versa.
+    const handle = this.#scheduler.submit({
+      key: `image:${index}@${dpi.toFixed(4)}`,
+      priority: options.priority ?? DEFAULT_PRIORITY,
+      run: () =>
+        (
+          this.#inner.renderPageImageAsync(
+            index,
+            dpi,
+            options.signal,
+          ) as Promise<NativePageImage>
+        ).then((img) => new PageImage(img)),
+    });
+
+    const { signal } = options;
+    if (signal) {
+      if (signal.aborted) handle.cancel('signal aborted');
+      else
+        signal.addEventListener(
+          'abort',
+          () => handle.cancel('signal aborted'),
+          {
+            once: true,
+          },
+        );
+    }
+
+    return handle.promise as Promise<PageImage>;
   }
 
   /**
@@ -151,7 +215,9 @@ export class Document {
           },
         );
     }
-    return liveHandle(handle);
+    // The scheduler is shared with `renderImage`, so its handles are widened. This
+    // job's `run` only ever produces a RenderedPage.
+    return liveHandle(handle as JobHandle<RenderedPage>);
   }
 
   /**

@@ -223,3 +223,26 @@ body {
 .verdict strong {
   color: var(--text);
 }
+
+.export {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0 0;
+  flex-wrap: wrap;
+}
+
+.export button {
+  font: inherit;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.export button:disabled {
+  opacity: 0.5;
+  cursor: progress;
+}

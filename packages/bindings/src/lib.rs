@@ -9,6 +9,7 @@
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 use papyra_core::{Document as _, Engine, RenderOptions};
+use papyra_encode::EncodeOptions;
 use papyra_hayro::{HayroDocument, HayroEngine};
 use std::sync::Arc;
 
@@ -35,6 +36,35 @@ pub struct PageDimensions {
   pub width: f64,
   /// Height in PDF points (1/72 inch).
   pub height: f64,
+}
+
+/// Container for encoded output. Every encoder here is pure Rust, which is what keeps
+/// the wasm target buildable — so there is no lossy WebP and no AVIF.
+#[napi(string_enum = "lowercase")]
+pub enum ImageFormat {
+  /// Lossless VP8L. ~3x smaller than PNG on page content, for about the same cost.
+  WebP,
+  /// Lossless, universally supported.
+  Png,
+  /// The only lossy option, and the only one with a quality knob. No alpha.
+  Jpeg,
+}
+
+impl From<ImageFormat> for papyra_encode::ImageFormat {
+  fn from(f: ImageFormat) -> Self {
+    match f {
+      ImageFormat::WebP => Self::WebP,
+      ImageFormat::Png => Self::Png,
+      ImageFormat::Jpeg => Self::Jpeg,
+    }
+  }
+}
+
+fn encode_opts(format: ImageFormat, quality: Option<u8>) -> EncodeOptions {
+  EncodeOptions {
+    format: format.into(),
+    quality: quality.unwrap_or(80),
+  }
 }
 
 fn to_rendered(bmp: papyra_core::Bitmap) -> RenderedPage {
@@ -104,6 +134,220 @@ impl Task for RenderBatchTask {
 
 // ------------------------------------------------------------------- document
 
+/// A rendered page kept in Rust, encoded on demand.
+///
+/// The pixels deliberately never cross into JS. A 42x30in drawing at 150 DPI is 6.5 MB
+/// raw and a fraction of that encoded, so for export the raw buffer is pure overhead.
+/// There is no accessor for it: use `renderPageAsync` when you want the pixels, this
+/// when you want a file.
+#[napi]
+pub struct PageImage {
+  bitmap: Arc<papyra_core::Bitmap>,
+}
+
+#[napi]
+impl PageImage {
+  #[napi(getter)]
+  pub fn width(&self) -> u32 {
+    self.bitmap.width
+  }
+
+  #[napi(getter)]
+  pub fn height(&self) -> u32 {
+    self.bitmap.height
+  }
+
+  /// Size of the *raw* bitmap held in Rust. Encoded output is much smaller.
+  #[napi(getter)]
+  pub fn byte_length(&self) -> u32 {
+    self.bitmap.data.len() as u32
+  }
+
+  /// Encode off the JS thread.
+  #[napi(ts_return_type = "Promise<Buffer>")]
+  pub fn encode(
+    &self,
+    format: ImageFormat,
+    quality: Option<u8>,
+    signal: Option<AbortSignal>,
+  ) -> AsyncTask<EncodeTask> {
+    AsyncTask::with_optional_signal(
+      EncodeTask {
+        bitmap: self.bitmap.clone(),
+        opts: encode_opts(format, quality),
+      },
+      signal,
+    )
+  }
+
+  /// Blocks the calling thread. Routed through the same `Task` as the async path so
+  /// the two cannot drift.
+  #[napi]
+  pub fn encode_sync(&self, env: Env, format: ImageFormat, quality: Option<u8>) -> Result<Buffer> {
+    let mut task = EncodeTask {
+      bitmap: self.bitmap.clone(),
+      opts: encode_opts(format, quality),
+    };
+    let out = task.compute()?;
+    task.resolve(env, out)
+  }
+
+  /// Encode straight to a `data:` URL, so neither the pixels nor the encoded bytes
+  /// cross the boundary — only the finished string does.
+  #[napi(ts_return_type = "Promise<string>")]
+  pub fn to_data_url(
+    &self,
+    format: ImageFormat,
+    quality: Option<u8>,
+    signal: Option<AbortSignal>,
+  ) -> AsyncTask<DataUrlTask> {
+    AsyncTask::with_optional_signal(
+      DataUrlTask {
+        bitmap: self.bitmap.clone(),
+        opts: encode_opts(format, quality),
+      },
+      signal,
+    )
+  }
+}
+
+pub struct EncodeTask {
+  bitmap: Arc<papyra_core::Bitmap>,
+  opts: EncodeOptions,
+}
+
+impl Task for EncodeTask {
+  type Output = Vec<u8>;
+  type JsValue = Buffer;
+
+  fn compute(&mut self) -> Result<Self::Output> {
+    papyra_encode::encode(&self.bitmap, &self.opts).map_err(map_err)
+  }
+
+  fn resolve(&mut self, _env: Env, out: Self::Output) -> Result<Self::JsValue> {
+    Ok(out.into())
+  }
+}
+
+pub struct DataUrlTask {
+  bitmap: Arc<papyra_core::Bitmap>,
+  opts: EncodeOptions,
+}
+
+impl Task for DataUrlTask {
+  type Output = String;
+  type JsValue = String;
+
+  fn compute(&mut self) -> Result<Self::Output> {
+    papyra_encode::encode_to_data_url(&self.bitmap, &self.opts).map_err(map_err)
+  }
+
+  fn resolve(&mut self, _env: Env, out: Self::Output) -> Result<Self::JsValue> {
+    Ok(out)
+  }
+}
+
+/// Render, then hand back a [`PageImage`] rather than the pixels.
+pub struct RenderImageTask {
+  doc: Arc<HayroDocument>,
+  index: usize,
+  dpi: f64,
+}
+
+impl Task for RenderImageTask {
+  type Output = papyra_core::Bitmap;
+  type JsValue = PageImage;
+
+  fn compute(&mut self) -> Result<Self::Output> {
+    self
+      .doc
+      .render_page(self.index, &RenderOptions::at_dpi(self.dpi as f32))
+      .map_err(map_err)
+  }
+
+  fn resolve(&mut self, _env: Env, out: Self::Output) -> Result<Self::JsValue> {
+    Ok(PageImage {
+      bitmap: Arc::new(out),
+    })
+  }
+}
+
+/// Encode pixels that are already in JS.
+///
+/// Costs one copy on the way in: a `Uint8Array` points at the JS heap and cannot be
+/// held across the libuv threadpool boundary, so the task has to own its bytes. Prefer
+/// `renderPageImageAsync` when you do not also need the raw pixels.
+pub struct EncodeBufferTask {
+  bitmap: papyra_core::Bitmap,
+  opts: EncodeOptions,
+}
+
+impl Task for EncodeBufferTask {
+  type Output = Vec<u8>;
+  type JsValue = Buffer;
+
+  fn compute(&mut self) -> Result<Self::Output> {
+    papyra_encode::encode(&self.bitmap, &self.opts).map_err(map_err)
+  }
+
+  fn resolve(&mut self, _env: Env, out: Self::Output) -> Result<Self::JsValue> {
+    Ok(out.into())
+  }
+}
+
+fn buffer_task(
+  data: &Uint8Array,
+  width: u32,
+  height: u32,
+  stride: u32,
+  format: ImageFormat,
+  quality: Option<u8>,
+) -> EncodeBufferTask {
+  EncodeBufferTask {
+    bitmap: papyra_core::Bitmap {
+      width,
+      height,
+      stride,
+      format: papyra_core::PixelFormat::Rgba8,
+      data: data.to_vec(),
+    },
+    opts: encode_opts(format, quality),
+  }
+}
+
+/// Encode a raw RGBA8 buffer off the JS thread.
+#[napi(ts_return_type = "Promise<Buffer>")]
+pub fn encode_bitmap(
+  data: Uint8Array,
+  width: u32,
+  height: u32,
+  stride: u32,
+  format: ImageFormat,
+  quality: Option<u8>,
+  signal: Option<AbortSignal>,
+) -> AsyncTask<EncodeBufferTask> {
+  AsyncTask::with_optional_signal(
+    buffer_task(&data, width, height, stride, format, quality),
+    signal,
+  )
+}
+
+/// Blocks the calling thread. Same `Task` as [`encode_bitmap`].
+#[napi]
+pub fn encode_bitmap_sync(
+  env: Env,
+  data: Uint8Array,
+  width: u32,
+  height: u32,
+  stride: u32,
+  format: ImageFormat,
+  quality: Option<u8>,
+) -> Result<Buffer> {
+  let mut task = buffer_task(&data, width, height, stride, format, quality);
+  let out = task.compute()?;
+  task.resolve(env, out)
+}
+
 #[napi]
 pub struct PdfDocument {
   inner: Arc<HayroDocument>,
@@ -164,6 +408,24 @@ impl PdfDocument {
       index: index as usize,
       dpi: dpi.unwrap_or(72.0),
     })
+  }
+
+  /// Render one page and keep it in Rust, for encoding. The pixels never reach JS.
+  #[napi(ts_return_type = "Promise<PageImage>")]
+  pub fn render_page_image_async(
+    &self,
+    index: u32,
+    dpi: Option<f64>,
+    signal: Option<AbortSignal>,
+  ) -> AsyncTask<RenderImageTask> {
+    AsyncTask::with_optional_signal(
+      RenderImageTask {
+        doc: self.inner.clone(),
+        index: index as usize,
+        dpi: dpi.unwrap_or(72.0),
+      },
+      signal,
+    )
   }
 
   /// Render `[start, end)` in one async task, parallelised internally with rayon.

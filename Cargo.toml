@@ -1,5 +1,10 @@
 [workspace]
-members = ["crates/papyra-core", "crates/papyra-hayro", "packages/bindings"]
+members = [
+  "crates/papyra-core",
+  "crates/papyra-encode",
+  "crates/papyra-hayro",
+  "packages/bindings",
+]
 resolver = "2"
 
 [workspace.package]
@@ -11,13 +16,19 @@ rust-version = "1.92"
 
 [workspace.dependencies]
 papyra-core = { path = "crates/papyra-core" }
+papyra-encode = { path = "crates/papyra-encode" }
 papyra-hayro = { path = "crates/papyra-hayro" }
 
 hayro = "0.7.1"
 hayro-interpret = "0.7.0"
 hayro-syntax = "0.7.2"
 
+base64 = "0.22"
 bytemuck = "1"
+# Encoders only. hayro already pulls `image` with "png"; cargo unifies features
+# additively, so "jpeg" and "webp" here are the only additions. All three are pure
+# Rust, which is what keeps the wasm32-wasip1-threads target buildable.
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
 rayon = "1"
 thiserror = "2"
 
