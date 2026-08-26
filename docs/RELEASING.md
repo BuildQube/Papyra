@@ -167,6 +167,13 @@ back into a `prepublishOnly`/`prepack` hook — run it as its own step in the
 credentials` step exists to catch the common case (a bad or under-scoped token)
 before anything reaches that path.
 
+**A published package fails to install with `EUNSUPPORTEDPROTOCOL`.** Something
+in a publishable manifest uses a `workspace:` range. Changesets publishes through
+`npm publish`, and unlike pnpm/yarn/bun, npm does not rewrite that protocol while
+packing — it goes to the registry verbatim and no consumer can install it.
+`bun run check:publishable` guards against this in CI and again in the `release`
+script; depend on the real version instead and let Changesets keep it in step.
+
 **A platform package is missing from a release.** `napi prepublish` only publishes
 what it finds under `packages/bindings/npm/<platform>/`, which is filled from the
 CI artifacts. If a build matrix leg failed, its package is silently skipped —
