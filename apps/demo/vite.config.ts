@@ -1,5 +1,6 @@
-import { readFileSync } from 'node:fs';
+import { copyFileSync, existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { defineConfig, type Plugin } from 'vite';
@@ -81,11 +82,41 @@ const coiServiceWorker: Plugin = {
   },
 };
 
+/**
+ * Client-side routing needs the SPA served for paths that are not real files.
+ *
+ * In-app navigation is fine anywhere, but a *fresh request* for `/export` — a refresh,
+ * a bookmark, a shared link — makes GitHub Pages look for a file that Vite never
+ * emitted. Pages serves `404.html` for any unmatched path, so a byte-for-byte copy of
+ * the built `index.html` boots the app and lets the router read the real pathname.
+ *
+ * Copied in `closeBundle` rather than emitted: by then index.html has been through
+ * asset hashing and the coi-serviceworker injection above, and this must match it
+ * exactly.
+ */
+const spaFallback: Plugin = {
+  name: 'spa-fallback-404',
+  apply: 'build',
+  closeBundle: {
+    order: 'post',
+    handler() {
+      const dir = resolvedOutDir;
+      const index = join(dir, 'index.html');
+      if (existsSync(index)) copyFileSync(index, join(dir, '404.html'));
+    },
+  },
+  configResolved(config) {
+    resolvedOutDir = resolve(config.root, config.build.outDir);
+  },
+};
+
+let resolvedOutDir = 'dist';
+
 export default defineConfig({
   // GitHub Pages serves the project site from /<repo>/, so the deploy workflow
   // sets PAPYRA_BASE. Local dev and previews stay at the root.
   base: process.env.PAPYRA_BASE ?? '/',
-  plugins: [react(), perfSink, coiServiceWorker],
+  plugins: [react(), perfSink, coiServiceWorker, spaFallback],
   resolve: {
     alias: {
       // In the published package `browser.js` re-exports the per-platform wasm

@@ -164,7 +164,7 @@ impl PageImage {
   }
 
   /// Encode off the JS thread.
-  #[napi(ts_return_type = "Promise<Buffer>")]
+  #[napi(ts_return_type = "Promise<Uint8Array>")]
   pub fn encode(
     &self,
     format: ImageFormat,
@@ -183,7 +183,7 @@ impl PageImage {
   /// Blocks the calling thread. Routed through the same `Task` as the async path so
   /// the two cannot drift.
   #[napi]
-  pub fn encode_sync(&self, env: Env, format: ImageFormat, quality: Option<u8>) -> Result<Buffer> {
+  pub fn encode_sync(&self, env: Env, format: ImageFormat, quality: Option<u8>) -> Result<Uint8Array> {
     let mut task = EncodeTask {
       bitmap: self.bitmap.clone(),
       opts: encode_opts(format, quality),
@@ -218,14 +218,18 @@ pub struct EncodeTask {
 
 impl Task for EncodeTask {
   type Output = Vec<u8>;
-  type JsValue = Buffer;
+  // Uint8Array, not Buffer: `Buffer` goes through `napi_create_external_buffer`, which
+  // under emnapi requires `globalThis.Buffer` and therefore throws in a browser. A
+  // typed array is an external arraybuffer, which works on every target — the same
+  // reason `RenderedPage.data` is one.
+  type JsValue = Uint8Array;
 
   fn compute(&mut self) -> Result<Self::Output> {
     papyra_encode::encode(&self.bitmap, &self.opts).map_err(map_err)
   }
 
   fn resolve(&mut self, _env: Env, out: Self::Output) -> Result<Self::JsValue> {
-    Ok(out.into())
+    Ok(Uint8Array::new(out))
   }
 }
 
@@ -284,14 +288,15 @@ pub struct EncodeBufferTask {
 
 impl Task for EncodeBufferTask {
   type Output = Vec<u8>;
-  type JsValue = Buffer;
+  /// See [`EncodeTask`] — `Buffer` is unavailable in a browser.
+  type JsValue = Uint8Array;
 
   fn compute(&mut self) -> Result<Self::Output> {
     papyra_encode::encode(&self.bitmap, &self.opts).map_err(map_err)
   }
 
   fn resolve(&mut self, _env: Env, out: Self::Output) -> Result<Self::JsValue> {
-    Ok(out.into())
+    Ok(Uint8Array::new(out))
   }
 }
 
@@ -316,7 +321,7 @@ fn buffer_task(
 }
 
 /// Encode a raw RGBA8 buffer off the JS thread.
-#[napi(ts_return_type = "Promise<Buffer>")]
+#[napi(ts_return_type = "Promise<Uint8Array>")]
 pub fn encode_bitmap(
   data: Uint8Array,
   width: u32,
@@ -342,7 +347,7 @@ pub fn encode_bitmap_sync(
   stride: u32,
   format: ImageFormat,
   quality: Option<u8>,
-) -> Result<Buffer> {
+) -> Result<Uint8Array> {
   let mut task = buffer_task(&data, width, height, stride, format, quality);
   let out = task.compute()?;
   task.resolve(env, out)

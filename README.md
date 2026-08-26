@@ -105,8 +105,10 @@ Rust, so neither the pixels nor the encoded bytes ever cross the boundary — on
 finished string.
 
 `renderImage` shares the scheduler with every other render, so priority and concurrency
-behave exactly as they do for `render`. It is **not** cached: the cache is keyed by page
-and size with no format dimension, and it measures raw bytes.
+behave exactly as they do for `render`. Use `doc.imageHandle()` when you want the handle
+— to reprioritise, cancel, or read `timing` — the same way `render()` relates to
+`renderPage()`. Neither is cached: the cache is keyed by page and size with no format
+dimension, and it measures raw bytes.
 
 ## Layout
 

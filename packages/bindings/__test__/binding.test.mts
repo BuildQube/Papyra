@@ -133,13 +133,13 @@ describe('compiled binding', () => {
 });
 
 /** Leading bytes that identify each container, so we know the encoder really ran. */
+const ascii = (b: Uint8Array, from: number, text: string) =>
+  [...text].every((c, i) => b[from + i] === c.charCodeAt(0));
+
 const MAGIC = {
-  webp: (b: Buffer) =>
-    b.subarray(0, 4).toString('latin1') === 'RIFF' &&
-    b.subarray(8, 12).toString('latin1') === 'WEBP',
-  png: (b: Buffer) =>
-    b.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47])),
-  jpeg: (b: Buffer) => b[0] === 0xff && b[1] === 0xd8,
+  webp: (b: Uint8Array) => ascii(b, 0, 'RIFF') && ascii(b, 8, 'WEBP'),
+  png: (b: Uint8Array) => b[0] === 0x89 && ascii(b, 1, 'PNG'),
+  jpeg: (b: Uint8Array) => b[0] === 0xff && b[1] === 0xd8,
 } as const;
 
 describe('encoding', () => {

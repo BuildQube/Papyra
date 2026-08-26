@@ -39,6 +39,27 @@ export interface RenderHandle extends JobHandle<RenderedPage> {
   readonly cached: boolean;
 }
 
+/**
+ * A queued export render. No `cached` flag: unlike {@link RenderHandle} the image path
+ * never comes from the cache, which is keyed by page and size with no format dimension.
+ */
+export type ImageHandle = JobHandle<PageImage>;
+
+/** Wire an `AbortSignal` to a queued job. Cancelling only drops work not yet started. */
+function attachSignal(
+  handle: JobHandle<unknown>,
+  signal: AbortSignal | undefined,
+): void {
+  if (!signal) return;
+  if (signal.aborted) {
+    handle.cancel('signal aborted');
+    return;
+  }
+  signal.addEventListener('abort', () => handle.cancel('signal aborted'), {
+    once: true,
+  });
+}
+
 /** Open a PDF from bytes, an `ArrayBuffer`, a `Blob`, or a `File`. */
 export async function open(
   source: PdfSource,
@@ -135,6 +156,17 @@ export class Document {
     index: number,
     options: RenderOptions = {},
   ): Promise<PageImage> {
+    return this.imageHandle(index, options).promise;
+  }
+
+  /**
+   * As {@link renderImage}, but returns the handle so the job can be reprioritised,
+   * cancelled, or timed — the same relationship `render` has to `renderPage`.
+   *
+   * `timing` is where the export path becomes measurable: it separates queue wait from
+   * render time, which end-to-end timing around the promise cannot.
+   */
+  imageHandle(index: number, options: RenderOptions = {}): ImageHandle {
     const dpi = this.#resolveDpi(index, options);
 
     // A distinct key space from `render`, so an image request never coalesces onto a
@@ -152,20 +184,8 @@ export class Document {
         ).then((img) => new PageImage(img)),
     });
 
-    const { signal } = options;
-    if (signal) {
-      if (signal.aborted) handle.cancel('signal aborted');
-      else
-        signal.addEventListener(
-          'abort',
-          () => handle.cancel('signal aborted'),
-          {
-            once: true,
-          },
-        );
-    }
-
-    return handle.promise as Promise<PageImage>;
+    attachSignal(handle, options.signal);
+    return handle as ImageHandle;
   }
 
   /**
@@ -203,19 +223,8 @@ export class Document {
         ),
     });
 
-    const { signal } = options;
-    if (signal) {
-      if (signal.aborted) handle.cancel('signal aborted');
-      else
-        signal.addEventListener(
-          'abort',
-          () => handle.cancel('signal aborted'),
-          {
-            once: true,
-          },
-        );
-    }
-    // The scheduler is shared with `renderImage`, so its handles are widened. This
+    attachSignal(handle, options.signal);
+    // The scheduler is shared with `imageHandle`, so its handles are widened. This
     // job's `run` only ever produces a RenderedPage.
     return liveHandle(handle as JobHandle<RenderedPage>);
   }
