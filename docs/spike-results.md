@@ -463,7 +463,7 @@ should be quoted as such.
 
 ---
 
-# Addendum 6: large-format pages (the Attachment-C-Drawings failure)
+# Addendum 6: large-format pages (the architectural drawing-set failure)
 
 A 39 MB, 44-page set of ARCH-E architectural drawings (42x30in) killed the demo.
 
