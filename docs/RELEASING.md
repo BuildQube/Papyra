@@ -71,18 +71,34 @@ publish to it. Check with `npm org ls build-qube`.
 
 ### Step 2 — bootstrap release, on a token
 
-1. On npmjs.com, create a **granular access token** scoped to the `@build-qube`
-   packages with read *and write*. Give it the shortest expiry npm allows.
+1. On npmjs.com, create a **granular access token**. Give it the shortest expiry
+   npm allows, and set:
+
+   | Section | Value |
+   | --- | --- |
+   | **Packages and scopes** | **Read and write**, on the **`@build-qube` scope** |
+   | Organizations | No access (not needed to publish) |
+   | Bypass two-factor authentication (2FA) | Checked — CI cannot answer an OTP |
+
+   Two traps live in that first row, and the token page states them plainly
+   enough to miss:
+
+   - **"Packages and scopes" and "Organizations" are separate axes.** Granting
+     the token read/write on the `build-qube` *organization* gives it org
+     administration — members, teams, settings — and **no ability to publish**.
+     If the page says *"This token has no access to packages and scopes"*, it
+     cannot publish, however much org access it has.
+   - **Pick the scope, not individual packages.** Publishing a package that does
+     not exist yet is a create, and a token restricted to "only select packages"
+     cannot create — there was nothing to select when you made it. All eight of
+     ours start out non-existent.
+
 2. Add it as the repo secret `NPM_TOKEN`
    (`gh secret set NPM_TOKEN --repo BuildQube/Papyra`).
 3. `.github/workflows/release.yml` already passes `NODE_AUTH_TOKEN` on the
    `Publish` step for exactly this. Leave it in place for the bootstrap.
 4. Land the Version Packages PR. The publish job runs and all eight packages go
    out for the first time.
-
-   The token must be able to create packages that do **not yet exist**. A
-   granular token restricted to "only select packages" cannot — there is nothing
-   to select — so scope it to the whole `@build-qube` scope, or to all packages.
 
 ### Step 3 — configure trusted publishers
 
@@ -138,6 +154,11 @@ OIDC publish usually means that specific package has no trusted publisher
 configured — the scoped-package case is a
 [known sharp edge](https://github.com/npm/cli/issues/8976). Check all eight, not
 just the two obvious ones.
+
+**`npm whoami` succeeds but publishing is rejected.** Authentication and
+authorisation are different questions: a granular token with org access but no
+**Packages and scopes** permission authenticates fine and cannot publish a thing.
+Check that section of the token page, not just that the token works.
 
 **The publish job fails with nothing but `command failed`.** That is npm folding a
 lifecycle script's stderr into one string. If you see it, something has been moved
