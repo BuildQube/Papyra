@@ -181,17 +181,21 @@ it is what makes a highlight on rotated text a quadrilateral at the text's own a
 
 ## Conventions
 
-- Rust: 2-space indent (`rustfmt.toml`), edition 2024, MSRV 1.92. `clippy -D warnings`
-  gates CI, and CI's `dtolnay/rust-toolchain@stable` **floats ahead of most local
-  toolchains** — a clean local clippy is not proof. New lints land as CI-only failures
-  (`chunks_exact_to_as_chunks` did exactly this). Check `rustup check`, and verify with
-  the version CI is on before pushing Rust:
-
-  ```bash
-  rustup toolchain install 1.98.0 --component clippy rustfmt   # whatever stable is
-  cargo +1.98.0 clippy --workspace --all-targets -- -D warnings
-  cargo +1.92 check --workspace                                # and the MSRV floor
-  ```
+- Rust: 2-space indent (`rustfmt.toml`), edition 2024. `clippy -D warnings` gates CI.
+- **`rust-toolchain.toml` pins the compiler**, so a plain `cargo clippy` here is the
+  same compiler CI runs — that was not true before, and a lint arriving in a new stable
+  (`chunks_exact_to_as_chunks`, in 1.98) failed CI against a clean local run. Bumping
+  `channel` is its own commit: raise it, run
+  `cargo clippy --workspace --all-targets -- -D warnings`, fix what the new release
+  found.
+- **The pin is not the MSRV.** `rust-version` in `Cargo.toml` is 1.92 and governs what
+  consumers need; verify it with `cargo +1.92 check --workspace`, since an explicit
+  `+toolchain` overrides the file.
+- **`dtolnay/rust-toolchain` does not read `rust-toolchain.toml`.** Its `targets:`
+  input would install to whatever `@stable` resolves to that day, leaving the pinned
+  toolchain without the target, so the build matrices in `CI.yml` and `release.yml`
+  use `rustup target add` instead. Adding a target to a job means adding that line,
+  not that input.
 - TS/JS: biome, 2-space, single quotes, 80 cols. `verbatimModuleSyntax` and
   `noUncheckedIndexedAccess` are on; imports use explicit `.js` extensions.
 - TOML: `taplo format`.

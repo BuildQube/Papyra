@@ -1,0 +1,19 @@
+# Pins the toolchain so a lint that lands in a new stable cannot fail CI on a change
+# that has nothing to do with it. `dtolnay/rust-toolchain@stable` resolves fresh on
+# every run, so before this file a local `cargo clippy` and CI's were routinely
+# different compilers — clippy::chunks_exact_to_as_chunks arrived in 1.98 and failed
+# CI against a clean local 1.95.
+#
+# Bumping is deliberate: raise `channel`, run `cargo clippy --workspace --all-targets
+# -- -D warnings` and fix what the new release found, in its own commit.
+#
+# This is not the MSRV. `rust-version` in Cargo.toml is 1.92 and governs what
+# consumers need; `cargo +1.92 check --workspace` still verifies that floor, since an
+# explicit `+toolchain` overrides this file.
+#
+# Targets are deliberately absent. Declaring the six release targets here would make
+# every clone download six standard libraries; CI adds the one it needs with
+# `rustup target add`, which resolves against this file.
+[toolchain]
+channel = "1.98.0"
+components = ["clippy", "rustfmt"]

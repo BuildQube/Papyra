@@ -158,6 +158,9 @@ The `papyra-core` trait boundary exists so the engine can be swapped or suppleme
 
 ## Getting started
 
+The toolchain is pinned by `rust-toolchain.toml`; rustup installs it on the first
+cargo command, so a local `cargo clippy` is the same compiler CI runs.
+
 ```bash
 bun install
 bun run corpus          # fetch test PDFs from the pdf.js suite (gitignored)
