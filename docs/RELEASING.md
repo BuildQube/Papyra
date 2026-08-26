@@ -69,38 +69,39 @@ So: **first release on a token, every release after that on OIDC.**
 The `@build-qube` scope must exist on npmjs.com and your account must be able to
 publish to it. Check with `npm org ls build-qube`.
 
-### Step 2 — bootstrap release, on a token
+### Step 2 — bootstrap release, on a token *(done)*
 
-1. On npmjs.com, create a **granular access token**. Give it the shortest expiry
-   npm allows, and set:
+The first release of each package went out on a granular access token, because
+trusted publishing cannot be configured for a package that does not exist. That
+is finished: all eight packages exist, so nothing here needs doing again unless a
+**new** package is added — a new `napi.targets` entry, for instance.
 
-   | Section | Value |
-   | --- | --- |
-   | **Packages and scopes** | **Read and write**, on the **`@build-qube` scope** |
-   | Organizations | No access (not needed to publish) |
-   | Bypass two-factor authentication (2FA) | Checked — CI cannot answer an OTP |
+If you ever do need it, the token settings that matter are:
 
-   Two traps live in that first row, and the token page states them plainly
-   enough to miss:
+| Section | Value |
+| --- | --- |
+| **Packages and scopes** | **Read and write**, on the **`@build-qube` scope** |
+| Organizations | No access (not needed to publish) |
+| Bypass two-factor authentication (2FA) | Checked — CI cannot answer an OTP |
 
-   - **"Packages and scopes" and "Organizations" are separate axes.** Granting
-     the token read/write on the `build-qube` *organization* gives it org
-     administration — members, teams, settings — and **no ability to publish**.
-     If the page says *"This token has no access to packages and scopes"*, it
-     cannot publish, however much org access it has.
-   - **Pick the scope, not individual packages.** Publishing a package that does
-     not exist yet is a create, and a token restricted to "only select packages"
-     cannot create — there was nothing to select when you made it. All eight of
-     ours start out non-existent.
+Two traps live in that first row, and the token page states them plainly enough
+to miss:
 
-2. Add it as the repo secret `NPM_TOKEN`
-   (`gh secret set NPM_TOKEN --repo BuildQube/Papyra`).
-3. `.github/workflows/release.yml` already passes `NODE_AUTH_TOKEN` on the
-   `Publish` step for exactly this. Leave it in place for the bootstrap.
-4. Land the Version Packages PR. The publish job runs and all eight packages go
-   out for the first time.
+- **"Packages and scopes" and "Organizations" are separate axes.** Granting the
+  token read/write on the `build-qube` *organization* gives it org
+  administration — members, teams, settings — and **no ability to publish**. If
+  the page says *"This token has no access to packages and scopes"*, it cannot
+  publish, however much org access it has. This is what broke the first release.
+- **Pick the scope, not individual packages.** Publishing a package that does not
+  exist yet is a create, and a token restricted to "only select packages" cannot
+  create — there is nothing to select when you make it.
 
-### Step 3 — configure trusted publishers
+Add it as `NPM_TOKEN` (`gh secret set NPM_TOKEN --repo BuildQube/Papyra`) and pass
+it as `NODE_AUTH_TOKEN` on the `Publish` step for the one release, then take it
+straight back out — a token present in that step **takes precedence over OIDC**,
+so leaving it there silently disables trusted publishing.
+
+### Step 3 — configure trusted publishers *(done)*
 
 For each of the eight packages, on npmjs.com:
 
@@ -119,13 +120,21 @@ pulled in with `workflow_call` — npm validates the OIDC claim against the work
 that contains the publish step, and a reusable workflow reports the *caller's*
 filename instead, which fails the check.
 
+All eight, not just the two obvious ones: napi publishes the six platform
+packages with its own `npm publish` calls, and npm checks the claim per package.
+
 ### Step 4 — turn the token off
 
 1. Delete the `NODE_AUTH_TOKEN` block from the `Publish` step in `release.yml`.
+   **Done** — the workflow now publishes over OIDC. A token in that step takes
+   precedence, so re-adding one silently disables trusted publishing.
 2. Delete the `NPM_TOKEN` secret and revoke the token on npmjs.com.
 3. On each package: **Settings → Publishing access → Require two-factor
    authentication and disallow tokens**. This is the step that actually buys you
    something: after it, a stolen npm token cannot publish papyra at all.
+
+Do 2 and 3 only once an OIDC release has actually succeeded — until then the
+token is the way back.
 
 From here on, releases need no npm credentials anywhere in the repo, and npm
 attaches [provenance](https://docs.npmjs.com/generating-provenance-statements)
@@ -166,6 +175,13 @@ back into a `prepublishOnly`/`prepack` hook — run it as its own step in the
 `release` script instead, where the real error prints. The `Check registry
 credentials` step exists to catch the common case (a bad or under-scoped token)
 before anything reaches that path.
+
+**A published package fails to install with `EUNSUPPORTEDPROTOCOL`.** Something
+in a publishable manifest uses a `workspace:` range. Changesets publishes through
+`npm publish`, and unlike pnpm/yarn/bun, npm does not rewrite that protocol while
+packing — it goes to the registry verbatim and no consumer can install it.
+`bun run check:publishable` guards against this in CI and again in the `release`
+script; depend on the real version instead and let Changesets keep it in step.
 
 **A platform package is missing from a release.** `napi prepublish` only publishes
 what it finds under `packages/bindings/npm/<platform>/`, which is filled from the

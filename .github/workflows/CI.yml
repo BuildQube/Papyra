@@ -24,6 +24,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: bun install --frozen-lockfile
       - run: bun run lint
+      # Catches a `workspace:` range in a publishable manifest before it can reach
+      # the registry, where it makes the package uninstallable under npm.
+      - run: bun run check:publishable
       - run: cargo fmt --check
       - run: cargo clippy --workspace -- -D warnings
 

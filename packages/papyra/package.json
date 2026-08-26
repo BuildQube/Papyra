@@ -39,7 +39,7 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@build-qube/papyra-native": "workspace:*"
+    "@build-qube/papyra-native": "0.0.3"
   },
   "devDependencies": {
     "typescript": "^7.0.2"

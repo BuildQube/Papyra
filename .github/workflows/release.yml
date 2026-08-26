@@ -142,16 +142,19 @@ jobs:
           npm install -g npm@latest
           npm --version
 
-      # Fails fast and legibly on a credential problem. Without it the first thing
-      # to touch the registry is a publish buried inside `npm publish --json`,
-      # which reports a rejection only as "command failed".
-      - name: Check registry credentials
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # Under trusted publishing there is no ambient credential to inspect — npm
+      # mints one per publish via OIDC — so `npm whoami` proves nothing here. What
+      # can be checked before anything touches the registry is that this job was
+      # actually granted `id-token: write`: without it the runner never populates
+      # ACTIONS_ID_TOKEN_REQUEST_URL, npm has no token to exchange, and the first
+      # publish fails as an opaque 404.
+      - name: Check OIDC is available
         run: |
-          echo "authenticated to npm as: $(npm whoami)"
-          echo "--- write access to the @build-qube scope ---"
-          npm access list packages @build-qube 2>&1 | head -20 || true
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
+            echo "::error::no OIDC token endpoint — this job is missing 'id-token: write'"
+            exit 1
+          fi
+          echo "OIDC token endpoint present; publishing as a trusted publisher"
 
       - run: bun install --frozen-lockfile
 
@@ -184,15 +187,12 @@ jobs:
       # It must still run before `changeset publish`: `napi prepublish` writes the
       # root package's optionalDependencies, and those have to be in place before
       # the root package is packed.
+      #
+      # No NODE_AUTH_TOKEN: all eight packages exist and are configured as trusted
+      # publishers, so both `npm publish` calls authenticate over OIDC. Setting a
+      # token here would silently take precedence and OIDC would never be
+      # attempted, so the absence of that env block is load-bearing.
       - name: Publish
         uses: changesets/action/publish@v2
         with:
           script: bun run release
-        env:
-          # BOOTSTRAP ONLY. Trusted publishing cannot be configured for a package
-          # that does not exist yet, so the very first release of each package has
-          # to go out on a token. Once all eight packages exist and their trusted
-          # publishers are configured, delete this block and revoke the token —
-          # leaving it means a stolen token can still publish papyra.
-          # See docs/RELEASING.md.
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
