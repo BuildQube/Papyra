@@ -14,4 +14,9 @@ Keeping it that way is mechanical rather than a matter of discipline: the refere
 at `/docs` is rendered from TypeDoc's model of this package, and an export with no
 doc comment now fails the build instead of shipping a blank entry.
 
+The package also has a README for the first time, so its npm page is no longer blank
+— a quickstart, and the two things most likely to bite (`fitWidth` over `dpi`, and
+cross-origin isolation in the browser). It opens the reference page too, from the
+same file.
+
 No API change.

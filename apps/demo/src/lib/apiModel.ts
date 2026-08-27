@@ -106,6 +106,8 @@ export interface Group {
 export interface ApiProject extends Reflection {
   children?: Reflection[];
   groups?: Group[];
+  /** The package README, via TypeDoc's `readme` option. Same token stream as a comment. */
+  readme?: CommentPart[];
 }
 
 /** A project plus the lookups the renderer needs to resolve `{@link}` targets. */
@@ -118,6 +120,8 @@ export interface ApiIndex {
   /** Id of the top-level export a nested member belongs to, so links can anchor. */
   ownerOf: Map<number, number>;
   groups: Group[];
+  /** The quickstart that opens the page. */
+  readme?: CommentPart[];
 }
 
 export function buildIndex(project: ApiProject): ApiIndex {
@@ -132,7 +136,14 @@ export function buildIndex(project: ApiProject): ApiIndex {
   };
   for (const child of topLevel) visit(child, child.id);
 
-  return { project, byId, topLevel, ownerOf, groups: project.groups ?? [] };
+  return {
+    project,
+    byId,
+    topLevel,
+    ownerOf,
+    groups: project.groups ?? [],
+    readme: project.readme,
+  };
 }
 
 /** Every reflection nested under `node`, whatever slot TypeDoc parked it in. */
@@ -193,7 +204,7 @@ export function slugOf(node: Reflection): string {
   return node.name;
 }
 
-const GITHUB_BLOB = 'https://github.com/BuildQube/papyra/blob/main/';
+const GITHUB_BLOB = 'https://github.com/BuildQube/Papyra/blob/main/';
 
 /** Link to the exact line this member is declared on. */
 export function sourceUrl(source: Source): string {

@@ -635,14 +635,44 @@ body {
 /* Padded well past the last entry so a fragment jump can always put its target at
    the top of the viewport, rather than wherever the page happens to bottom out. */
 
-.api-intro h1 {
-  font-size: 20px;
-  margin: 0 0 4px;
-  font-family: ui-monospace, monospace;
-}
-.api-intro {
+/* The README opening the page. Its own heading scale, deliberately distinct from
+   the reference below it: this is the part you read, that part is the part you
+   look things up in. */
+.api-readme {
   max-width: 74ch;
-  margin-bottom: 8px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+}
+.api-readme h1 {
+  font-size: 22px;
+  margin: 0 0 10px;
+  font-family: ui-monospace, monospace;
+  letter-spacing: 0.01em;
+}
+.api-readme h2 {
+  font-size: 14px;
+  margin: 26px 0 6px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  color: var(--text);
+}
+.api-readme h3 {
+  font-size: 13px;
+  margin: 16px 0 4px;
+}
+.api-readme p,
+.api-readme li {
+  color: var(--muted);
+}
+.api-readme strong {
+  color: var(--text);
+}
+.api-readme a {
+  color: var(--accent);
+}
+.api-note {
+  max-width: 74ch;
+  margin: 16px 0 0;
 }
 .api-group {
   font-size: 12px;

@@ -125,6 +125,13 @@ reference is styled like the rest of the site rather than like a second, foreign
 The model is fetched at runtime, which is why it lives in `public/` — 144 KB of API
 surface stays out of every JS bundle, and `tsc` never has to infer a type for it.
 
+`packages/papyra/README.md` opens that page, via TypeDoc's `readme` option, which puts
+it in the model as the same comment token stream everything else uses — so the
+quickstart and the reference render through one path and no markdown parser is
+involved. It is the npm landing page as well, so keep it portable: plain markdown, no
+TSDoc-only syntax like `{@link}`. The root `README.md` stays the long-form guide;
+this one is the quickstart, and the two should not grow into each other.
+
 Because the source of truth is the wrapper's own TSDoc, **an exported member with no
 doc comment fails the build** — `treatValidationWarningsAsErrors` in
 `packages/docs-gen/typedoc.json` turns TypeDoc's `notDocumented` warning into a

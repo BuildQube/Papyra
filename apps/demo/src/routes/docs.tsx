@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ApiMember } from '../components/docs/ApiMember.js';
+import { CommentBody } from '../components/docs/CommentBody.js';
 import { type ApiIndex, loadApi, type Reflection } from '../lib/apiModel.js';
 
 /**
@@ -114,13 +115,18 @@ export function DocsRoute() {
       </nav>
 
       <main className="api-content">
-        <div className="api-intro">
-          <h1>@build-qube/papyra</h1>
-          <p className="muted">
-            Generated from the package's own doc comments. Every entry links to
-            the line it is declared on.
-          </p>
-        </div>
+        {/* The package README, which is also the npm landing page — so the
+            quickstart a reader needs first is the same text a reader gets there,
+            and neither can go stale while the other is updated. */}
+        <CommentBody
+          className="api-readme"
+          hrefFor={hrefFor}
+          parts={api.readme}
+        />
+        <p className="api-note muted">
+          Everything below is generated from the package's doc comments. Every
+          entry links to the line it is declared on.
+        </p>
         {groups.map((group) => (
           <div key={group.title}>
             <h2 className="api-group">{group.title}</h2>
