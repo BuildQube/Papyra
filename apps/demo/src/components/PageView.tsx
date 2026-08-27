@@ -1,4 +1,5 @@
 import { paintToCanvas, type RenderedPage } from '@build-qube/papyra';
+import type { CSSProperties } from 'react';
 import { useImperativeHandle, useRef } from 'react';
 
 export interface PageViewHandle {
@@ -9,6 +10,14 @@ export interface PageViewHandle {
 interface Props {
   ref: React.Ref<PageViewHandle>;
   className?: string;
+  /**
+   * The CSS box the page occupies, which zoom sets and the bitmap does not.
+   *
+   * Keeping the two apart is what makes a pinch feel instant: the box follows the
+   * gesture every frame while the canvas keeps whatever it last rendered, stretched
+   * to fit, until the gesture settles and a sharp bitmap replaces it.
+   */
+  style?: CSSProperties;
 }
 
 /**
@@ -20,22 +29,19 @@ interface Props {
  * as hundreds of milliseconds between the render resolving and the paint effect
  * running. Painting straight to the canvas lets the buffer die immediately.
  */
-export function PageView({ ref, className }: Props) {
+export function PageView({ ref, className, style }: Props) {
   const canvas = useRef<HTMLCanvasElement>(null);
 
   useImperativeHandle(ref, () => ({
     paint(page) {
       const target = canvas.current;
       if (!target) {
-        // Nothing to paint into yet. Report zeros rather than silently dropping the
-        // page, so a caller measuring time-to-visible cannot be misled.
         return Promise.resolve({ paintMs: 0, presentMs: 0 });
       }
       const started = performance.now();
       paintToCanvas(page, target);
       const painted = performance.now();
       return new Promise((resolve) => {
-        // The first rAF fires before paint, the second after it has been composited.
         requestAnimationFrame(() => {
           requestAnimationFrame(() =>
             resolve({
@@ -48,5 +54,5 @@ export function PageView({ ref, className }: Props) {
     },
   }));
 
-  return <canvas ref={canvas} className={className} />;
+  return <canvas ref={canvas} className={className} style={style} />;
 }

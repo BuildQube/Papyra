@@ -4,6 +4,7 @@ import {
   createRoute,
   createRouter,
 } from '@tanstack/react-router';
+import { parseZoom, type ZoomSpec } from './lib/zoom.js';
 import { BenchRoute } from './routes/bench.js';
 import { DocsRoute } from './routes/docs.js';
 import { ExportRoute } from './routes/export.js';
@@ -37,6 +38,8 @@ interface ViewerSearch {
   width?: number;
   thumbs?: boolean;
   probe?: number;
+  zoom?: ZoomSpec;
+  view?: 'page' | 'scroll';
 }
 interface ExportSearch {
   format?: EncodedFormat;
@@ -62,6 +65,8 @@ const viewerRoute = createRoute({
     width: positive(search.width),
     thumbs: search.thumbs === undefined ? undefined : search.thumbs !== false,
     probe: positive(search.probe),
+    zoom: parseZoom(search.zoom),
+    view: search.view === 'scroll' ? 'scroll' : undefined,
   }),
 });
 

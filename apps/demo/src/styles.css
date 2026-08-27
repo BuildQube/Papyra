@@ -190,16 +190,53 @@ body {
 .viewer {
   flex: 1;
   min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.viewer-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+/* The segmented control is full-width in the export sidebar; here it is a chip. */
+.viewer-bar .segmented button {
+  flex: none;
+  padding: 4px 12px;
+}
+
+/*
+ * The zoom gestures live here, so the browser must not claim them first:
+ * `touch-action` leaves us the two-finger pinch and keeps the one-finger pan, and
+ * `overscroll-behavior` stops a scroll that hits the end from navigating back.
+ */
+.viewer-scroll {
+  position: relative;
+  flex: 1;
+  min-height: 0;
   overflow: auto;
   display: grid;
   place-items: start center;
   padding: 24px;
+  touch-action: pan-x pan-y;
+  overscroll-behavior: contain;
 }
+
 .page {
   max-width: 100%;
   height: auto;
   background: #fff;
   box-shadow: 0 6px 28px rgb(0 0 0 / 0.5);
+}
+/* Zoom sets an explicit box, so the fit-to-container cap has to come off. */
+.page.zoomable {
+  max-width: none;
 }
 
 .bench {
@@ -296,11 +333,12 @@ body {
 }
 
 .status {
+  flex: none;
   font-size: 12px;
-  padding-bottom: 12px;
-  min-height: 18px;
-  justify-self: stretch;
+  padding: 5px 12px;
+  min-height: 24px;
   text-align: center;
+  border-bottom: 1px solid var(--line);
 }
 
 /* Stands in for the <img> until it has decoded real pixels. */
@@ -573,6 +611,115 @@ body {
 .hit.active {
   fill: #ff8a3d;
   fill-opacity: 0.55;
+}
+
+/* --- toolbar ------------------------------------------------------------------ */
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.pager button {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.pager button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.pager input {
+  width: 48px;
+  padding: 3px 6px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.zoom {
+  min-width: 130px;
+  padding: 3px 6px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+/* The pages on screen are a stretched bitmap until the gesture settles. */
+.zoom.settling {
+  border-color: var(--accent);
+}
+
+.viewer-bar .hint {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* --- continuous pages --------------------------------------------------------- */
+
+.pages {
+  position: relative;
+}
+
+.page-slot {
+  position: absolute;
+  background: #fff;
+  box-shadow: 0 4px 18px rgb(0 0 0 / 0.45);
+}
+.page-slot.current {
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 1px;
+}
+.page-slot canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/*
+ * A placeholder of exactly the right size, from `pageSize()`, before anything has
+ * rendered. That is what lets the column be scrolled to the end immediately: the
+ * geometry never depends on the pixels arriving.
+ */
+.page-blank {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.page-blank.pending {
+  animation: page-pulse 1.4s ease-in-out infinite;
+}
+@keyframes page-pulse {
+  0%,
+  100% {
+    background: var(--panel);
+  }
+  50% {
+    background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+  }
 }
 
 /* ---------------------------------------------------------------- API reference */
