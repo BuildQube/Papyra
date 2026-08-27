@@ -164,6 +164,16 @@ export function quadBounds(quad: Quad): Rect {
   return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
 }
 
+/** Scale a rect from 72-DPI page space into a render's pixels. */
+export function scaleRect(rect: Rect, scale: number): Rect {
+  return {
+    x: rect.x * scale,
+    y: rect.y * scale,
+    width: rect.width * scale,
+    height: rect.height * scale,
+  };
+}
+
 /** Scale a quad from 72-DPI page space into a render's pixels. */
 export function scaleQuad(quad: Quad, scale: number): Quad {
   return {
