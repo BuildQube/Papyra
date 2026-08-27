@@ -6,8 +6,9 @@
  * imports `encodeBitmap` as a value. See CLAUDE.md.
  */
 /**
- * Containers papyra can write. All three encoders are pure Rust — that is what keeps
- * the browser build free of a C toolchain — so there is no lossy WebP and no AVIF.
+ * Containers papyra can rasterise a page into. All three encoders are pure Rust — that
+ * is what keeps the browser build free of a C toolchain — so there is no lossy WebP and
+ * no AVIF.
  *
  * - `webp` is lossless VP8L, and the default: on page content (line art, text, flat
  *   fills) it is ~3x smaller than PNG for roughly the same encode time.
@@ -16,12 +17,22 @@
  *   alpha channel; transparent pixels are composited onto white, matching how pages
  *   are rendered.
  */
-export type EncodedFormat = 'webp' | 'png' | 'jpeg';
+export type RasterFormat = 'webp' | 'png' | 'jpeg';
+
+/**
+ * Every container papyra can write, {@link RasterFormat} plus `svg`.
+ *
+ * `svg` is separate from the others everywhere it matters: it comes off
+ * `Document.renderSvg`, not off pixels, so it takes no DPI and no quality — which is
+ * why {@link EncodeOptions.format} accepts only a {@link RasterFormat}.
+ */
+export type EncodedFormat = RasterFormat | 'svg';
 
 const MIME: Record<EncodedFormat, string> = {
   webp: 'image/webp',
   png: 'image/png',
   jpeg: 'image/jpeg',
+  svg: 'image/svg+xml',
 };
 
 /** MIME type for an encoded format, e.g. `'webp'` -> `'image/webp'`. */
@@ -31,8 +42,11 @@ export function mimeType(format: EncodedFormat): string {
 
 /** Which container to write, and how hard to squeeze. */
 export interface EncodeOptions {
-  /** Defaults to `'webp'`. */
-  format?: EncodedFormat;
+  /**
+   * Defaults to `'webp'`. Rasters only — SVG is not an encoding of a bitmap, so it
+   * comes from `Document.renderSvg` instead.
+   */
+  format?: RasterFormat;
   /** JPEG only, 1-100. Defaults to 80. Ignored by the lossless formats. */
   quality?: number;
   /** Abort a request that has not started yet. */
@@ -62,6 +76,46 @@ export interface EncodedImage {
    * bytes must be embedded — CSS, serialised output, server-rendered HTML.
    */
   toDataUrl(): string;
+}
+
+/**
+ * One page as SVG. An {@link EncodedImage} whose markup is also readable as a string,
+ * because the usual thing to do with an SVG is inline it rather than hand a browser
+ * a URL.
+ */
+export interface SvgPage extends EncodedImage {
+  readonly format: 'svg';
+  /** The SVG document itself, a single `<svg>` element sized in PDF points. */
+  readonly markup: string;
+}
+
+/**
+ * Wrap SVG markup as an {@link SvgPage}.
+ *
+ * `bytes` is encoded on first access: inlining the markup is the common case, and a
+ * page of dense line art is megabytes of text that no one asked to have copied.
+ */
+export function svgPage(markup: string): SvgPage {
+  const mime = MIME.svg;
+  let encoded: Uint8Array | undefined;
+  const bytes = (): Uint8Array => {
+    encoded ??= new TextEncoder().encode(markup);
+    return encoded;
+  };
+
+  return {
+    markup,
+    format: 'svg',
+    mime,
+    get bytes() {
+      return bytes();
+    },
+    toBlob: () => new Blob([markup], { type: mime }),
+    toBlobUrl() {
+      return URL.createObjectURL(this.toBlob());
+    },
+    toDataUrl: () => `data:${mime};base64,${base64(bytes())}`,
+  };
 }
 
 /**

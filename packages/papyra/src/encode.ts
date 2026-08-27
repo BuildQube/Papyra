@@ -10,8 +10,14 @@ import {
 } from './encoded.js';
 import type { RenderedPage } from './types.js';
 
-export type { EncodedFormat, EncodedImage, EncodeOptions } from './encoded.js';
-export { encodedImage, mimeType } from './encoded.js';
+export type {
+  EncodedFormat,
+  EncodedImage,
+  EncodeOptions,
+  RasterFormat,
+  SvgPage,
+} from './encoded.js';
+export { encodedImage, mimeType, svgPage } from './encoded.js';
 
 /**
  * Encode a page you already hold — a cache hit, or one you have just painted.

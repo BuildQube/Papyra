@@ -281,6 +281,41 @@ impl Task for RenderImageTask {
   }
 }
 
+/// One page converted to SVG, off the JS thread.
+///
+/// Conversion is content-stream interpretation without rasterisation, so it costs about
+/// what a render's non-preemptible portion does — too much for the event loop even
+/// though no pixels are produced.
+pub struct SvgTask {
+  doc: Arc<HayroDocument>,
+  index: usize,
+  white_background: bool,
+}
+
+impl Task for SvgTask {
+  type Output = String;
+  type JsValue = String;
+
+  fn compute(&mut self) -> Result<Self::Output> {
+    self
+      .doc
+      .page_svg(
+        self.index,
+        &RenderOptions {
+          // `scale` is meaningless for a resolution-independent format and is ignored
+          // by the backend; only the background carries over.
+          white_background: self.white_background,
+          ..RenderOptions::default()
+        },
+      )
+      .map_err(map_err)
+  }
+
+  fn resolve(&mut self, _env: Env, out: Self::Output) -> Result<Self::JsValue> {
+    Ok(out)
+  }
+}
+
 /// Encode pixels that are already in JS.
 ///
 /// Costs one copy on the way in: a `Uint8Array` points at the JS heap and cannot be
@@ -646,6 +681,27 @@ impl PdfDocument {
         doc: self.inner.clone(),
         index: index as usize,
         dpi: dpi.unwrap_or(72.0),
+      },
+      signal,
+    )
+  }
+
+  /// Convert one page to a standalone SVG document, off the JS thread.
+  ///
+  /// There is no DPI: an SVG carries the page's own point dimensions and rasterises at
+  /// whatever size it is drawn.
+  #[napi(ts_return_type = "Promise<string>")]
+  pub fn render_page_svg_async(
+    &self,
+    index: u32,
+    white_background: Option<bool>,
+    signal: Option<AbortSignal>,
+  ) -> AsyncTask<SvgTask> {
+    AsyncTask::with_optional_signal(
+      SvgTask {
+        doc: self.inner.clone(),
+        index: index as usize,
+        white_background: white_background.unwrap_or(true),
       },
       signal,
     )

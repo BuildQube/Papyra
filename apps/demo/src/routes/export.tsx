@@ -1,4 +1,10 @@
-import type { EncodedFormat, EncodedImage } from '@build-qube/papyra';
+import type {
+  EncodedFormat,
+  EncodedImage,
+  JobTiming,
+  RasterFormat,
+} from '@build-qube/papyra';
+import { PageImage } from '@build-qube/papyra';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ExportControls } from '../components/ExportControls.js';
@@ -16,7 +22,7 @@ interface Timing {
   wait: number;
   /** Actually rasterising. */
   run: number;
-  /** Bitmap -> encoded bytes, inside wasm. */
+  /** Bitmap -> encoded bytes, inside wasm. Zero on the SVG path: it emits text. */
   encode: number;
   /** The browser decoding those bytes back into pixels. */
   decode: number;
@@ -24,9 +30,9 @@ interface Timing {
   present: number;
   /** Request until the image was actually on screen. */
   visible: number;
-  /** Encoded size, and the raw bitmap it replaced. */
+  /** Encoded size, and the raw bitmap it replaced — `null` when there was none. */
   bytes: number;
-  raw: number;
+  raw: number | null;
   width: number;
   height: number;
 }
@@ -52,6 +58,8 @@ export function ExportRoute() {
   const search = useSearch({ strict: false }) as Search;
 
   const format = search.format ?? 'webp';
+  /** What `PageImage.encode` will be asked for; unused on the SVG path. */
+  const rasterFormat: RasterFormat = format === 'svg' ? 'webp' : format;
   const quality = search.quality ?? 80;
   const width = search.width ?? defaultViewWidth();
 
@@ -71,36 +79,57 @@ export function ExportRoute() {
     setTiming(null);
     setBusy(true);
 
-    const job = doc.imageHandle(page, { fitWidth: width, priority: 0 });
-    job.promise
-      .then(async (image) => {
-        if (cancelled) return;
+    /** Everything after the bytes exist, which is all the two paths share. */
+    const present = async (
+      job: JobTiming | null,
+      out: EncodedImage,
+      encodeMs: number,
+      raster: PageImage | null,
+    ) => {
+      encoded.current = out;
+      const shown = (await view.current?.show(out.bytes, out.mime)) ?? {
+        decodeMs: 0,
+        presentMs: 0,
+      };
+      if (cancelled) return;
 
-        const encodeStarted = performance.now();
-        const out = await image.encode({ format, quality });
-        const encodeMs = performance.now() - encodeStarted;
-        if (cancelled) return;
+      const size = doc.pageSize(page);
+      setTiming({
+        wait: job?.waitMs ?? 0,
+        run: job?.runMs ?? 0,
+        encode: encodeMs,
+        decode: shown.decodeMs,
+        present: shown.presentMs,
+        visible: performance.now() - started,
+        bytes: out.bytes.length,
+        raw: raster?.byteLength ?? null,
+        width: Math.round(raster?.width ?? size.width),
+        height: Math.round(raster?.height ?? size.height),
+      });
+    };
 
-        encoded.current = out;
-        const shown = (await view.current?.show(out.bytes, out.mime)) ?? {
-          decodeMs: 0,
-          presentMs: 0,
-        };
-        if (cancelled) return;
+    // SVG is not an encoding of a bitmap: it comes off the page directly, so there is
+    // no width to render at, no quality to trade, and no raw buffer to compare with.
+    const job =
+      format === 'svg'
+        ? doc.svgHandle(page, { priority: 0 })
+        : doc.imageHandle(page, { fitWidth: width, priority: 0 });
 
-        setTiming({
-          wait: job.timing?.waitMs ?? 0,
-          run: job.timing?.runMs ?? 0,
-          encode: encodeMs,
-          decode: shown.decodeMs,
-          present: shown.presentMs,
-          visible: performance.now() - started,
-          bytes: out.bytes.length,
-          raw: image.byteLength,
-          width: image.width,
-          height: image.height,
-        });
-      })
+    const settle = async () => {
+      const result = await job.promise;
+      if (cancelled) return;
+
+      if (!(result instanceof PageImage)) {
+        await present(job.timing, result, 0, null);
+        return;
+      }
+      const encodeStarted = performance.now();
+      const out = await result.encode({ format: rasterFormat, quality });
+      if (cancelled) return;
+      await present(job.timing, out, performance.now() - encodeStarted, result);
+    };
+
+    settle()
       .catch((e: Error) => !cancelled && setError(e.message))
       .finally(() => !cancelled && setBusy(false));
 
@@ -108,7 +137,7 @@ export function ExportRoute() {
       cancelled = true;
       job.cancel('left the page');
     };
-  }, [doc, page, width, format, quality, setError]);
+  }, [doc, page, width, format, rasterFormat, quality, setError]);
 
   const patch = useCallback(
     (next: Partial<Search>) => {
@@ -139,14 +168,16 @@ export function ExportRoute() {
       status={
         timing && (
           <span className="muted">
-            {format} · page {page + 1} · {timing.width}×{timing.height} · wait{' '}
-            {timing.wait.toFixed(0)} · run {timing.run.toFixed(0)} · encode{' '}
-            {timing.encode.toFixed(0)} · decode {timing.decode.toFixed(0)} ·
-            present {timing.present.toFixed(0)} ·{' '}
-            <strong>{(timing.bytes / 1024).toFixed(0)} KB</strong> vs{' '}
-            {`${(timing.raw / 1e6).toFixed(1)} MB raw (${(
-              timing.raw / timing.bytes
-            ).toFixed(0)}× smaller)`}{' '}
+            {format} · page {page + 1} · {timing.width}×{timing.height}
+            {timing.raw === null ? ' pt' : ''} · wait {timing.wait.toFixed(0)} ·
+            run {timing.run.toFixed(0)} · encode {timing.encode.toFixed(0)} ·
+            decode {timing.decode.toFixed(0)} · present{' '}
+            {timing.present.toFixed(0)} ·{' '}
+            <strong>{(timing.bytes / 1024).toFixed(0)} KB</strong>
+            {timing.raw !== null &&
+              ` vs ${(timing.raw / 1e6).toFixed(1)} MB raw (${(
+                timing.raw / timing.bytes
+              ).toFixed(0)}× smaller)`}{' '}
             · <strong>visible {timing.visible.toFixed(0)}ms</strong>
           </span>
         )

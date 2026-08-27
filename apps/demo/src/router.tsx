@@ -26,7 +26,7 @@ const bounded = (v: unknown, lo: number, hi: number): number | undefined => {
   return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : undefined;
 };
 
-const FORMATS = new Set<EncodedFormat>(['webp', 'png', 'jpeg']);
+const FORMATS = new Set<EncodedFormat>(['webp', 'png', 'jpeg', 'svg']);
 
 // Declared with optional keys, not `key: T | undefined`. A required-but-undefined key
 // would force every `<Link search={prev => prev}>` to restate the whole shape.

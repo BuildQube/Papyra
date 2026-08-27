@@ -3,7 +3,7 @@ import {
   type PageImage as NativePageImage,
 } from '@build-qube/papyra-native';
 import { type CacheStats, RenderCache } from './cache.js';
-import { PageImage } from './encode.js';
+import { PageImage, type SvgPage, svgPage } from './encode.js';
 import { buildOutlineTree, type OutlineNode } from './outline.js';
 import {
   currentRuntime,
@@ -24,6 +24,7 @@ import type {
   SearchOptions,
   StreamedPage,
   StreamOptions,
+  SvgOptions,
 } from './types.js';
 
 const DEFAULT_DPI = 72;
@@ -71,6 +72,12 @@ export interface RenderHandle extends JobHandle<RenderedPage> {
  * never comes from the cache, which is keyed by page and size with no format dimension.
  */
 export type ImageHandle = JobHandle<PageImage>;
+
+/**
+ * A queued SVG conversion. Uncached for the same reason as {@link ImageHandle}, and
+ * unsized: an SVG has no DPI to key on.
+ */
+export type SvgHandle = JobHandle<SvgPage>;
 
 /** Wire an `AbortSignal` to a queued job. Cancelling only drops work not yet started. */
 function attachSignal(
@@ -268,6 +275,61 @@ export class Document {
             options.signal,
           ) as Promise<NativePageImage>
         ).then((img) => new PageImage(img)),
+    });
+
+    attachSignal(handle, options.signal);
+    return handle;
+  }
+
+  /**
+   * Convert a page to SVG — vector output, not pixels.
+   *
+   * Paths stay paths and text stays glyph outlines, so the result scales to any size
+   * and can be edited downstream. That is the trade: an SVG of a dense drawing is
+   * larger than a WebP of the same page at screen size and slower for a browser to
+   * paint, but it is the only output that survives being scaled up.
+   *
+   * Conversion is content-stream interpretation without rasterisation — roughly the
+   * non-preemptible portion of a render — so it shares the scheduler with everything
+   * else and honours {@link SvgOptions.priority}. **Not cached**, for the same reason
+   * {@link renderImage} is not.
+   *
+   * @example
+   * ```ts
+   * const page = await doc.renderSvg(0, { background: 'transparent' });
+   * await writeFile('page-0.svg', page.markup);
+   * ```
+   */
+  async renderSvg(index: number, options: SvgOptions = {}): Promise<SvgPage> {
+    return this.svgHandle(index, options).promise;
+  }
+
+  /**
+   * As {@link renderSvg}, but returns the handle so the job can be reprioritised,
+   * cancelled, or timed — the same relationship `imageHandle` has to `renderImage`.
+   */
+  svgHandle(index: number, options: SvgOptions = {}): SvgHandle {
+    if (index < 0 || index >= this.pageCount) {
+      throw new RangeError(
+        `papyra: page ${index} is out of range (0..${this.pageCount - 1})`,
+      );
+    }
+
+    const opaque = options.background !== 'transparent';
+
+    const handle = this.#scheduler.submit<SvgPage>({
+      // The background is part of the key: the scheduler coalesces same-key requests,
+      // and an opaque and a transparent conversion of one page are different output.
+      key: `svg:${index}${opaque ? '' : ':transparent'}`,
+      priority: options.priority ?? DEFAULT_PRIORITY,
+      run: () =>
+        (
+          this.#inner.renderPageSvgAsync(
+            index,
+            opaque,
+            options.signal,
+          ) as Promise<string>
+        ).then(svgPage),
     });
 
     attachSignal(handle, options.signal);

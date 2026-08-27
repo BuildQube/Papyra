@@ -188,11 +188,45 @@ behave exactly as they do for `render`. Use `doc.imageHandle()` when you want th
 `renderPage()`. Neither is cached: the cache is keyed by page and size with no format
 dimension, and it measures raw bytes.
 
+### SVG
+
+The fourth format is not an encoding of pixels at all. `renderSvg` re-runs the page's
+content stream into vector output — paths stay paths, text stays glyph outlines — so
+there is no `dpi`, no `fitWidth` and no `quality` to choose:
+
+```ts
+const page = await doc.renderSvg(0);
+await writeFile('page-0.svg', page.markup);
+
+// Everything an EncodedImage gives you is here too.
+img.src = page.toBlobUrl();
+
+// Going on top of something else? Drop the white background — an opaque rectangle
+// behind vector artwork is the one thing a consumer cannot undo.
+const overlay = await doc.renderSvg(0, { background: 'transparent' });
+```
+
+`SvgPage` is an `EncodedImage` whose markup is also readable as a string, since the
+usual thing to do with an SVG is inline it rather than hand a browser a URL. `bytes` is
+UTF-8, encoded on first access.
+
+The trade is size, and how bad it is depends entirely on how large you were going to
+raster. Across the corpus SVG is **8.6x larger than WebP at 150 DPI and 2.9x larger at
+400** — the same 7548 KB both times, because vector output has no resolution to grow
+with. Conversion costs about what a render's non-preemptible portion does (52 ms for 14
+pages, against 42 ms to *encode* pages already rendered), and it comes off the same
+scheduler, with `doc.svgHandle()` for the handle. Not cached, for the same reason
+`renderImage` is not.
+
+Reach for it when the output has to survive being scaled — print, a drawing someone will
+zoom into, an asset going into a design tool. For anything that lands on a screen at a
+size you already know, WebP is smaller and paints faster.
+
 ## Layout
 
 ```
 crates/papyra-core     engine-agnostic traits and types
-crates/papyra-encode   pure-Rust WebP/PNG/JPEG encoders
+crates/papyra-encode   pure-Rust WebP/PNG/JPEG encoders (SVG comes from hayro-svg)
 crates/papyra-hayro    hayro-backed engine
 packages/bindings      napi-rs bindings  -> @build-qube/papyra-native
 packages/papyra        TypeScript wrapper -> @build-qube/papyra

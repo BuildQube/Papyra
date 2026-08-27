@@ -1,12 +1,19 @@
 import type { EncodedFormat } from '@build-qube/papyra';
 
-const FORMATS: readonly EncodedFormat[] = ['webp', 'png', 'jpeg'];
+const FORMATS: readonly EncodedFormat[] = ['webp', 'png', 'jpeg', 'svg'];
 
 /**
  * WebP here is lossless VP8L and PNG is Deflate — neither takes a quality setting, so
  * the slider hides rather than sitting inert.
  */
 const isLossy = (format: EncodedFormat) => format === 'jpeg';
+
+const BLURB: Record<EncodedFormat, string> = {
+  webp: 'Lossless, so there is nothing to trade away.',
+  png: 'Lossless, so there is nothing to trade away.',
+  jpeg: 'Lossy. The only pure-Rust option with a quality knob.',
+  svg: 'Vector. Paths stay paths, so it scales without resampling — and width does not apply.',
+};
 
 interface Props {
   format: EncodedFormat;
@@ -49,11 +56,7 @@ export function ExportControls({
             </button>
           ))}
         </div>
-        <p className="muted">
-          {isLossy(format)
-            ? 'Lossy. The only pure-Rust option with a quality knob.'
-            : 'Lossless, so there is nothing to trade away.'}
-        </p>
+        <p className="muted">{BLURB[format]}</p>
       </fieldset>
 
       {isLossy(format) && (
@@ -69,20 +72,22 @@ export function ExportControls({
         </fieldset>
       )}
 
-      <fieldset>
-        <legend>width</legend>
-        <input
-          type="number"
-          min={64}
-          max={6000}
-          step={100}
-          value={width}
-          onChange={(e) => onWidth(Number(e.target.value))}
-        />
-        <p className="muted">
-          Output pixels, not DPI. A fixed DPI explodes on large-format pages.
-        </p>
-      </fieldset>
+      {format !== 'svg' && (
+        <fieldset>
+          <legend>width</legend>
+          <input
+            type="number"
+            min={64}
+            max={6000}
+            step={100}
+            value={width}
+            onChange={(e) => onWidth(Number(e.target.value))}
+          />
+          <p className="muted">
+            Output pixels, not DPI. A fixed DPI explodes on large-format pages.
+          </p>
+        </fieldset>
+      )}
 
       <button type="button" onClick={onDownload} disabled={busy}>
         Download .{format === 'jpeg' ? 'jpg' : format}

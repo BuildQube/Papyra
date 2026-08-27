@@ -94,6 +94,16 @@ pub trait Document: Debug {
     let _ = index;
     Err(PapyraError::Unsupported("text extraction".to_string()))
   }
+
+  /// Convert one page to a standalone SVG document.
+  ///
+  /// Defaulted for the same reason as [`Self::outline`]. [`RenderOptions::scale`] has
+  /// no meaning here — an SVG carries the page's own dimensions and rasterises at
+  /// whatever size it is drawn — so only `white_background` is read.
+  fn page_svg(&self, index: usize, opts: &RenderOptions) -> Result<String> {
+    let _ = (index, opts);
+    Err(PapyraError::Unsupported("SVG conversion".to_string()))
+  }
 }
 
 /// A PDF backend.

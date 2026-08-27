@@ -46,6 +46,25 @@ export interface StreamOptions extends RenderOptions {
   order?: readonly number[];
 }
 
+/**
+ * Options for {@link Document.renderSvg}. No `dpi` and no `fitWidth`: an SVG carries
+ * the page's own point dimensions and rasterises at whatever size it is drawn.
+ */
+export interface SvgOptions {
+  /** Scheduling order, exactly as in {@link RenderOptions.priority}. */
+  priority?: number;
+  /** Abort a request that has not started yet. */
+  signal?: AbortSignal;
+  /**
+   * Defaults to `'white'`, matching how pages rasterise.
+   *
+   * Choose `'transparent'` when the SVG is going to be placed onto something else —
+   * an opaque rectangle behind vector artwork is the one thing a consumer cannot
+   * undo.
+   */
+  background?: 'white' | 'transparent';
+}
+
 /** A rendered page. `data` is tightly packed RGBA8, `height * stride` bytes. */
 export interface RenderedPage {
   /** Output width in pixels, after `dpi` or `fitWidth` was applied. */

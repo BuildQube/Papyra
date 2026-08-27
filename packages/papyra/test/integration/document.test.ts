@@ -177,3 +177,65 @@ describeWithCorpus('text and search, against real documents', () => {
     expect(hits).toEqual([]);
   });
 });
+
+describeWithCorpus('svg, against real documents', () => {
+  test('emits one svg element sized in the page own points', async () => {
+    const doc = await load('tracemonkey.pdf');
+    const { width, height } = doc.pageSize(0);
+    const page = await doc.renderSvg(0);
+
+    expect(page.format).toBe('svg');
+    expect(page.mime).toBe('image/svg+xml');
+    expect(page.markup).toStartWith('<svg ');
+    expect(page.markup.trimEnd()).toEndWith('</svg>');
+    expect(page.markup).toContain(
+      `viewBox="0 0 ${Math.round(width)} ${Math.round(height)}"`,
+    );
+  });
+
+  /**
+   * The point of the format. A page whose text arrives as glyph outlines still has to
+   * arrive as geometry, not as an embedded raster of itself.
+   */
+  test('text and line work stay vector', async () => {
+    const doc = await load('tracemonkey.pdf');
+    const { markup } = await doc.renderSvg(0);
+
+    expect(markup).toContain('<path ');
+    expect(markup).not.toContain('<image ');
+  });
+
+  test('background is white by default and droppable', async () => {
+    const doc = await load('tracemonkey.pdf');
+    expect((await doc.renderSvg(0)).markup).toContain('background-color');
+    expect(
+      (await doc.renderSvg(0, { background: 'transparent' })).markup,
+    ).not.toContain('background-color');
+  });
+
+  /**
+   * Same page, two backgrounds, in flight together: the scheduler coalesces by key, so
+   * a key that ignored the background would hand one caller the other's output.
+   */
+  test('the two backgrounds do not coalesce into one job', async () => {
+    const doc = await load('tracemonkey.pdf');
+    const [opaque, clear] = await Promise.all([
+      doc.renderSvg(1),
+      doc.renderSvg(1, { background: 'transparent' }),
+    ]);
+    expect(opaque.markup).toContain('background-color');
+    expect(clear.markup).not.toContain('background-color');
+  });
+
+  test('svgHandle reports queue and run time separately', async () => {
+    const doc = await load('tracemonkey.pdf');
+    const job = doc.svgHandle(0);
+    await job.promise;
+    expect(job.timing?.runMs).toBeGreaterThan(0);
+  });
+
+  test('an out-of-range page is rejected before anything is queued', async () => {
+    const doc = await load('tracemonkey.pdf');
+    expect(() => doc.svgHandle(doc.pageCount)).toThrow(RangeError);
+  });
+});

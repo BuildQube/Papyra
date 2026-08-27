@@ -129,6 +129,19 @@ fn render_settings(opts: &RenderOptions) -> RenderSettings {
   }
 }
 
+/// hayro-svg takes a straight RGBA quadruple rather than a colour type; the only knob
+/// that carries over from [`RenderOptions`] is the background, since an SVG has no
+/// resolution to scale.
+fn svg_settings(opts: &RenderOptions) -> hayro_svg::SvgRenderSettings {
+  hayro_svg::SvgRenderSettings {
+    bg_color: if opts.white_background {
+      [255, 255, 255, 255]
+    } else {
+      [0, 0, 0, 0]
+    },
+  }
+}
+
 fn to_bitmap(pixmap: hayro::vello_cpu::Pixmap) -> Bitmap {
   let width = pixmap.width() as u32;
   let height = pixmap.height() as u32;
@@ -163,6 +176,20 @@ impl Document for HayroDocument {
     Ok(text::extract(page))
   }
 
+  fn page_svg(&self, index: usize, opts: &RenderOptions) -> Result<String> {
+    let pages = self.pdf.pages();
+    let page = pages.get(index).ok_or(PapyraError::PageOutOfRange(index))?;
+    // hayro-svg keeps its own cache type, separate from `hayro::RenderCache` and with
+    // the same borrow of the document — so it is per-call here for the same reason.
+    let cache = hayro_svg::RenderCache::new();
+    Ok(hayro_svg::convert(
+      page,
+      &cache,
+      &InterpreterSettings::default(),
+      &svg_settings(opts),
+    ))
+  }
+
   fn render_page(&self, index: usize, opts: &RenderOptions) -> Result<Bitmap> {
     let pages = self.pdf.pages();
     let page = pages.get(index).ok_or(PapyraError::PageOutOfRange(index))?;
@@ -190,5 +217,98 @@ mod thread_safety {
     assert_sync::<hayro_syntax::Pdf>();
     assert_send::<HayroDocument>();
     assert_sync::<HayroDocument>();
+  }
+}
+
+#[cfg(test)]
+mod svg {
+  use super::*;
+  use crate::fixtures::build_pdf;
+
+  fn doc(content: &str) -> HayroDocument {
+    let bytes = build_pdf(&[
+      (1, "<< /Type /Catalog /Pages 2 0 R >>".to_string()),
+      (2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_string()),
+      (
+        3,
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>".to_string(),
+      ),
+      (
+        4,
+        format!(
+          "<< /Length {} >>\nstream\n{content}\nendstream",
+          content.len() + 1
+        ),
+      ),
+    ]);
+    HayroEngine::load(bytes).expect("fixture should load")
+  }
+  /// The viewBox has to be the page's own point size, or every consumer that scales
+  /// the SVG to a container silently changes the drawing's proportions.
+  #[test]
+  fn svg_carries_the_page_geometry() {
+    let svg = doc("1 0 0 rg 100 100 200 300 re f")
+      .page_svg(0, &RenderOptions::default())
+      .unwrap();
+
+    assert!(svg.starts_with("<svg "), "{svg}");
+    assert!(svg.contains(r#"viewBox="0 0 612 792""#), "{svg}");
+    assert!(svg.trim_end().ends_with("</svg>"), "{svg}");
+  }
+
+  /// Filled paths must survive as paths — the whole point of SVG output is that the
+  /// geometry is still geometry and not a raster of it.
+  #[test]
+  fn fills_stay_vector() {
+    let svg = doc("1 0 0 rg 100 100 200 300 re f")
+      .page_svg(0, &RenderOptions::default())
+      .unwrap();
+
+    assert!(svg.contains("<path "), "{svg}");
+    assert!(svg.contains("#ff0000"), "{svg}");
+    assert!(!svg.contains("<image "), "{svg}");
+  }
+
+  #[test]
+  fn white_background_is_opt_out() {
+    let d = doc("1 0 0 rg 100 100 200 300 re f");
+
+    let opaque = d.page_svg(0, &RenderOptions::default()).unwrap();
+    assert!(opaque.contains("background-color"), "{opaque}");
+
+    let transparent = d
+      .page_svg(
+        0,
+        &RenderOptions {
+          white_background: false,
+          ..Default::default()
+        },
+      )
+      .unwrap();
+    assert!(!transparent.contains("background-color"), "{transparent}");
+  }
+
+  /// `scale` is meaningless for a resolution-independent format, and quietly baking it
+  /// into the viewBox would make the SVG disagree with the page it came from.
+  #[test]
+  fn scale_is_ignored() {
+    let d = doc("1 0 0 rg 100 100 200 300 re f");
+    let at_1x = d.page_svg(0, &RenderOptions::default()).unwrap();
+    let at_4x = d
+      .page_svg(
+        0,
+        &RenderOptions {
+          scale: 4.0,
+          ..Default::default()
+        },
+      )
+      .unwrap();
+
+    assert_eq!(at_1x, at_4x);
+  }
+
+  #[test]
+  fn out_of_range_pages_error() {
+    assert!(doc("").page_svg(7, &RenderOptions::default()).is_err());
   }
 }
