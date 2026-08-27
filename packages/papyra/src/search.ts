@@ -7,6 +7,7 @@ import {
   type TextLine,
 } from './text.js';
 
+/** How loosely a query is allowed to match. Shared by {@link findRanges} and search. */
 export interface MatchOptions {
   /** Default `false`. */
   caseSensitive?: boolean;
@@ -23,6 +24,7 @@ export interface MatchOptions {
 
 /** One occurrence of the query on a page. */
 export interface SearchMatch {
+  /** 0-based index of the page the hit is on. */
   readonly page: number;
   /** The matched text exactly as the document writes it. */
   readonly text: string;
@@ -30,6 +32,7 @@ export interface SearchMatch {
   readonly context: string;
   /** Where the match sits inside {@link context}. */
   readonly contextStart: number;
+  /** End of the match inside {@link context}, exclusive. */
   readonly contextEnd: number;
   /**
    * One quadrilateral per line the match covers — more than one when a phrase runs

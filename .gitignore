@@ -23,6 +23,10 @@ packages/bindings/npm
 /corpus
 apps/demo/public/*.pdf
 
+# The API model papyra-docs-gen extracts from the wrapper's TSDoc. Generated at
+# build time like the napi output above, and stale the moment a comment changes.
+apps/demo/public/papyra-api.json
+
 # misc
 .DS_Store
 *.log

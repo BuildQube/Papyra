@@ -3,6 +3,7 @@ import type { MatchOptions } from './search.js';
 /** Anything we can turn into PDF bytes. `File` is a `Blob`, so it is covered. */
 export type PdfSource = Uint8Array | ArrayBuffer | ArrayBufferView | Blob;
 
+/** How to size a render, and where it sits in the queue. */
 export interface RenderOptions {
   /**
    * Scheduling order. **Lower runs first**; the default, 0, is the most urgent tier.
@@ -29,6 +30,7 @@ export interface RenderOptions {
   fitWidth?: number;
 }
 
+/** {@link RenderOptions}, plus the two dials that only apply to a stream. */
 export interface StreamOptions extends RenderOptions {
   /**
    * How far ahead of consumption to queue. Defaults to the runtime's concurrency.
@@ -46,25 +48,44 @@ export interface StreamOptions extends RenderOptions {
 
 /** A rendered page. `data` is tightly packed RGBA8, `height * stride` bytes. */
 export interface RenderedPage {
+  /** Output width in pixels, after `dpi` or `fitWidth` was applied. */
   readonly width: number;
+  /** Output height in pixels. */
   readonly height: number;
+  /**
+   * Bytes per row. Always `width * 4` today, since the buffer is tightly packed —
+   * read it rather than recomputing it, so a future padded layout does not silently
+   * skew every row.
+   */
   readonly stride: number;
+  /** Always `'rgba8'`. Present so a second pixel layout could be added without a cast. */
   readonly format: 'rgba8';
+  /**
+   * The pixels, non-premultiplied RGBA.
+   *
+   * On wasm this view is backed by the module's shared linear memory, which is why
+   * {@link toImageData} and `Blob` construction copy rather than borrow.
+   */
   readonly data: Uint8Array;
 }
 
+/** One result from {@link Document.stream}, tagged with the page it came from. */
 export interface StreamedPage {
   /** Index of the page in the document. */
   readonly page: number;
+  /** The rendered pixels. */
   readonly bitmap: RenderedPage;
 }
 
 /** Page dimensions in PDF points (1/72 inch). */
 export interface PageSize {
+  /** Width in points, with rotation and the crop box already applied. */
   readonly width: number;
+  /** Height in points, with rotation and the crop box already applied. */
   readonly height: number;
 }
 
+/** Everything fixed for the lifetime of a {@link Document}: its queue and its caches. */
 export interface OpenOptions {
   /** Password for an encrypted document. */
   password?: string;
@@ -118,5 +139,6 @@ export interface SearchOptions extends MatchOptions {
   limit?: number;
   /** Where text extraction sits in the render queue. Defaults to behind rendering. */
   priority?: number;
+  /** Abort the search. Pages already being extracted are left to finish. */
   signal?: AbortSignal;
 }

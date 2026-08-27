@@ -1,0 +1,16 @@
+{
+  "name": "papyra-docs-gen",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Extracts the @build-qube/papyra API model from its TSDoc comments",
+  "scripts": {
+    "build": "typedoc",
+    "clean": "rm -rf ../../apps/demo/src/generated .turbo"
+  },
+  "devDependencies": {
+    "@build-qube/papyra": "workspace:*",
+    "typedoc": "^0.28.20",
+    "typescript": "5.9.3"
+  }
+}

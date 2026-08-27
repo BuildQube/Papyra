@@ -27,6 +27,15 @@
         "papyra.wasi-browser.js"
       ]
     },
+    // TypeDoc cannot run on this repo's TypeScript 7 (its compiler API is gone, and
+    // TypeStrong/typedoc#3098 has no timeline), so papyra-docs-gen pins its own
+    // TypeScript 5 and emits the API model the /docs route fetches. It reaches both
+    // build and typecheck through `^build`, being a devDependency of the demo.
+    "papyra-docs-gen#build": {
+      "dependsOn": ["^build"],
+      "inputs": ["typedoc.json", "../papyra/src/**"],
+      "outputs": ["../../apps/demo/public/papyra-api.json"]
+    },
     "papyra-demo#build": {
       "dependsOn": ["^build", "@build-qube/papyra-native#build:wasm"],
       // PAPYRA_BASE sets vite's base path. Turbo strips env vars a task has not
@@ -38,7 +47,8 @@
         "*.html",
         "vite.config.ts",
         "tsconfig.json",
-        "package.json"
+        "package.json",
+        "public/**"
       ],
       "outputs": ["dist/**"]
     },

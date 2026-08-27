@@ -1,0 +1,30 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": ["../papyra/src/index.ts"],
+  "tsconfig": "../papyra/tsconfig.json",
+
+  // JSON only — TypeDoc's own HTML theme is never emitted. apps/demo's /docs route
+  // renders this model itself so the reference matches the rest of the site.
+  //
+  // Into public/ rather than src/: it is fetched at runtime, so 144 KB of API model
+  // stays out of every bundle, and tsc never has to infer a type for it.
+  "json": "../../apps/demo/public/papyra-api.json",
+  "pretty": false,
+
+  // Repo-relative source paths, so `sources.fileName` is a link target rather than
+  // whatever absolute path the build machine happened to use.
+  "basePath": "../..",
+
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "excludeExternals": true,
+
+  // The gate. An exported member with no TSDoc fails the build rather than shipping
+  // a blank entry in the reference; `bun run typecheck` reaches this via turbo.
+  "validation": {
+    "notExported": true,
+    "notDocumented": true,
+    "invalidLink": true
+  },
+  "treatValidationWarningsAsErrors": true
+}

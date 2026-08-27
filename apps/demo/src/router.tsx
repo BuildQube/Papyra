@@ -5,6 +5,7 @@ import {
   createRouter,
 } from '@tanstack/react-router';
 import { BenchRoute } from './routes/bench.js';
+import { DocsRoute } from './routes/docs.js';
 import { ExportRoute } from './routes/export.js';
 import { RootShell } from './routes/root.js';
 import { ViewerRoute } from './routes/viewer.js';
@@ -83,7 +84,21 @@ const benchRoute = createRoute({
   component: BenchRoute,
 });
 
-const routeTree = rootRoute.addChildren([viewerRoute, exportRoute, benchRoute]);
+// No `validateSearch`: the reference is addressed by fragment, and the root route's
+// `file`/`page` params are carried through by the nav so leaving /docs returns you to
+// the document you had open.
+const docsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/docs',
+  component: DocsRoute,
+});
+
+const routeTree = rootRoute.addChildren([
+  viewerRoute,
+  exportRoute,
+  benchRoute,
+  docsRoute,
+]);
 
 export const router = createRouter({
   routeTree,

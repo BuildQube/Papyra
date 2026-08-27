@@ -52,10 +52,12 @@ export class PageImage {
     this.#inner = inner;
   }
 
+  /** Output width in pixels. */
   get width(): number {
     return this.#inner.width;
   }
 
+  /** Output height in pixels. */
   get height(): number {
     return this.#inner.height;
   }
@@ -65,6 +67,7 @@ export class PageImage {
     return this.#inner.byteLength;
   }
 
+  /** Encode to {@link EncodeOptions.format}, defaulting to WebP. */
   async encode(options: EncodeOptions = {}): Promise<EncodedImage> {
     const format = options.format ?? 'webp';
     const bytes = await this.#inner.encode(
@@ -75,14 +78,21 @@ export class PageImage {
     return encodedImage(bytes, format);
   }
 
+  /** Lossless VP8L. The default, and ~3x smaller than PNG on page content. */
   toWebp(options: Omit<EncodeOptions, 'format' | 'quality'> = {}) {
     return this.encode({ ...options, format: 'webp' });
   }
 
+  /** Lossless PNG. Reach for it when the consumer cannot be trusted to read WebP. */
   toPng(options: Omit<EncodeOptions, 'format' | 'quality'> = {}) {
     return this.encode({ ...options, format: 'png' });
   }
 
+  /**
+   * Lossy JPEG at `quality` (1-100, default 80).
+   *
+   * No alpha: transparent pixels composite onto white, matching how pages render.
+   */
   toJpeg(quality?: number, options: Omit<EncodeOptions, 'format'> = {}) {
     return this.encode({ ...options, format: 'jpeg', quality });
   }

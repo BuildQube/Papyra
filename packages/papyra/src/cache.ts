@@ -16,8 +16,11 @@
 export interface CacheStats {
   /** Bytes currently held. */
   bytes: number;
+  /** Pages currently held. */
   entries: number;
+  /** Lookups served without rendering. */
   hits: number;
+  /** Lookups that had to render. */
   misses: number;
   /** Entries dropped to stay under budget. */
   evictions: number;

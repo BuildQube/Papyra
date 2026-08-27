@@ -1,5 +1,5 @@
 import { backend, currentRuntime } from '@build-qube/papyra';
-import { Link, Outlet, useSearch } from '@tanstack/react-router';
+import { Link, Outlet, useMatchRoute, useSearch } from '@tanstack/react-router';
 import { useDocument, useFileParam } from '../lib/documentContext.js';
 
 /**
@@ -14,6 +14,12 @@ export function RootShell() {
   // which imports this file.
   const { file } = useSearch({ strict: false }) as { file?: string };
   useFileParam(file);
+
+  // Every other route needs a document before it can show anything, so the shell
+  // holds the dropzone until one is open. The API reference does not — gating it
+  // behind "open a PDF first" would make the docs unreachable from a cold link.
+  const matchRoute = useMatchRoute();
+  const standalone = !!matchRoute({ to: '/docs' });
 
   return (
     <div className="app">
@@ -31,6 +37,9 @@ export function RootShell() {
           </Link>
           <Link to="/bench" search={(prev) => prev}>
             bench
+          </Link>
+          <Link to="/docs" search={(prev) => prev}>
+            docs
           </Link>
         </nav>
 
@@ -51,7 +60,7 @@ export function RootShell() {
 
       {error && <p className="error">{error}</p>}
 
-      {loaded ? <Outlet /> : <Dropzone onFile={load} />}
+      {loaded || standalone ? <Outlet /> : <Dropzone onFile={load} />}
     </div>
   );
 }

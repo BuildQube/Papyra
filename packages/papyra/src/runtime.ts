@@ -4,6 +4,12 @@ import {
   runtime,
 } from '@build-qube/papyra-native';
 
+/**
+ * Which build is loaded: the native addon, or wasm in a browser.
+ *
+ * Worth branching on only for concurrency and memory. The rendering API is identical
+ * on both, which is the point of the library.
+ */
 export type Runtime = 'native' | 'wasm';
 
 /**
@@ -32,10 +38,12 @@ export function hardwareConcurrency(): number {
   return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : 4;
 }
 
+/** Which build is loaded. See {@link Runtime}. */
 export function currentRuntime(): Runtime {
   return runtime() === 'wasm' ? 'wasm' : 'native';
 }
 
+/** The rendering engine and version behind this build, for diagnostics and bug reports. */
 export function backend(): string {
   return backendName();
 }
