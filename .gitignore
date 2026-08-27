@@ -30,3 +30,6 @@ apps/demo/public/*.pdf
 # .claude/skills symlinks into .agents/skills, so the skill content is tracked but
 # the resolver's lockfile is not.
 skills-lock.json
+
+# Local tooling cache (impeccable design hook)
+.impeccable/

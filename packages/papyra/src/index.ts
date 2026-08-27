@@ -16,8 +16,14 @@
 
 export type { CacheStats } from './cache.js';
 export { paintToCanvas, toImageData } from './canvas.js';
-export type { RenderHandle } from './document.js';
+export type { ImageHandle, RenderHandle } from './document.js';
 export { Document, open } from './document.js';
+export type {
+  EncodedFormat,
+  EncodedImage,
+  EncodeOptions,
+} from './encode.js';
+export { encode, encodedImage, mimeType, PageImage } from './encode.js';
 export type {
   DestinationKind,
   OutlineDestination,

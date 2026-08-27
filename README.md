@@ -141,10 +141,58 @@ vary enormously: 36 DPI is a 306x396 thumbnail for US Letter but 1512x1080 — 6
 for a 42x30in drawing. papyra rejects renders over 100 MP and tells you to use
 `fitWidth`.
 
+## Export
+
+Raw RGBA is the right output for a canvas — `putImageData` needs no decode. When the
+pixels are *leaving* the process, encode them instead:
+
+```ts
+// Pixels never cross into JS. 8.2 MB raw becomes 305 KB of WebP.
+const img = await doc.renderImage(0, { fitWidth: 2000 });
+await writeFile('page-0.webp', (await img.toWebp()).bytes);
+
+// Or encode a page you already have.
+const page = await doc.renderPage(0, { dpi: 150 });
+paintToCanvas(page, canvas);
+const png = await encode(page, { format: 'png' });
+img.src = png.toBlobUrl();
+```
+
+Three formats, all pure Rust — which is what keeps the browser build free of a C
+toolchain. Page 0 of each corpus file at 150 DPI, aggregate:
+
+| format | size | vs raw | vs PNG | time |
+| ------ | ---- | ------ | ------ | ---- |
+| `webp` | 851 KB | 69x smaller | **2.96x smaller** | 26 ms |
+| `png` | 2516 KB | 23x smaller | — | 18 ms |
+| `jpeg` (q80) | 1322 KB | 45x smaller | 1.9x smaller | 86 ms |
+
+`webp` is the default and is lossless VP8L — there is no lossy WebP encoder in pure
+Rust, and none is needed: pages are line art, text and flat fills, which is precisely
+what VP8L is good at. It is roughly a third the size of PNG for about the same encode
+time. `jpeg` is the only lossy option and the only one with a `quality` knob; it loses
+to lossless WebP on every file in the corpus, so reach for it for scans, photographic
+pages, or a consumer that will not take anything else. Measure your own documents with
+`bun run --filter papyra-bench encode`.
+
+`EncodedImage` gives you `bytes`, `toBlob()`, `toBlobUrl()` and `toDataUrl()`. In a
+browser prefer `toBlobUrl()` for `<img src>` — base64 inflates by a third and puts a
+multi-megabyte string on the heap. `toDataUrl()` is for bytes that must be embedded:
+CSS, serialised output, SSR HTML. `img.toDataUrl()` on a `PageImage` does the base64 in
+Rust, so neither the pixels nor the encoded bytes ever cross the boundary — only the
+finished string.
+
+`renderImage` shares the scheduler with every other render, so priority and concurrency
+behave exactly as they do for `render`. Use `doc.imageHandle()` when you want the handle
+— to reprioritise, cancel, or read `timing` — the same way `render()` relates to
+`renderPage()`. Neither is cached: the cache is keyed by page and size with no format
+dimension, and it measures raw bytes.
+
 ## Layout
 
 ```
 crates/papyra-core     engine-agnostic traits and types
+crates/papyra-encode   pure-Rust WebP/PNG/JPEG encoders
 crates/papyra-hayro    hayro-backed engine
 packages/bindings      napi-rs bindings  -> @build-qube/papyra-native
 packages/papyra        TypeScript wrapper -> @build-qube/papyra

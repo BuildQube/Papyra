@@ -60,6 +60,7 @@ bun run --filter papyra-demo fixtures   # copy corpus PDFs into public/ for ?fil
 bun run --filter papyra-bench smoke     # quick correctness/sanity pass
 bun run --filter papyra-bench bench     # vs pdf.js on the corpus
 bun run --filter papyra-bench text      # text extraction vs pdf.js, with coverage
+bun run --filter papyra-bench encode    # WebP/PNG/JPEG size and time per page
 bun run --filter papyra-bench priority  # also: cache, scaling, large-format
 ```
 
@@ -90,18 +91,17 @@ Four layers, each with a deliberate boundary:
    tree assembly, and canvas painting. Deliberately in TS so it works identically on both
    runtimes without doubling the Rust surface.
 
-Features beyond rendering follow the same split. `crates/papyra-hayro/src/outline.rs`
-walks the PDF object graph directly — hayro's object layer is public but it exposes no
-outline API — and returns a **flat, pre-order** `Vec<OutlineItem>` whose `level` carries
-the tree. The tree is rebuilt in `packages/papyra/src/outline.ts`, so nothing recursive
-has to cross the napi boundary and the shape stays a TypeScript concern.
-
-Two features beyond rendering follow the same split:
+Three features beyond rendering follow the same split:
 
 - **Outlines.** `crates/papyra-hayro/src/outline.rs` walks the PDF object graph directly
   — hayro's object layer is public but it exposes no outline API — and returns a **flat,
   pre-order** `Vec<OutlineItem>` whose `level` carries the tree. The tree is rebuilt in
   `packages/papyra/src/outline.ts`, so nothing recursive crosses the napi boundary.
+- **Encoding.** `crates/papyra-encode` turns a `Bitmap` into WebP, PNG or JPEG bytes and
+  knows nothing about hayro. Every codec is pure Rust — that is the whole constraint,
+  since a C codec would put a toolchain in the middle of the wasm build — so WebP is
+  lossless VP8L only and there is no AVIF. `image` is already in the tree via hayro, so
+  `jpeg` costs no new crates and `webp` costs three tiny ones.
 - **Text and search.** `crates/papyra-hayro/src/text.rs` implements
   `hayro_interpret::Device` and collects glyphs, which is how encodings, `ToUnicode`
   cmaps, CID and Type3 fonts, and the graphics-state transform all arrive already
@@ -129,6 +129,12 @@ it is what makes a highlight on rotated text a quadrilateral at the text's own a
   `asyncWorkPoolSize = 4` in its browser glue, and rayon's wasm workers are Web Workers
   the JS event loop must create, so a rayon batch cannot be driven from a blocked thread.
   See `MAX_WASM_CONCURRENCY` in `runtime.ts` and `renderPages` in `document.ts`.
+- **Never return napi `Buffer` from a task.** `napi_create_external_buffer` needs
+  `globalThis.Buffer`, which exists in Node and not in a browser, so an addon that
+  returns one works everywhere except the target papyra exists to support. Return
+  `Uint8Array` (external arraybuffer), as `RenderedPage.data` and the encoders do.
+  `NAPI_RS_FORCE_WASI` does not catch this — it runs the wasm build under *Node*, where
+  `Buffer` is defined. Only a real browser does.
 - **The browser build requires cross-origin isolation.** napi-rs generates shared wasm
   memory, so consumers must serve `Cross-Origin-Opener-Policy: same-origin` and
   `Cross-Origin-Embedder-Policy: require-corp`. `apps/demo/vite.config.ts` sets both.

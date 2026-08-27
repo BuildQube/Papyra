@@ -1,5 +1,9 @@
-import { PdfDocument as NativeDocument } from '@build-qube/papyra-native';
+import {
+  PdfDocument as NativeDocument,
+  type PageImage as NativePageImage,
+} from '@build-qube/papyra-native';
 import { type CacheStats, RenderCache } from './cache.js';
+import { PageImage } from './encode.js';
 import { buildOutlineTree, type OutlineNode } from './outline.js';
 import {
   currentRuntime,
@@ -56,6 +60,27 @@ export interface RenderHandle extends JobHandle<RenderedPage> {
   readonly cached: boolean;
 }
 
+/**
+ * A queued export render. No `cached` flag: unlike {@link RenderHandle} the image path
+ * never comes from the cache, which is keyed by page and size with no format dimension.
+ */
+export type ImageHandle = JobHandle<PageImage>;
+
+/** Wire an `AbortSignal` to a queued job. Cancelling only drops work not yet started. */
+function attachSignal(
+  handle: JobHandle<unknown>,
+  signal: AbortSignal | undefined,
+): void {
+  if (!signal) return;
+  if (signal.aborted) {
+    handle.cancel('signal aborted');
+    return;
+  }
+  signal.addEventListener('abort', () => handle.cancel('signal aborted'), {
+    once: true,
+  });
+}
+
 /** Open a PDF from bytes, an `ArrayBuffer`, a `Blob`, or a `File`. */
 export async function open(
   source: PdfSource,
@@ -72,6 +97,8 @@ export async function open(
 
 export class Document {
   readonly #inner: NativeDocument;
+  // One queue for every kind of job, `renderImage` included: priority and concurrency
+  // are the point of this library, and a bulk export must not starve the visible page.
   readonly #scheduler: Scheduler;
   readonly #limit: number;
   readonly #cache: RenderCache<RenderedPage>;
@@ -165,6 +192,63 @@ export class Document {
   }
 
   /**
+   * Render a page for export, keeping the pixels in Rust.
+   *
+   * The returned {@link PageImage} encodes on demand — `toWebp()`, `toPng()`,
+   * `toJpeg()`, `toDataUrl()` — and never hands the raw bitmap to JS. A 42x30in
+   * drawing at 150 DPI is 6.5 MB raw and a fraction of that encoded, so for anything
+   * leaving the process that buffer is pure overhead.
+   *
+   * Use `renderPage` when you want to paint to a canvas, and `encode()` when you want
+   * both the pixels and a file.
+   *
+   * Shares the scheduler with every other render, so priority and concurrency behave
+   * exactly as they do for `render`. **Not cached** — the cache is keyed by page and
+   * size with no format dimension, and it measures raw bytes.
+   *
+   * @example
+   * ```ts
+   * const img = await doc.renderImage(0, { fitWidth: 2000 });
+   * await writeFile('page-0.webp', (await img.toWebp()).bytes);
+   * ```
+   */
+  async renderImage(
+    index: number,
+    options: RenderOptions = {},
+  ): Promise<PageImage> {
+    return this.imageHandle(index, options).promise;
+  }
+
+  /**
+   * As {@link renderImage}, but returns the handle so the job can be reprioritised,
+   * cancelled, or timed — the same relationship `render` has to `renderPage`.
+   *
+   * `timing` is where the export path becomes measurable: it separates queue wait from
+   * render time, which end-to-end timing around the promise cannot.
+   */
+  imageHandle(index: number, options: RenderOptions = {}): ImageHandle {
+    const dpi = this.#resolveDpi(index, options);
+
+    // A distinct key space from `render`, so an image request never coalesces onto a
+    // pending raw render (different return type) or vice versa.
+    const handle = this.#scheduler.submit({
+      key: `image:${index}@${dpi.toFixed(4)}`,
+      priority: options.priority ?? DEFAULT_PRIORITY,
+      run: () =>
+        (
+          this.#inner.renderPageImageAsync(
+            index,
+            dpi,
+            options.signal,
+          ) as Promise<NativePageImage>
+        ).then((img) => new PageImage(img)),
+    });
+
+    attachSignal(handle, options.signal);
+    return handle;
+  }
+
+  /**
    * Render a page, returning a handle you can reprioritise or drop.
    *
    * This is the viewer path: as the user scrolls, promote what came into view and
@@ -199,18 +283,7 @@ export class Document {
         ),
     });
 
-    const { signal } = options;
-    if (signal) {
-      if (signal.aborted) handle.cancel('signal aborted');
-      else
-        signal.addEventListener(
-          'abort',
-          () => handle.cancel('signal aborted'),
-          {
-            once: true,
-          },
-        );
-    }
+    attachSignal(handle, options.signal);
     return liveHandle(handle);
   }
 

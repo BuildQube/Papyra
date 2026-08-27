@@ -82,16 +82,19 @@ body {
   border-radius: 10px;
 }
 
+/* Flex, not a fixed 3-column grid: routes carry different panels — the viewer has no
+   side panel at all — and an absent child must not leave a hole. */
 .workspace {
   flex: 1;
-  display: grid;
-  grid-template-columns: 240px 1fr 320px;
+  display: flex;
   min-height: 0;
 }
 
 /* Pages and outline share one column, so the sidebar owns the border and the
-   scrolling and each panel is just content. */
+   scrolling and each panel is just content. 240px, not 160: the outline and search
+   panels need more room than a thumbnail strip did. */
 .sidebar {
+  flex: 0 0 240px;
   border-right: 1px solid var(--line);
   background: var(--panel);
   display: flex;
@@ -185,6 +188,8 @@ body {
 }
 
 .viewer {
+  flex: 1;
+  min-width: 0;
   overflow: auto;
   display: grid;
   place-items: start center;
@@ -198,6 +203,7 @@ body {
 }
 
 .bench {
+  flex: 0 0 320px;
   border-left: 1px solid var(--line);
   padding: 12px;
   background: var(--panel);
@@ -266,6 +272,123 @@ body {
 }
 .verdict strong {
   color: var(--text);
+}
+
+.nav {
+  display: flex;
+  gap: 4px;
+}
+.nav a {
+  color: var(--muted);
+  text-decoration: none;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+.nav a:hover {
+  color: var(--fg);
+  background: var(--panel);
+}
+.nav a.active {
+  color: var(--fg);
+  background: var(--panel);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.status {
+  font-size: 12px;
+  padding-bottom: 12px;
+  min-height: 18px;
+  justify-self: stretch;
+  text-align: center;
+}
+
+/* Stands in for the <img> until it has decoded real pixels. */
+.page-placeholder {
+  width: min(100%, 600px);
+  aspect-ratio: 1 / 1.294;
+}
+
+.controls {
+  border-left: 1px solid var(--line);
+  padding: 12px;
+  background: var(--panel);
+  overflow-y: auto;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.controls h2 {
+  font-size: 13px;
+  margin: 0;
+}
+.controls fieldset {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+.controls legend {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0 0 6px;
+}
+.controls p {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.controls input[type="range"],
+.controls input[type="number"] {
+  width: 100%;
+}
+.controls > button {
+  font: inherit;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg);
+  color: inherit;
+  cursor: pointer;
+}
+.controls > button:disabled {
+  opacity: 0.5;
+  cursor: progress;
+}
+
+.segmented {
+  display: flex;
+}
+.segmented button {
+  flex: 1;
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 0;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--muted);
+  cursor: pointer;
+}
+.segmented button:first-child {
+  border-radius: 4px 0 0 4px;
+}
+.segmented button:last-child {
+  border-radius: 0 4px 4px 0;
+}
+.segmented button + button {
+  border-left: none;
+}
+.segmented button.selected {
+  color: var(--fg);
+  background: var(--panel);
+}
+
+/* On its own route the bench has the whole width to itself. */
+.workspace.bench-only .bench {
+  flex: 1;
+  border-left: none;
 }
 
 /* ---- outline ---- */
