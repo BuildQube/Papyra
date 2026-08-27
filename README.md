@@ -1,5 +1,8 @@
 # papyra
 
+[![CI](https://github.com/BuildQube/Papyra/actions/workflows/CI.yml/badge.svg)](https://github.com/BuildQube/Papyra/actions/workflows/CI.yml)
+[![codecov](https://codecov.io/gh/BuildQube/Papyra/graph/badge.svg)](https://codecov.io/gh/BuildQube/Papyra)
+
 Fast PDF rendering for Node **and** the browser, from one Rust core.
 
 - **One toolchain.** `napi build` produces both the native addon and the browser wasm

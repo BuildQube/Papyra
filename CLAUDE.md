@@ -32,6 +32,7 @@ bun run test:rust       # cargo test --workspace
 bun run test:all        # all three
 
 bun run typecheck
+bun run coverage        # both languages, one run -> coverage/{rust,ts}.lcov
 bun run --filter papyra-docs-gen build   # regenerate the API model for /docs
 bun run lint            # biome check
 bun run format          # biome --write + cargo fmt + taplo format
@@ -210,6 +211,24 @@ gate; CI needed no new job.
   `packages/docs-gen` pins its own `typescript@5.9.3`; bun nests it and the root stays
   on 7. Do not "unify" those versions, and do not add `typedoc` to a package that
   resolves TypeScript 7 — it fails at `createProgram` with nothing useful in the error.
+- **Rust coverage comes mostly from the TypeScript tests, not `cargo test`.**
+  `packages/bindings` has no `#[test]` in it and the render path is only reachable
+  across the napi boundary, so `cargo test --workspace` reports that crate at a flat
+  0% and the workspace at 69.52%. `bun run coverage` instead builds the addon with
+  LLVM instrumentation, runs every suite against it, and unions the counters — 91.61%,
+  with bindings at 83.38%. `scripts/coverage.ts` carries the details. Two things there
+  are load-bearing and both fail *silently*, producing a lower but entirely plausible
+  number: the addon must be passed to `llvm-cov` as an extra `--object` (which is why
+  `cargo llvm-cov report` cannot finish the job — it has no flag for a cdylib), and
+  `target/<host-triple>/coverage` must be cleared by hand, since `napi build` writes
+  there and `cargo llvm-cov clean` does not look. The script asserts a non-zero
+  `packages/bindings/src/lib.rs` at the end for exactly this reason; if that assertion
+  fires, the pipeline broke, the tests did not.
+- **Bun's lcov lists only files a test imported.** A module nobody touches is not 0%,
+  it is absent, and the percentage is computed over what remains — `bun test
+  test/unit` covers 6 of the 13 files in the wrapper, silently omitting `document.ts`.
+  `packages/papyra/test/coverage-entry.ts` is preloaded solely to import the package
+  entrypoint and drag the rest into the denominator. There is no `--coverage.all`.
 - **`indexText()` must stay native-only on the rayon path.** It has the same wasm hazard
   as `renderPages`, and falls back to per-page extraction through the scheduler on wasm.
 

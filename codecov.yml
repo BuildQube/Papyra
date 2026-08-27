@@ -1,0 +1,54 @@
+# Codecov reads this from the default branch, not from the PR — a change here only
+# takes effect once it is merged.
+
+coverage:
+  # Rust and TypeScript land in one project total, but the two flags below keep the
+  # per-language numbers visible. A single blended percentage across 3.5k lines of
+  # Rust and 2.1k of TypeScript mostly tracks whichever side was touched last.
+  status:
+    project:
+      default:
+        target: auto
+        # Rendering is timing-sensitive and the corpus is fetched from pdf.js's suite
+        # rather than pinned, so a run can legitimately differ by a line or two.
+        # Anything past this is a real regression.
+        threshold: 0.5%
+      rust:
+        flags: [rust]
+        target: auto
+        threshold: 0.5%
+      ts:
+        flags: [ts]
+        target: auto
+        threshold: 0.5%
+    # Coverage of the diff itself, which is the number worth gating on: it answers
+    # "did the lines this PR adds get tested", independent of the project total.
+    patch:
+      default:
+        target: 80%
+        threshold: 0%
+
+flags:
+  rust:
+    paths: [crates/, packages/bindings/src/]
+  ts:
+    paths: [packages/papyra/src/]
+
+comment:
+  # `files` is the per-file table for the files the PR touches — the diff view asked
+  # for. `flags` breaks the same change down by language above it.
+  layout: "condensed_header, diff, flags, files, condensed_footer"
+  behavior: default
+  require_changes: false
+
+ignore:
+  # Private workspace members: a Vite demo and a benchmark harness against pdf.js.
+  # Neither is published and neither is under test, so leaving them in would bury a
+  # real regression under thousands of permanently uncovered lines.
+  - "apps/"
+  - "scripts/"
+  - "packages/docs-gen/"
+  # Generated: napi writes index.js/index.d.ts at build time and they are gitignored.
+  - "packages/bindings/index.js"
+  - "packages/bindings/index.d.ts"
+  - "packages/bindings/browser.js"

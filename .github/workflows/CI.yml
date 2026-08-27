@@ -66,6 +66,56 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run --filter @build-qube/papyra test
 
+  # One job for both languages, because the Rust half depends on the TypeScript half:
+  # `packages/bindings` has no `#[test]` in it and the render path is only reachable
+  # across the napi boundary, so the addon is built with LLVM instrumentation and the
+  # JS suites are what exercise it. `cargo test` alone reports the bindings crate at
+  # 0%. scripts/coverage.ts has the full explanation and refuses to emit a report if
+  # that 0% ever comes back — the failure modes here all produce a plausible number
+  # rather than an error.
+  #
+  # Deliberately not wired into `needs: build`: that matrix builds `--release` and
+  # uninstrumented, so this job has to compile its own addon regardless.
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: 1.3.11 }
+      - uses: dtolnay/rust-toolchain@stable
+      # llvm-profdata and llvm-cov ship in this component, and it is deliberately
+      # absent from rust-toolchain.toml: listing it there would make every clone
+      # download it for a tool only this job runs.
+      - run: rustup component add llvm-tools-preview
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - uses: Swatinem/rust-cache@v2
+        with: { key: "coverage" }
+      - run: bun install --frozen-lockfile
+      # The wrapper's integration tests open real PDFs, and they are most of what
+      # drives the Rust render path.
+      - run: bun run corpus
+      - run: bun run coverage
+      # One upload per flag. `flags` applies to the whole upload rather than
+      # per-file, so passing both reports to a single step would tag every Rust file
+      # as `ts` too and collapse the per-language split the badge and the PR comment
+      # are built on. Codecov merges the two uploads for the commit itself.
+      - name: Upload Rust coverage
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage/rust.lcov
+          flags: rust
+          token: ${{ secrets.CODECOV_TOKEN }}
+          # Without this a Codecov outage is a green build with no coverage data,
+          # which is worse than a red one.
+          fail_ci_if_error: true
+      - name: Upload TypeScript coverage
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage/ts.lcov
+          flags: ts
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
+
   build:
     name: build ${{ matrix.target }}
     strategy:
