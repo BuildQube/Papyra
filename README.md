@@ -1,7 +1,9 @@
 # papyra
 
 [![CI](https://github.com/BuildQube/Papyra/actions/workflows/CI.yml/badge.svg)](https://github.com/BuildQube/Papyra/actions/workflows/CI.yml)
-[![codecov](https://codecov.io/gh/BuildQube/Papyra/graph/badge.svg)](https://codecov.io/gh/BuildQube/Papyra)
+[![coverage](https://raw.githubusercontent.com/BuildQube/Papyra/badges/coverage.svg)](https://github.com/BuildQube/Papyra/actions/workflows/CI.yml)
+[![rust coverage](https://raw.githubusercontent.com/BuildQube/Papyra/badges/coverage-rust.svg)](https://github.com/BuildQube/Papyra/actions/workflows/CI.yml)
+[![typescript coverage](https://raw.githubusercontent.com/BuildQube/Papyra/badges/coverage-ts.svg)](https://github.com/BuildQube/Papyra/actions/workflows/CI.yml)
 
 Fast PDF rendering for Node **and** the browser, from one Rust core.
 

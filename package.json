@@ -20,6 +20,7 @@
     "lint": "biome check",
     "check:publishable": "bun run scripts/check-publishable.ts",
     "coverage": "bun run scripts/coverage.ts",
+    "coverage:report": "bun run scripts/coverage-report.ts",
     "format": "biome check --write && cargo fmt && taplo format",
     "check": "biome check && cargo fmt --check && cargo clippy --workspace -- -D warnings",
     "corpus": "bun run scripts/fetch-corpus.ts",

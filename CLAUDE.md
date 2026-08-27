@@ -33,6 +33,7 @@ bun run test:all        # all three
 
 bun run typecheck
 bun run coverage        # both languages, one run -> coverage/{rust,ts}.lcov
+bun run coverage:report # ... -> summary.json, badge SVGs, the PR comment body
 bun run --filter papyra-docs-gen build   # regenerate the API model for /docs
 bun run lint            # biome check
 bun run format          # biome --write + cargo fmt + taplo format
@@ -224,6 +225,14 @@ gate; CI needed no new job.
   there and `cargo llvm-cov clean` does not look. The script asserts a non-zero
   `packages/bindings/src/lib.rs` at the end for exactly this reason; if that assertion
   fires, the pipeline broke, the tests did not.
+- **There is no coverage service.** `scripts/coverage-report.ts` writes the badge
+  SVGs and the PR comment body itself, so CI needs only `GITHUB_TOKEN` — no account,
+  no repo activation, no secret. Badges are force-pushed to an orphan `badges`
+  branch from a scratch repo, so main's history stays clean and the branch never
+  grows a commit per run; the README points at raw.githubusercontent.com. The delta
+  column comes from the last green `main` run's `coverage-summary` artifact, which
+  is advisory — the first run has no baseline and the column renders empty. Adding
+  a service later would mean deleting this, not working around it.
 - **Bun's lcov lists only files a test imported.** A module nobody touches is not 0%,
   it is absent, and the percentage is computed over what remains — `bun test
   test/unit` covers 6 of the 13 files in the wrapper, silently omitting `document.ts`.
