@@ -225,6 +225,15 @@ gate; CI needed no new job.
   there and `cargo llvm-cov clean` does not look. The script asserts a non-zero
   `packages/bindings/src/lib.rs` at the end for exactly this reason; if that assertion
   fires, the pipeline broke, the tests did not.
+- **Each coverage stage needs its own `LLVM_PROFILE_FILE`.** cargo-llvm-cov's
+  default pattern ends in `%18m` — online merging, where writers share a pool of 18
+  files. That is only valid between processes running the same coverage map, and
+  here the writers are a cargo test binary, node loading the addon and bun loading
+  the addon. On a pool collision LLVM discards the mismatched counters silently, and
+  which writer loses depends on timing: this reproduced on Linux CI and never on
+  macOS, reporting the outline and text paths 23 points low with all 73 tests
+  passing. `scripts/coverage.ts` overrides the pattern per stage with a plain `%p`;
+  llvm-profdata merges everything at the end, which is where merging belongs.
 - **There is no coverage service.** `scripts/coverage-report.ts` writes the badge
   SVGs and the PR comment body itself, so CI needs only `GITHUB_TOKEN` — no account,
   no repo activation, no secret. Badges are force-pushed to an orphan `badges`

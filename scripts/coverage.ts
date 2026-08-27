@@ -169,12 +169,40 @@ await $`bunx napi build --platform --profile coverage`
   .cwd(join(ROOT, 'packages/bindings'))
   .env(env);
 
+const targetDir = env.CARGO_LLVM_COV_TARGET_DIR ?? join(ROOT, 'target');
+const countProfraw = async () =>
+  (await readdir(targetDir)).filter((f) => f.endsWith('.profraw')).length;
+
+/**
+ * Give a stage its own profile files instead of cargo-llvm-cov's shared pool.
+ *
+ * Its default `LLVM_PROFILE_FILE` ends in `%18m`, which is online merging: writers
+ * share a pool of 18 files and merge into whichever they get. That is only valid
+ * between processes running the *same* coverage map. Here the writers are a cargo
+ * test binary, node loading the addon, and bun loading the addon — three different
+ * maps — and on a pool collision LLVM discards the mismatched counters rather than
+ * failing. It discards them quietly, and which writer loses depends on timing, so
+ * this reproduced on Linux CI and not on macOS: the outline and text paths, which
+ * only the bun process reaches, came back 23 points low with every test passing.
+ *
+ * `%p` alone is one file per process, no pool and no merging, so nothing collides.
+ * llvm-profdata merges them all at the end anyway, which is where merging belongs.
+ */
+const stageEnv = (stage: string) => ({
+  ...env,
+  LLVM_PROFILE_FILE: join(targetDir, `${stage}-%p.profraw`),
+});
+
 console.log('coverage: cargo test');
-await $`cargo test --workspace --profile coverage`.env(env);
+await $`cargo test --workspace --profile coverage`.env(stageEnv('cargo-test'));
+console.log(`  ${await countProfraw()} profraw so far`);
 
 // Drives the napi surface directly: rendering, page sizes, the encoders.
 console.log('coverage: bindings tests');
-await $`bun run --filter @build-qube/papyra-native test`.env(env);
+await $`bun run --filter @build-qube/papyra-native test`.env(
+  stageEnv('bindings'),
+);
+console.log(`  ${await countProfraw()} profraw so far`);
 
 // Unit and integration together, in one process, so the wrapper's lcov has a single
 // denominator. `--preload` imports the package entrypoint, which is what puts the
@@ -183,7 +211,8 @@ console.log('coverage: wrapper tests');
 const pkg = join(ROOT, 'packages/papyra');
 await $`bun test test/unit test/integration --preload ./test/coverage-entry.ts --coverage --coverage-reporter=lcov --coverage-dir=${OUT}/ts-raw`
   .cwd(pkg)
-  .env(env);
+  .env(stageEnv('wrapper'));
+console.log(`  ${await countProfraw()} profraw so far`);
 
 await mkdir(OUT, { recursive: true });
 await writeFile(
@@ -195,9 +224,9 @@ await writeFile(
 );
 
 console.log('coverage: merging profiles');
-const profraw = (await readdir(env.CARGO_LLVM_COV_TARGET_DIR ?? 'target'))
+const profraw = (await readdir(targetDir))
   .filter((f) => f.endsWith('.profraw'))
-  .map((f) => join(env.CARGO_LLVM_COV_TARGET_DIR ?? 'target', f));
+  .map((f) => join(targetDir, f));
 if (profraw.length === 0) {
   console.error('coverage: no .profraw written — nothing ran instrumented.');
   process.exit(1);
