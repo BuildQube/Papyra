@@ -1,4 +1,4 @@
-import type { Document } from '@build-qube/papyra';
+import type { Document, SearchMatch } from '@build-qube/papyra';
 import { createContext, use, useEffect } from 'react';
 
 export interface Loaded {
@@ -13,6 +13,14 @@ export interface DocumentState {
   error: string | null;
   load: (file: File) => Promise<void>;
   setError: (message: string | null) => void;
+  /**
+   * Search results live here, not in a route, for the same reason the document does:
+   * running a search and then flipping to the export view should not discard it.
+   */
+  matches: SearchMatch[];
+  setMatches: (matches: SearchMatch[]) => void;
+  active: SearchMatch | null;
+  setActive: (match: SearchMatch | null) => void;
 }
 
 export const DocumentContext = createContext<DocumentState | null>(null);

@@ -1,4 +1,4 @@
-import { open } from '@build-qube/papyra';
+import { open, type SearchMatch } from '@build-qube/papyra';
 import { type ReactNode, useCallback, useState } from 'react';
 import { DocumentContext, type Loaded } from './documentContext.js';
 
@@ -13,6 +13,8 @@ import { DocumentContext, type Loaded } from './documentContext.js';
 export function DocumentProvider({ children }: { children: ReactNode }) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [matches, setMatches] = useState<SearchMatch[]>([]);
+  const [active, setActive] = useState<SearchMatch | null>(null);
 
   const load = useCallback(async (file: File) => {
     setError(null);
@@ -24,13 +26,26 @@ export function DocumentProvider({ children }: { children: ReactNode }) {
       // renders. Measured 5.2x faster to the visible page at 4 vs 1.1x at 18.
       const doc = await open(file, { concurrency: 4 });
       setLoaded({ doc, bytes, name: file.name });
+      setMatches([]);
+      setActive(null);
     } catch (e) {
       setError((e as Error).message);
     }
   }, []);
 
   return (
-    <DocumentContext value={{ loaded, error, load, setError }}>
+    <DocumentContext
+      value={{
+        loaded,
+        error,
+        load,
+        setError,
+        matches,
+        setMatches,
+        active,
+        setActive,
+      }}
+    >
       {children}
     </DocumentContext>
   );

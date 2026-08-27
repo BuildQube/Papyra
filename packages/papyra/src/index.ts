@@ -24,6 +24,12 @@ export type {
   EncodeOptions,
 } from './encode.js';
 export { encode, encodedImage, mimeType, PageImage } from './encode.js';
+export type {
+  DestinationKind,
+  OutlineDestination,
+  OutlineNode,
+} from './outline.js';
+export { buildOutlineTree, walkOutline } from './outline.js';
 export type { Runtime } from './runtime.js';
 export {
   backend,
@@ -33,12 +39,22 @@ export {
 } from './runtime.js';
 export type { JobHandle, JobTiming } from './scheduler.js';
 export { AbortError, DEFAULT_PRIORITY } from './scheduler.js';
+export type { MatchOptions, SearchMatch } from './search.js';
+export { findRanges, searchPageText } from './search.js';
+export type { PageText, Quad, Rect, TextLine } from './text.js';
+export {
+  lineQuad,
+  pageString,
+  quadBounds,
+  scaleQuad,
+} from './text.js';
 export type {
   OpenOptions,
   PageSize,
   PdfSource,
   RenderedPage,
   RenderOptions,
+  SearchOptions,
   StreamedPage,
   StreamOptions,
 } from './types.js';

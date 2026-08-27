@@ -88,8 +88,12 @@ jobs:
         with: { persist-credentials: false }
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: 1.3.11 }
+      # The toolchain comes from rust-toolchain.toml; this only guarantees rustup is
+      # present. The target has to be added separately — the action does not read
+      # that file, so a `targets:` input here would install to whatever `@stable`
+      # resolves to today and leave the pinned toolchain without it.
       - uses: dtolnay/rust-toolchain@stable
-        with: { targets: "${{ matrix.target }}" }
+      - run: rustup target add ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
         with: { key: "${{ matrix.target }}" }
       - run: bun install --frozen-lockfile

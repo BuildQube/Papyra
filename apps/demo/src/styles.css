@@ -90,12 +90,57 @@ body {
   min-height: 0;
 }
 
-.thumbs {
-  flex: 0 0 160px;
+/* Pages and outline share one column, so the sidebar owns the border and the
+   scrolling and each panel is just content. 240px, not 160: the outline and search
+   panels need more room than a thumbnail strip did. */
+.sidebar {
+  flex: 0 0 240px;
   border-right: 1px solid var(--line);
-  overflow-y: auto;
   background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+.tab {
+  flex: 1;
+  padding: 8px 6px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.tab.selected {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+.tab-badge {
+  margin-left: 4px;
+  opacity: 0.5;
+}
+.panel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+/* `hidden` alone loses to the `display` above. */
+.panel[hidden] {
+  display: none;
+}
+.panel-note {
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
 .thumbs header {
   display: flex;
   justify-content: space-between;
@@ -344,4 +389,188 @@ body {
 .workspace.bench-only .bench {
   flex: 1;
   border-left: none;
+}
+
+/* ---- outline ---- */
+
+.outline,
+.outline ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.outline {
+  padding: 4px 0 12px;
+}
+
+.outline-row {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  border-left: 2px solid transparent;
+}
+.outline-row.selected {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-left-color: var(--accent);
+}
+
+.twisty {
+  flex: none;
+  width: 16px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.outline-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 4px 8px 4px 0;
+  background: none;
+  border: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.outline-title:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+.outline-label {
+  flex: 1;
+  min-width: 0;
+  /* Bookmark titles are frequently long enough to wrap three times; one line each
+     keeps a 400-sheet drawing set scannable. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.outline-page {
+  flex: none;
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- search ---- */
+
+.search-box {
+  padding: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.search-box input {
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+.search-box input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.index {
+  width: 100%;
+  margin-top: 6px;
+  padding: 5px;
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.index:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.warn {
+  color: #e5a25e;
+}
+
+.results {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0 12px;
+}
+.result {
+  width: 100%;
+  display: flex;
+  gap: 8px;
+  padding: 6px 8px;
+  background: none;
+  border: none;
+  border-left: 2px solid transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.result:hover {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.result.selected {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-left-color: var(--accent);
+}
+.result-page {
+  flex: none;
+  width: 22px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+.result-text {
+  flex: 1;
+  min-width: 0;
+  /* Two lines of context, then ellipsis — enough to judge a hit, not enough to
+     turn 500 results into a document of their own. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.result mark {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--text);
+  border-radius: 2px;
+}
+
+/* ---- highlights ---- */
+
+/* The overlay sits exactly on the canvas, which sizes the stack. */
+.page-stack {
+  position: relative;
+  line-height: 0;
+}
+.highlights {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.hit {
+  fill: #ffd54a;
+  fill-opacity: 0.35;
+}
+.hit.active {
+  fill: #ff8a3d;
+  fill-opacity: 0.55;
 }

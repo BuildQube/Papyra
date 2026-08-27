@@ -183,7 +183,12 @@ impl PageImage {
   /// Blocks the calling thread. Routed through the same `Task` as the async path so
   /// the two cannot drift.
   #[napi]
-  pub fn encode_sync(&self, env: Env, format: ImageFormat, quality: Option<u8>) -> Result<Uint8Array> {
+  pub fn encode_sync(
+    &self,
+    env: Env,
+    format: ImageFormat,
+    quality: Option<u8>,
+  ) -> Result<Uint8Array> {
     let mut task = EncodeTask {
       bitmap: self.bitmap.clone(),
       opts: encode_opts(format, quality),
@@ -353,6 +358,219 @@ pub fn encode_bitmap_sync(
   task.resolve(env, out)
 }
 
+/// Where an outline entry points. Coordinates are PDF points from the page's
+/// bottom-left; `null` means "leave this axis unchanged".
+#[napi(object)]
+pub struct OutlineDestination {
+  /// 0-based page index.
+  pub page: u32,
+  /// `"XYZ"`, `"Fit"`, `"FitH"`, `"FitV"`, `"FitR"`, `"FitB"`, `"FitBH"` or `"FitBV"`.
+  pub kind: String,
+  pub left: Option<f64>,
+  pub top: Option<f64>,
+  pub right: Option<f64>,
+  pub bottom: Option<f64>,
+  /// Absent for every kind but `"XYZ"`, where a zoom of 0 also reads as absent.
+  pub zoom: Option<f64>,
+}
+
+/// One outline entry. Flat and in pre-order; `level` carries the tree.
+#[napi(object)]
+pub struct OutlineEntry {
+  pub title: String,
+  /// Nesting depth. Top-level bookmarks are 0.
+  pub level: u32,
+  /// `null` for a container with no destination, or one that leaves this document.
+  pub dest: Option<OutlineDestination>,
+  pub bold: bool,
+  pub italic: bool,
+  /// The entry should start expanded.
+  pub open: bool,
+}
+
+fn to_outline_entry(item: papyra_core::OutlineItem) -> OutlineEntry {
+  use papyra_core::DestinationView as V;
+
+  let dest = item.dest.map(|d| {
+    let mut out = OutlineDestination {
+      page: d.page_index as u32,
+      kind: String::new(),
+      left: None,
+      top: None,
+      right: None,
+      bottom: None,
+      zoom: None,
+    };
+    match d.view {
+      V::XyZ { left, top, zoom } => {
+        out.kind = "XYZ".to_string();
+        out.left = left.map(f64::from);
+        out.top = top.map(f64::from);
+        out.zoom = zoom.map(f64::from);
+      }
+      V::Fit => out.kind = "Fit".to_string(),
+      V::FitH { top } => {
+        out.kind = "FitH".to_string();
+        out.top = top.map(f64::from);
+      }
+      V::FitV { left } => {
+        out.kind = "FitV".to_string();
+        out.left = left.map(f64::from);
+      }
+      V::FitR {
+        left,
+        bottom,
+        right,
+        top,
+      } => {
+        out.kind = "FitR".to_string();
+        out.left = Some(left.into());
+        out.bottom = Some(bottom.into());
+        out.right = Some(right.into());
+        out.top = Some(top.into());
+      }
+      V::FitB => out.kind = "FitB".to_string(),
+      V::FitBH { top } => {
+        out.kind = "FitBH".to_string();
+        out.top = top.map(f64::from);
+      }
+      V::FitBV { left } => {
+        out.kind = "FitBV".to_string();
+        out.left = left.map(f64::from);
+      }
+    }
+    out
+  });
+
+  OutlineEntry {
+    title: item.title,
+    level: item.level as u32,
+    dest,
+    bold: item.bold,
+    italic: item.italic,
+    open: item.open,
+  }
+}
+
+/// A run of glyphs sharing one baseline.
+///
+/// Geometry runs along the baseline rather than being a rectangle per character: a
+/// page is thousands of glyphs, and four numbers each is far more than a search needs.
+/// One origin, one direction and a list of distances reconstructs any substring's
+/// quadrilateral exactly, rotated text included.
+#[napi(object)]
+pub struct TextLine {
+  pub text: String,
+  /// Distance along the baseline to the start of each character, plus the end of the
+  /// last — one more entry than the string has characters.
+  pub offsets: Float32Array,
+  /// Start of the baseline.
+  pub x: f64,
+  pub y: f64,
+  /// Unit vector along the baseline. `(1, 0)` for ordinary horizontal text.
+  pub dx: f64,
+  pub dy: f64,
+  /// Extent above the baseline, perpendicular to it.
+  pub ascent: f64,
+  /// Extent below the baseline.
+  pub descent: f64,
+}
+
+/// The text of one page.
+///
+/// Coordinates are the page as rendered at 72 DPI — pixels from the top-left with y
+/// increasing downwards, rotation and crop box applied — so scaling to any other
+/// render is one multiply.
+#[napi(object)]
+pub struct PageText {
+  pub lines: Vec<TextLine>,
+  /// Glyphs drawn that no encoding could map back to Unicode. Non-zero with no lines
+  /// means the page has text that cannot be searched, which is a different answer
+  /// than a page with no text at all.
+  pub undecoded_glyphs: u32,
+}
+
+fn to_page_text(text: papyra_core::PageText) -> PageText {
+  PageText {
+    lines: text
+      .lines
+      .into_iter()
+      .map(|line| TextLine {
+        text: line.text,
+        offsets: Float32Array::new(line.offsets),
+        x: line.x.into(),
+        y: line.y.into(),
+        dx: line.dx.into(),
+        dy: line.dy.into(),
+        ascent: line.ascent.into(),
+        descent: line.descent.into(),
+      })
+      .collect(),
+    undecoded_glyphs: text.undecoded_glyphs,
+  }
+}
+
+/// One page's text, off the JS thread.
+pub struct TextTask {
+  doc: Arc<HayroDocument>,
+  index: usize,
+}
+
+impl Task for TextTask {
+  type Output = papyra_core::PageText;
+  type JsValue = PageText;
+
+  fn compute(&mut self) -> Result<Self::Output> {
+    self.doc.page_text(self.index).map_err(map_err)
+  }
+
+  fn resolve(&mut self, _env: Env, out: Self::Output) -> Result<Self::JsValue> {
+    Ok(to_page_text(out))
+  }
+}
+
+/// A batch of pages' text, parallelised with rayon. Native only in practice, for the
+/// same reason as [`RenderBatchTask`].
+pub struct TextBatchTask {
+  doc: Arc<HayroDocument>,
+  indices: Vec<usize>,
+}
+
+impl Task for TextBatchTask {
+  type Output = Vec<papyra_core::PageText>;
+  type JsValue = Vec<PageText>;
+
+  fn compute(&mut self) -> Result<Self::Output> {
+    self.doc.page_texts_parallel(&self.indices).map_err(map_err)
+  }
+
+  fn resolve(&mut self, _env: Env, out: Self::Output) -> Result<Self::JsValue> {
+    Ok(out.into_iter().map(to_page_text).collect())
+  }
+}
+
+/// The outline walk, off the JS thread.
+///
+/// Reading an outline is object-graph work rather than rendering, so it is fast — but
+/// a name tree can hold tens of thousands of entries, and this crate's contract is
+/// that nothing it exposes blocks the event loop.
+pub struct OutlineTask {
+  doc: Arc<HayroDocument>,
+}
+
+impl Task for OutlineTask {
+  type Output = Vec<papyra_core::OutlineItem>;
+  type JsValue = Vec<OutlineEntry>;
+
+  fn compute(&mut self) -> Result<Self::Output> {
+    Ok(self.doc.outline())
+  }
+
+  fn resolve(&mut self, _env: Env, out: Self::Output) -> Result<Self::JsValue> {
+    Ok(out.into_iter().map(to_outline_entry).collect())
+  }
+}
+
 #[napi]
 pub struct PdfDocument {
   inner: Arc<HayroDocument>,
@@ -431,6 +649,35 @@ impl PdfDocument {
       },
       signal,
     )
+  }
+
+  /// Extract the text of one page, off the JS thread.
+  #[napi(ts_return_type = "Promise<PageText>")]
+  pub fn page_text_async(&self, index: u32) -> AsyncTask<TextTask> {
+    AsyncTask::new(TextTask {
+      doc: self.inner.clone(),
+      index: index as usize,
+    })
+  }
+
+  /// Extract `[start, end)` in one async task, parallelised internally with rayon.
+  #[napi(ts_return_type = "Promise<Array<PageText>>")]
+  pub fn page_texts_async(&self, start: u32, end: u32) -> AsyncTask<TextBatchTask> {
+    AsyncTask::new(TextBatchTask {
+      doc: self.inner.clone(),
+      indices: (start as usize..end as usize).collect(),
+    })
+  }
+
+  /// Read the document outline (bookmarks), in pre-order.
+  ///
+  /// Resolves to an empty array when the document has no outline, which is the
+  /// common case.
+  #[napi(ts_return_type = "Promise<Array<OutlineEntry>>")]
+  pub fn outline(&self) -> AsyncTask<OutlineTask> {
+    AsyncTask::new(OutlineTask {
+      doc: self.inner.clone(),
+    })
   }
 
   /// Render `[start, end)` in one async task, parallelised internally with rayon.

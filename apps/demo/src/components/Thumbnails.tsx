@@ -49,7 +49,8 @@ export function Thumbnails({ doc, current, onSelect }: Props) {
   }, [doc]);
 
   return (
-    <aside className="thumbs">
+    // Rendered inside the sidebar's tab panel, which owns the scrolling.
+    <div className="thumbs">
       <header>
         <span>{doc.pageCount} pages</span>
         {elapsed !== null && (
@@ -77,6 +78,6 @@ export function Thumbnails({ doc, current, onSelect }: Props) {
           </li>
         ))}
       </ol>
-    </aside>
+    </div>
   );
 }

@@ -24,6 +24,15 @@ const CORPUS = [
   { file: '160F-2019.pdf', note: 'AcroForm widgets' },
   { file: 'arial_unicode_en_cidfont.pdf', note: 'CID font' },
   { file: 'pr6531_1.pdf', note: 'password protected' },
+  // Outlines. pdf.js's own `getOutline` tests use these, so between them they cover
+  // the shapes that actually occur: nesting, style flags, name-tree and legacy
+  // destinations, destination-less entries, and views with missing parameters.
+  { file: 'basicapi.pdf', note: 'nested outline, bold entry, /Dests' },
+  { file: 'issue3214.pdf', note: 'outline entries whose action is a URL' },
+  { file: 'issue6204.pdf', note: 'name-tree destinations' },
+  { file: 'issue19474.pdf', note: 'both /Names and /Dests' },
+  { file: 'issue18408_reduced.pdf', note: '/XYZ destinations with no zoom' },
+  { file: 'bug1907000_reduced.pdf', note: '/FitH destinations with no top' },
 ] as const;
 
 const dir = join(import.meta.dir, '..', 'corpus');

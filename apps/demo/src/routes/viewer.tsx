@@ -1,5 +1,6 @@
 import { useSearch } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
+import { Highlights } from '../components/Highlights.js';
 import { PageView, type PageViewHandle } from '../components/PageView.js';
 import { ViewerLayout } from '../components/ViewerLayout.js';
 import { useDocument } from '../lib/documentContext.js';
@@ -34,7 +35,7 @@ interface Search {
  * which is why it wins on time to first pixel and loses by ~27x on bytes.
  */
 export function ViewerRoute() {
-  const { loaded, setError } = useDocument();
+  const { loaded, setError, matches, active } = useDocument();
   const [page, setPage] = usePage();
   const {
     width,
@@ -137,7 +138,19 @@ export function ViewerRoute() {
         )
       }
     >
-      <PageView ref={view} className="page" />
+      <div className="page-stack">
+        <PageView ref={view} className="page" />
+        {size && loaded && (
+          <Highlights
+            matches={matches.filter((m) => m.page === page)}
+            active={active?.page === page ? active : null}
+            // Text is reported at 72 DPI, so this is the render's own ratio.
+            scale={size.w / loaded.doc.pageSize(page).width}
+            width={size.w}
+            height={size.h}
+          />
+        )}
+      </div>
     </ViewerLayout>
   );
 }

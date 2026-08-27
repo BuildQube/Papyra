@@ -189,7 +189,9 @@ fn normalize(bitmap: &Bitmap) -> Result<Cow<'_, [u8]>> {
     // handle it rather than pretending it cannot arrive.
     PixelFormat::Bgra8 => {
       let mut out = rows.into_owned();
-      for px in out.chunks_exact_mut(4) {
+      // `as_chunks_mut`, not `chunks_exact_mut`: clippy::chunks_exact_to_as_chunks
+      // (stable 1.98) wants the const-generic form when the size is a constant.
+      for px in out.as_chunks_mut::<4>().0 {
         px.swap(0, 2);
       }
       Ok(Cow::Owned(out))
@@ -204,7 +206,7 @@ fn normalize(bitmap: &Bitmap) -> Result<Cow<'_, [u8]>> {
 /// White matches `RenderOptions::white_background`, which is the render default.
 fn flatten_onto_white(rgba: &[u8]) -> Vec<u8> {
   let mut rgb = Vec::with_capacity(rgba.len() / 4 * 3);
-  for px in rgba.chunks_exact(4) {
+  for px in rgba.as_chunks::<4>().0 {
     let a = px[3] as u32;
     if a == 255 {
       rgb.extend_from_slice(&px[..3]);
@@ -333,7 +335,9 @@ mod tests {
     src.format = PixelFormat::Bgra8;
     let expected: Vec<u8> = src
       .data
-      .chunks_exact(4)
+      .as_chunks::<4>()
+      .0
+      .iter()
       .flat_map(|p| [p[2], p[1], p[0], p[3]])
       .collect();
 

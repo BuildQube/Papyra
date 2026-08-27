@@ -13,7 +13,8 @@
     "large-format": "bun run src/large-format.ts",
     "scaling": "bun run src/scaling.ts",
     "priority": "bun run src/priority.ts",
-    "cache": "bun run src/cache.ts"
+    "cache": "bun run src/cache.ts",
+    "text": "bun run src/text.ts"
   },
   "dependencies": {
     "@build-qube/papyra": "workspace:*"

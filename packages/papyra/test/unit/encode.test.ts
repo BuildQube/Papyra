@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { encodedImage, mimeType } from '../src/encode.js';
+import { encodedImage, mimeType } from '../../src/encoded.js';
 
 /** Stand-in for encoder output. The bytes never need to be a real image here. */
 const bytes = new Uint8Array([0xde, 0xad, 0xbe, 0xef]);
