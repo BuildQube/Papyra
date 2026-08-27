@@ -1,5 +1,92 @@
 # @build-qube/papyra
 
+## 0.1.0
+
+### Minor Changes
+
+- ddcdd59: Add encoded image output: WebP, PNG and JPEG.
+  
+  `doc.renderImage(page, opts)` returns a `PageImage` that encodes on demand and never
+  hands the raw bitmap to JS — for export, that buffer is pure overhead. `encode(page,
+  opts)` encodes a `RenderedPage` you already hold. Both yield an `EncodedImage` with
+  `bytes`, `toBlob()`, `toBlobUrl()` and `toDataUrl()`.
+  
+  Every encoder is pure Rust, so the browser build still needs no C toolchain. Lossless
+  WebP is the default: across the test corpus it is ~3x smaller than PNG for about the
+  same encode time. JPEG is the only lossy option and the only one that takes a `quality`.
+  
+  Raw RGBA output, `paintToCanvas` and the render cache are unchanged.
+- ea8cca2: Add `Document.imageHandle()`, the handle-returning form of `renderImage`.
+  
+  `render()` has always returned a handle you can reprioritise, cancel, and read
+  `timing` from, while `renderPage()` returns the promise. The export path only had the
+  promise form, so a queued encode could not be reprioritised or cancelled by handle, and
+  could not report how long it spent waiting versus rendering. `imageHandle()` closes
+  that gap; `renderImage()` is now `imageHandle(...).promise`.
+- 479fee5: Add text extraction and search: `doc.pageText()`, `doc.search()`, `doc.indexText()`.
+  
+  Extraction is built on `hayro_interpret::Device`, so encodings, `ToUnicode` cmaps, CID
+  and Type3 fonts and the graphics-state transform all arrive resolved. Coordinates come
+  from the same transform the renderer uses, so text lands in the same space as the
+  pixels — page rotation and crop box included — and scaling to a render is one multiply.
+  
+  Glyphs are grouped into lines and word spaces are reconstructed from the gap between
+  each glyph's end and the next glyph's start; PDF encodes a word break as a position
+  change at least as often as it writes a space character.
+  
+  `search()` streams matches as each page is read, in whatever page order the caller
+  gives — a viewer wants to search outward from the page on screen. Matching is case- and
+  diacritic-insensitive by default, expands ligatures, collapses whitespace, and runs
+  across line breaks, returning one quadrilateral per line a match covers. Geometry is
+  stored along the baseline rather than as rectangles, so rotated text gets a highlight at
+  its own angle.
+  
+  `PageText.undecodedGlyphs` reports glyphs no encoding could map back to Unicode, which
+  separates "this page has no text" from "this page has text nothing can read".
+  
+  Also: `Scheduler` is no longer parameterised by payload, so renders and text extraction
+  share one priority queue.
+- 479fee5: Add `doc.outline()` — the document outline (bookmarks) as a tree.
+  
+  hayro defines the `/Outlines` key but never reads it, so papyra walks the object graph
+  itself. Explicit destination arrays, name trees, the legacy `/Dests` catalog dictionary
+  and `GoTo` actions all resolve to a page index plus the destination's view (`XYZ`,
+  `FitH`, …); `GoToR` and `URI` point outside the document and surface as `dest: null`,
+  as do containers that group children without a destination of their own. Both are kept
+  rather than dropped, since removing a container would reparent its children.
+  
+  Cyclic `/Next` and `/Kids` chains — which real files do contain — terminate rather than
+  hang. Titles are decoded from UTF-16, UTF-8 or PDFDocEncoding; the last of these
+  matters because em and en dashes live exactly where PDFDocEncoding and Latin-1 disagree.
+  
+  The walk runs off the event loop and the result is memoised per document.
+
+### Patch Changes
+
+- 032bf3d: Document every remaining public export, and generate an API reference from those
+  comments.
+  
+  75 exported members carried no TSDoc — `CacheStats.hits`, `PageImage.toWebp`,
+  `backend()`, the `Document` class itself — so they reached consumers as bare names
+  in an editor tooltip. They are documented now, and the emitted `.d.ts` carries the
+  prose with them.
+  
+  Keeping it that way is mechanical rather than a matter of discipline: the reference
+  at `/docs` is rendered from TypeDoc's model of this package, and an export with no
+  doc comment now fails the build instead of shipping a blank entry.
+  
+  The package also has a README for the first time, so its npm page is no longer blank
+  — a quickstart, and the two things most likely to bite (`fitWidth` over `dpi`, and
+  cross-origin isolation in the browser). It opens the reference page too, from the
+  same file.
+  
+  No API change.
+- Updated dependencies [ddcdd59]
+- Updated dependencies [ea8cca2]
+- Updated dependencies [479fee5]
+- Updated dependencies [479fee5]
+  - @build-qube/papyra-native@0.1.0
+
 ## 0.0.4
 
 ### Patch Changes
