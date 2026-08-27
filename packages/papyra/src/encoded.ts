@@ -29,6 +29,7 @@ export function mimeType(format: EncodedFormat): string {
   return MIME[format];
 }
 
+/** Which container to write, and how hard to squeeze. */
 export interface EncodeOptions {
   /** Defaults to `'webp'`. */
   format?: EncodedFormat;
@@ -40,8 +41,11 @@ export interface EncodeOptions {
 
 /** Encoded bytes, plus the three ways you are likely to want to hand them to a browser. */
 export interface EncodedImage {
+  /** The encoded file, ready to write to disk or upload. */
   readonly bytes: Uint8Array;
+  /** The container {@link bytes} is written in. */
   readonly format: EncodedFormat;
+  /** MIME type for {@link format}, so a caller never has to map it back. */
   readonly mime: string;
   /** Wrap as a `Blob`, ready for `URL.createObjectURL` or an upload. */
   toBlob(): Blob;
@@ -60,6 +64,12 @@ export interface EncodedImage {
   toDataUrl(): string;
 }
 
+/**
+ * Wrap already-encoded bytes as an {@link EncodedImage}.
+ *
+ * Exported for callers holding bytes from somewhere else — a cache, a fetch — that
+ * want the same `toBlob`/`toBlobUrl`/`toDataUrl` conveniences.
+ */
 export function encodedImage(
   bytes: Uint8Array,
   format: EncodedFormat,

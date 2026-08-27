@@ -721,3 +721,308 @@ body {
     background: color-mix(in srgb, var(--accent) 12%, var(--panel));
   }
 }
+
+/* ---------------------------------------------------------------- API reference */
+
+/* The reference reuses .workspace/.sidebar/.panel so it scrolls and splits exactly
+   like the viewer does. Only the typography inside is new. */
+
+.api-nav {
+  flex: 0 0 220px;
+}
+.api-filter {
+  padding: 8px;
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+.api-filter input {
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 12px;
+}
+.api-nav h3 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: 12px 0 4px;
+  padding: 0 10px;
+  font-weight: 500;
+}
+.api-nav ul {
+  list-style: none;
+  margin: 0 0 4px;
+  padding: 0;
+}
+.api-nav li a {
+  display: block;
+  padding: 3px 10px;
+  color: var(--text);
+  text-decoration: none;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  border-left: 2px solid transparent;
+}
+.api-nav li a:hover {
+  background: var(--bg);
+  border-left-color: var(--accent);
+}
+
+.api-content {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 24px 32px 60vh;
+}
+/* Padded well past the last entry so a fragment jump can always put its target at
+   the top of the viewport, rather than wherever the page happens to bottom out. */
+
+/* The README opening the page. Its own heading scale, deliberately distinct from
+   the reference below it: this is the part you read, that part is the part you
+   look things up in. */
+.api-readme {
+  max-width: 74ch;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+}
+.api-readme h1 {
+  font-size: 22px;
+  margin: 0 0 10px;
+  font-family: ui-monospace, monospace;
+  letter-spacing: 0.01em;
+}
+.api-readme h2 {
+  font-size: 14px;
+  margin: 26px 0 6px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  color: var(--text);
+}
+.api-readme h3 {
+  font-size: 13px;
+  margin: 16px 0 4px;
+}
+.api-readme p,
+.api-readme li {
+  color: var(--muted);
+}
+.api-readme strong {
+  color: var(--text);
+}
+.api-readme a {
+  color: var(--accent);
+}
+.api-note {
+  max-width: 74ch;
+  margin: 16px 0 0;
+}
+.api-group {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 500;
+  margin: 32px 0 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+.api-section {
+  padding: 20px 0;
+  border-bottom: 1px solid var(--line);
+  scroll-margin-top: 16px;
+}
+.api-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.api-head h2 {
+  font-size: 16px;
+  margin: 0;
+  font-family: ui-monospace, monospace;
+}
+.api-anchor {
+  color: var(--text);
+  text-decoration: none;
+}
+.api-anchor:hover {
+  color: var(--accent);
+}
+.api-source {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 11px;
+  font-family: ui-monospace, monospace;
+  text-decoration: none;
+}
+.api-source:hover {
+  color: var(--accent);
+}
+
+.api-signature,
+.api-extends {
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+.api-extends {
+  background: none;
+  border: 0;
+  padding: 0 0 0 1px;
+  font-size: 12px;
+}
+
+/* Prose column, not full width: measured lines are the point of the doc comments. */
+.api-prose {
+  max-width: 74ch;
+}
+.api-prose p {
+  margin: 8px 0;
+}
+.api-prose ul {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+.api-prose li {
+  margin: 3px 0;
+}
+/* Tight, and filled rather than bordered: a 4px pad plus a border reads as a real
+   space, so `DOMException`, came out looking like `DOMException ,`. */
+.api-prose code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.9em;
+  background: var(--line);
+  border-radius: 3px;
+  padding: 0 3px;
+}
+.api-xref {
+  color: var(--accent);
+  text-decoration: none;
+  font-family: ui-monospace, monospace;
+  font-size: 0.9em;
+}
+.api-xref:hover {
+  text-decoration: underline;
+}
+.api-code {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.55;
+  margin: 10px 0;
+}
+.api-code code {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-family: ui-monospace, monospace;
+}
+
+.api-tag {
+  margin: 10px 0;
+}
+.api-tag-label {
+  display: inline-block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+.api-params {
+  margin: 8px 0;
+  max-width: 74ch;
+}
+.api-params dt {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--text);
+  margin-top: 6px;
+}
+.api-params dd {
+  margin: 0 0 0 16px;
+  color: var(--muted);
+}
+.api-params dd .api-prose p {
+  margin: 2px 0;
+}
+
+/* Members hang off a rule rather than sitting in a box: at 20+ members a bordered
+   card each turns the page into a stack of frames and the prose stops reading. */
+.api-members {
+  margin-top: 12px;
+  border-left: 1px solid var(--line);
+  padding-left: 14px;
+}
+.api-member {
+  padding: 8px 0;
+  scroll-margin-top: 16px;
+}
+.api-member-sig {
+  font-family: ui-monospace, monospace;
+  font-size: 12.5px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+.api-member-name {
+  color: var(--text);
+  font-weight: 600;
+}
+.api-member .api-prose {
+  font-size: 13px;
+  color: var(--muted);
+}
+.api-member .api-prose strong {
+  color: var(--text);
+}
+.api-flag {
+  margin-left: 8px;
+  font-size: 10px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.ty-intrinsic {
+  color: #9ad1a0;
+}
+.ty-literal {
+  color: #e0b478;
+}
+.ty-ref {
+  color: var(--accent);
+  text-decoration: none;
+}
+a.ty-ref:hover {
+  text-decoration: underline;
+}
+.ty-punct {
+  color: var(--muted);
+}
+.ty-param {
+  color: var(--text);
+}
+.ty-keyword {
+  color: #c39ae0;
+}
+
+.api-loading {
+  padding: 24px 32px;
+}

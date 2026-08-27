@@ -25,10 +25,15 @@ export type DestinationKind =
 export interface OutlineDestination {
   /** 0-based page index. */
   readonly page: number;
+  /** Which of the eight positioning modes the destination uses. */
   readonly kind: DestinationKind;
+  /** Left edge, for `'XYZ'`, `'FitV'`, `'FitBV'` and `'FitR'`. */
   readonly left: number | null;
+  /** Top edge, for `'XYZ'`, `'FitH'`, `'FitBH'` and `'FitR'`. */
   readonly top: number | null;
+  /** Right edge. Only ever set for `'FitR'`. */
   readonly right: number | null;
+  /** Bottom edge. Only ever set for `'FitR'`. */
   readonly bottom: number | null;
   /** Only ever set for `'XYZ'`. A zoom of 0 means "unchanged" and reads as `null`. */
   readonly zoom: number | null;
@@ -36,6 +41,7 @@ export interface OutlineDestination {
 
 /** A node in the document outline. */
 export interface OutlineNode {
+  /** The entry's label, already decoded from UTF-16, UTF-8 or PDFDocEncoding. */
   readonly title: string;
   /**
    * `null` for a container that groups children without pointing anywhere itself, and
@@ -46,9 +52,11 @@ export interface OutlineNode {
   readonly page: number | null;
   /** The document asks for this title to be drawn bold. */
   readonly bold: boolean;
+  /** The document asks for this title to be drawn italic. */
   readonly italic: boolean;
   /** The document asks for this node to start expanded. */
   readonly open: boolean;
+  /** Nested entries, empty for a leaf. */
   readonly children: OutlineNode[];
 }
 
@@ -122,7 +130,12 @@ export function buildOutlineTree(
 export function* walkOutline(
   nodes: readonly OutlineNode[],
   depth = 0,
-): Generator<{ node: OutlineNode; depth: number }> {
+): Generator<{
+  /** The entry. */
+  node: OutlineNode;
+  /** How deep it sits, 0 for a root. Useful as an indent. */
+  depth: number;
+}> {
   for (const node of nodes) {
     yield { node, depth };
     yield* walkOutline(node.children, depth + 1);

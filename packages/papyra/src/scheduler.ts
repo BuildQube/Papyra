@@ -30,7 +30,9 @@ export interface JobTiming {
   runMs: number;
 }
 
+/** A submitted job: its result, its timings, and the two ways to change its fate. */
 export interface JobHandle<T> {
+  /** The coalescing key. Two live requests sharing one render share this. */
   readonly key: string;
   /**
    * Populated once the job settles, `null` before that.
@@ -42,6 +44,7 @@ export interface JobHandle<T> {
   readonly timing: JobTiming | null;
   /** Reassign urgency while the job is still pending. A no-op once it is running. */
   setPriority(priority: number): void;
+  /** Resolves with the result, or rejects with {@link AbortError} if cancelled first. */
   readonly promise: Promise<T>;
   /**
    * Detach from this job. If nothing else is waiting on it and it has not started,
@@ -66,7 +69,14 @@ interface Entry<T> {
   promise: Promise<T>;
 }
 
+/**
+ * Rejection reason for a job dropped before it started.
+ *
+ * Named `'AbortError'` to match `DOMException`, so existing `err.name === 'AbortError'`
+ * checks keep working across the two runtimes without a papyra-specific branch.
+ */
 export class AbortError extends Error {
+  /** Always `'AbortError'`. */
   override readonly name = 'AbortError';
   constructor(reason = 'cancelled') {
     super(reason);

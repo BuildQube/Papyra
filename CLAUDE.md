@@ -32,6 +32,7 @@ bun run test:rust       # cargo test --workspace
 bun run test:all        # all three
 
 bun run typecheck
+bun run --filter papyra-docs-gen build   # regenerate the API model for /docs
 bun run lint            # biome check
 bun run format          # biome --write + cargo fmt + taplo format
 bun run check           # biome + cargo fmt --check + clippy -D warnings (what CI runs)
@@ -117,6 +118,26 @@ it is what makes a highlight on rotated text a quadrilateral at the text's own a
 `apps/demo` is a Vite/React viewer (plus `perf.html`, a React-free wasm probe);
 `apps/bench` is the Node benchmark suite against pdf.js.
 
+**The API reference is generated, not written.** `packages/docs-gen` runs TypeDoc over
+`packages/papyra/src` and emits its serialised model to `apps/demo/public/papyra-api.json`;
+the demo's `/docs` route renders that model itself (`src/components/docs/`) so the
+reference is styled like the rest of the site rather than like a second, foreign one.
+The model is fetched at runtime, which is why it lives in `public/` — 144 KB of API
+surface stays out of every JS bundle, and `tsc` never has to infer a type for it.
+
+`packages/papyra/README.md` opens that page, via TypeDoc's `readme` option, which puts
+it in the model as the same comment token stream everything else uses — so the
+quickstart and the reference render through one path and no markdown parser is
+involved. It is the npm landing page as well, so keep it portable: plain markdown, no
+TSDoc-only syntax like `{@link}`. The root `README.md` stays the long-form guide;
+this one is the quickstart, and the two should not grow into each other.
+
+Because the source of truth is the wrapper's own TSDoc, **an exported member with no
+doc comment fails the build** — `treatValidationWarningsAsErrors` in
+`packages/docs-gen/typedoc.json` turns TypeDoc's `notDocumented` warning into a
+non-zero exit, and `bun run typecheck` reaches it through turbo. That is the whole
+gate; CI needed no new job.
+
 ### Things that will surprise you
 
 - **`packages/bindings` ships no checked-in `index.js`/`index.d.ts`** — napi generates them
@@ -182,6 +203,13 @@ it is what makes a highlight on rotated text a quadrilateral at the text's own a
   59,313 characters on `TAMReview.pdf` are C0 controls. `bun run --filter papyra-bench
   text` splits usable from control characters for exactly this reason; a raw count
   ranks a tool that emits junk above one that admits it cannot read the page.
+- **TypeDoc cannot run on this repo's TypeScript.** `typescript@7` is the Go rewrite,
+  and its main entry exports exactly two symbols (`version`, `versionMajorMinor`) — the
+  compiler API TypeDoc calls (`ts.createProgram`, the type checker) is gone, and
+  TypeStrong/typedoc#3098 is feature-frozen on it with no timeline. So
+  `packages/docs-gen` pins its own `typescript@5.9.3`; bun nests it and the root stays
+  on 7. Do not "unify" those versions, and do not add `typedoc` to a package that
+  resolves TypeScript 7 — it fails at `createProgram` with nothing useful in the error.
 - **`indexText()` must stay native-only on the rayon path.** It has the same wasm hazard
   as `renderPages`, and falls back to per-page extraction through the scheduler on wasm.
 

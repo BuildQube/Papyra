@@ -12,17 +12,20 @@ import type {
  * quadrilateral exactly, and keep working when the text is rotated.
  */
 export interface TextLine {
+  /** The line's characters, with spaces reinserted between glyph runs. */
   readonly text: string;
   /**
    * Distance along the baseline to the start of each character, plus the end of the
    * last — one entry more than `text.length`.
    */
   readonly offsets: Float32Array;
-  /** Start of the baseline. */
+  /** Start of the baseline, x. */
   readonly x: number;
+  /** Start of the baseline, y. */
   readonly y: number;
-  /** Unit vector along the baseline. `(1, 0)` for ordinary horizontal text. */
+  /** Unit vector along the baseline, x. `(1, 0)` for ordinary horizontal text. */
   readonly dx: number;
+  /** Unit vector along the baseline, y. */
   readonly dy: number;
   /** Extent above the baseline, perpendicular to it. */
   readonly ascent: number;
@@ -39,7 +42,13 @@ export interface TextLine {
  * one multiply — `rendered.width / pageSize.width`, or equivalently `dpi / 72`.
  */
 export interface PageText {
+  /** 0-based index of the page this text came from. */
   readonly page: number;
+  /**
+   * The page's lines, in the order the content stream drew them — which is not
+   * necessarily reading order, because a PDF is under no obligation to draw text in
+   * the order a human reads it.
+   */
   readonly lines: readonly TextLine[];
   /**
    * Glyphs the page drew that no encoding could map back to Unicode.
@@ -59,21 +68,33 @@ export interface PageText {
 
 /** Four corners, clockwise from the top-left of the text's own orientation. */
 export interface Quad {
+  /** Top-left, x. */
   readonly x0: number;
+  /** Top-left, y. */
   readonly y0: number;
+  /** Top-right, x. */
   readonly x1: number;
+  /** Top-right, y. */
   readonly y1: number;
+  /** Bottom-right, x. */
   readonly x2: number;
+  /** Bottom-right, y. */
   readonly y2: number;
+  /** Bottom-left, x. */
   readonly x3: number;
+  /** Bottom-left, y. */
   readonly y3: number;
 }
 
 /** An axis-aligned rectangle. */
 export interface Rect {
+  /** Left edge. */
   readonly x: number;
+  /** Top edge — y increases downwards, so this is the smaller of the two. */
   readonly y: number;
+  /** Width. */
   readonly width: number;
+  /** Height. */
   readonly height: number;
 }
 

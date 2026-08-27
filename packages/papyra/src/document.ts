@@ -57,6 +57,12 @@ const DEFAULT_TEXT_PRIORITY = 3;
 
 /** A queued render, plus whether it was served from cache without rendering at all. */
 export interface RenderHandle extends JobHandle<RenderedPage> {
+  /**
+   * The page was already in the cache and nothing was queued.
+   *
+   * `promise` still resolves normally, so this only matters for instrumentation —
+   * a cache hit costs none of the ~93ms floor a real render does.
+   */
   readonly cached: boolean;
 }
 
@@ -95,6 +101,13 @@ export async function open(
   return new Document(inner, options);
 }
 
+/**
+ * An open PDF, and the queue and caches that serve it.
+ *
+ * Every page-level call goes through one shared scheduler, so a thumbnail sweep can
+ * never starve the page on screen — attach a {@link RenderOptions.priority} and the
+ * queue reorders around it. Construct via {@link open}, not `new`.
+ */
 export class Document {
   readonly #inner: NativeDocument;
   // One queue for every kind of job, `renderImage` included: priority and concurrency
@@ -136,7 +149,19 @@ export class Document {
   }
 
   /** Pages queued but not yet started, pages rendering, and the longest wait so far. */
-  get queued(): { pending: number; running: number; oldestWaitMs: number } {
+  get queued(): {
+    /** Submitted but not started. These are the ones priority can still reorder. */
+    pending: number;
+    /** Rendering now. Never preempted, so this is work you are committed to. */
+    running: number;
+    /**
+     * How long the longest-waiting pending job has sat there.
+     *
+     * The number to watch in a viewer: if it climbs, the pool is too wide for the
+     * work or a priority is wrong.
+     */
+    oldestWaitMs: number;
+  } {
     return {
       pending: this.#scheduler.pendingCount,
       running: this.#scheduler.runningCount,
@@ -144,6 +169,7 @@ export class Document {
     };
   }
 
+  /** How many pages the document has. Page indices are 0-based throughout. */
   get pageCount(): number {
     return this.#inner.pageCount;
   }

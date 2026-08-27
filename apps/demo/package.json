@@ -23,6 +23,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "coi-serviceworker": "0.1.7",
     "pdfjs-dist": "^6.2.108",
+    "papyra-docs-gen": "workspace:*",
     "typescript": "^7.0.2",
     "vite": "^6.0.7"
   }
