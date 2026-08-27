@@ -33,8 +33,14 @@ jobs:
       # The demo runs papyra's wasm build, so this job compiles
       # wasm32-wasip1-threads as well as the host target that the TypeScript
       # wrapper's `tsc` step needs typings from.
+      #
+      # The toolchain comes from rust-toolchain.toml; this only guarantees rustup is
+      # present. The target has to be added separately — the action does not read
+      # that file, so a `targets:` input here would install to whatever `@stable`
+      # resolves to today and leave the pinned toolchain without it, which is exactly
+      # how this job broke when the pin landed.
       - uses: dtolnay/rust-toolchain@stable
-        with: { targets: wasm32-wasip1-threads }
+      - run: rustup target add wasm32-wasip1-threads
       - uses: Swatinem/rust-cache@v2
       - uses: actions/configure-pages@v6
       - run: bun install --frozen-lockfile
