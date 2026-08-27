@@ -1,6 +1,10 @@
-import { open, type SearchMatch } from '@build-qube/papyra';
+import { open, PasswordError, type SearchMatch } from '@build-qube/papyra';
 import { type ReactNode, useCallback, useState } from 'react';
-import { DocumentContext, type Loaded } from './documentContext.js';
+import {
+  DocumentContext,
+  type Loaded,
+  type PasswordRequest,
+} from './documentContext.js';
 
 /**
  * Holds the open document *above* the router.
@@ -15,8 +19,9 @@ export function DocumentProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [matches, setMatches] = useState<SearchMatch[]>([]);
   const [active, setActive] = useState<SearchMatch | null>(null);
+  const [password, setPassword] = useState<PasswordRequest | null>(null);
 
-  const load = useCallback(async (file: File) => {
+  const load = useCallback(async (file: File, secret?: string) => {
     setError(null);
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
@@ -24,14 +29,29 @@ export function DocumentProvider({ children }: { children: ReactNode }) {
       // A viewer wants a narrow pool: priority can only reorder work that has not
       // started, so a wide pool makes the visible page wait behind more in-flight
       // renders. Measured 5.2x faster to the visible page at 4 vs 1.1x at 18.
-      const doc = await open(file, { concurrency: 4 });
+      const doc = await open(
+        file,
+        secret === undefined
+          ? { concurrency: 4 }
+          : { concurrency: 4, password: secret },
+      );
+      setPassword(null);
       setLoaded({ doc, bytes, name: file.name });
       setMatches([]);
       setActive(null);
     } catch (e) {
+      // The one failure worth asking about rather than reporting. `retry` is what
+      // separates "we never asked" from "the answer was wrong", and it is the whole
+      // reason papyra throws two types here rather than one.
+      if (e instanceof PasswordError) {
+        setPassword({ file, retry: e.retry });
+        return;
+      }
       setError((e as Error).message);
     }
   }, []);
+
+  const cancelPassword = useCallback(() => setPassword(null), []);
 
   return (
     <DocumentContext
@@ -44,6 +64,8 @@ export function DocumentProvider({ children }: { children: ReactNode }) {
         setMatches,
         active,
         setActive,
+        password,
+        cancelPassword,
       }}
     >
       {children}

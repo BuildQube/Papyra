@@ -11,12 +11,18 @@
 import { copyFile, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-/** Enough to show every feature: an outline, text to search, and a big document. */
+/**
+ * Enough to show every feature: an outline, links, text to search, a big document,
+ * and one that will not open without a password.
+ */
 const WANTED = [
   'basicapi.pdf',
   'issue3214.pdf',
   'tracemonkey.pdf',
   'TAMReview.pdf',
+  // Opens with `asdfasdf` — the demo's password prompt has nothing to prompt for
+  // otherwise.
+  'pr6531_1.pdf',
 ];
 
 const root = join(import.meta.dir, '..');
@@ -38,10 +44,18 @@ for (const name of WANTED) {
   }
 }
 
-await writeFile(join(to, 'rotated.pdf'), rotatedTextPdf());
-console.log('  ✓ rotated.pdf (generated)');
+const generated: [string, Uint8Array][] = [
+  ['rotated.pdf', rotatedTextPdf()],
+  ['labelled.pdf', labelledPdf()],
+];
+for (const [name, bytes] of generated) {
+  await writeFile(join(to, name), bytes);
+  console.log(`  ✓ ${name} (generated)`);
+}
 
-console.log(`\n${copied + 1} in apps/demo/public — open with ?file=/<name>`);
+console.log(
+  `\n${copied + generated.length} in apps/demo/public — open with ?file=/<name>`,
+);
 
 /**
  * A page of text at four different angles.
@@ -68,6 +82,58 @@ function rotatedTextPdf(): Uint8Array {
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
   ];
 
+  return assemble(objects);
+}
+
+/**
+ * Front matter numbered i, ii, iii, then a body numbered from 1.
+ *
+ * Generated because nothing in the pdf.js corpus defines `/PageLabels` as anything
+ * but its own index, and a page label that agrees with the index demonstrates
+ * nothing: the reason to read one is a document where "page 4" and the number
+ * printed on page 4 are different. Each page carries a link to the next, so the
+ * link layer has something to do here too.
+ */
+function labelledPdf(): Uint8Array {
+  const pages = ['Cover', 'Contents', 'Foreword', 'One', 'Two', 'Three'];
+  const first = 4;
+  const objectsPerPage = 3; // page, contents, link annotation
+
+  const kids = pages
+    .map((_, i) => `${first + i * objectsPerPage} 0 R`)
+    .join(' ');
+
+  const objects: string[] = [
+    `<< /Type /Catalog /Pages 2 0 R /PageLabels 3 0 R >>`,
+    `<< /Type /Pages /Kids [${kids}] /Count ${pages.length} >>`,
+    // Roman for the three-page front matter, decimal from there.
+    `<< /Nums [0 << /S /r >> 3 << /S /D /St 1 >>] >>`,
+  ];
+
+  pages.forEach((title, i) => {
+    const page = first + i * objectsPerPage;
+    const content =
+      `BT /F1 36 Tf 72 660 Td (${title}) Tj ET\n` +
+      `BT /F1 14 Tf 72 620 Td (Next page) Tj ET`;
+    // The last page links back to the first, so every page has a working link.
+    const target = first + ((i + 1) % pages.length) * objectsPerPage;
+
+    objects.push(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] ` +
+        `/Contents ${page + 1} 0 R /Annots [${page + 2} 0 R] ` +
+        `/Resources << /Font << /F1 ${first + pages.length * objectsPerPage} 0 R >> >> >>`,
+      `<< /Length ${content.length + 1} >>\nstream\n${content}\nendstream`,
+      `<< /Type /Annot /Subtype /Link /Rect [70 615 145 638] /Border [0 0 0] ` +
+        `/Contents (Next page) /Dest [${target} 0 R /Fit] >>`,
+    );
+  });
+
+  objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+  return assemble(objects);
+}
+
+/** Write numbered objects, an xref table and a trailer around them. */
+function assemble(objects: string[]): Uint8Array {
   let pdf = '%PDF-1.7\n';
   const offsets: number[] = [];
   objects.forEach((body, i) => {
