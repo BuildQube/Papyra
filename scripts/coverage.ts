@@ -251,6 +251,31 @@ const common = [
   ...objects,
   `--ignore-filename-regex=${RUST_IGNORE}`,
 ];
+
+/**
+ * What each stage actually contributed, merged on its own.
+ *
+ * The total alone cannot tell a stage that ran and reported nothing from one whose
+ * work another stage already covered, and this pipeline's whole failure mode is a
+ * number that is wrong but believable. A stage at zero here means its counters were
+ * written and then lost, which is not something the totals will ever say out loud.
+ */
+console.log('coverage: per-stage contribution (Rust lines covered)');
+for (const stage of ['cargo-test', 'bindings', 'wrapper']) {
+  const own = profraw.filter((f) => f.includes(`/${stage}-`));
+  if (own.length === 0) {
+    console.log(`  ${stage.padEnd(11)} no profraw`);
+    continue;
+  }
+  const stageData = join(OUT, `${stage}.profdata`);
+  await $`${join(llvmBin, 'llvm-profdata')} merge -sparse ${own} -o ${stageData}`;
+  const lcov =
+    await $`${llvmCov} export -format=lcov --instr-profile=${stageData} ${objects} --ignore-filename-regex=${RUST_IGNORE}`.text();
+  const covered = (lcov.match(/^DA:\d+,[1-9]/gm) ?? []).length;
+  console.log(
+    `  ${stage.padEnd(11)} ${String(covered).padStart(5)} lines, from ${own.length} profraw`,
+  );
+}
 // llvm-cov records absolute paths. Codecov matches an lcov `SF:` against the repo
 // tree, so an absolute one from a runner's checkout directory resolves to nothing and
 // the whole flag lands as uncovered.
