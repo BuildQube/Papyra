@@ -54,3 +54,15 @@ codegen-units = 1
 # Rendering is allocation-heavy; keep debug builds usable for the demo app.
 [profile.dev.package."*"]
 opt-level = 2
+
+# Coverage builds only (`bun run coverage`). Inherits release rather than dev because
+# the instrumented addon is driven by the JS suites across the whole corpus, and this
+# keeps that at normal render speed — the wrapper's integration tests still finish in
+# ~230ms instrumented. LTO is off on cargo-llvm-cov's advice: it is a documented
+# source of dropped or misattributed coverage regions, and there is nothing to gain
+# from it in a build that is thrown away. codegen-units goes back up for the same
+# reason — compile time is the only thing that matters here.
+[profile.coverage]
+inherits = "release"
+lto = false
+codegen-units = 16

@@ -66,6 +66,113 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run --filter @build-qube/papyra test
 
+  # One job for both languages, because the Rust half depends on the TypeScript half:
+  # `packages/bindings` has no `#[test]` in it and the render path is only reachable
+  # across the napi boundary, so the addon is built with LLVM instrumentation and the
+  # JS suites are what exercise it. `cargo test` alone reports the bindings crate at
+  # 0%. scripts/coverage.ts has the full explanation and refuses to emit a report if
+  # that 0% ever comes back — the failure modes here all produce a plausible number
+  # rather than an error.
+  #
+  # Deliberately not wired into `needs: build`: that matrix builds `--release` and
+  # uninstrumented, so this job has to compile its own addon regardless.
+  #
+  # There is no coverage service behind this. scripts/coverage-report.ts writes the
+  # badge SVGs and the PR comment itself, so the whole thing runs on GITHUB_TOKEN
+  # with no account, no repo activation and no secret to configure. What that gives
+  # up is trend history and line-level annotations in the Files-changed view.
+  coverage:
+    runs-on: ubuntu-latest
+    permissions:
+      # Force-pushing the badge branch, and posting the PR comment. Both are scoped
+      # to this job; the workflow default stays read-only.
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+        # Patch coverage diffs against the PR's merge base, which a shallow clone
+        # does not contain.
+        with: { fetch-depth: 0 }
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: 1.3.11 }
+      - uses: dtolnay/rust-toolchain@stable
+      # llvm-profdata and llvm-cov ship in this component, and it is deliberately
+      # absent from rust-toolchain.toml: listing it there would make every clone
+      # download it for a tool only this job runs.
+      - run: rustup component add llvm-tools-preview
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - uses: Swatinem/rust-cache@v2
+        with: { key: "coverage" }
+      - run: bun install --frozen-lockfile
+      # The wrapper's integration tests open real PDFs, and they are most of what
+      # drives the Rust render path.
+      - run: bun run corpus
+      - run: bun run coverage
+      # The delta column compares against the last green run on main. Advisory: the
+      # first ever run has nothing to compare to, and a main run can be missing
+      # because it was cancelled, so a failure here must not fail the job.
+      - name: Fetch the main baseline
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          run_id=$(gh run list --workflow CI.yml --branch main --status success \
+            --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          if [ -n "$run_id" ]; then
+            gh run download "$run_id" -n coverage-summary -D baseline
+          else
+            echo "no successful main run yet — the delta column will be empty"
+          fi
+      - name: Build the report
+        run: |
+          args=()
+          if [ -f baseline/summary.json ]; then
+            args+=(--base baseline/summary.json)
+          fi
+          if [ -n "${{ github.event.pull_request.base.sha }}" ]; then
+            args+=(--diff-base "${{ github.event.pull_request.base.sha }}")
+          fi
+          bun run scripts/coverage-report.ts "${args[@]}"
+      # Always available, including on a fork PR where the token cannot comment.
+      - name: Add to the job summary
+        run: cat coverage/report.md >> "$GITHUB_STEP_SUMMARY"
+      # `--edit-last` keeps one comment per PR rather than a new one per push.
+      # A fork PR gets a read-only token and cannot post at all, hence the tolerance;
+      # the job summary above still carries the numbers.
+      - name: Comment on the PR
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --body-file coverage/report.md --edit-last --create-if-none
+      # Becomes the next run's baseline.
+      - name: Upload the summary
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-summary
+          path: coverage/summary.json
+          if-no-files-found: error
+      # Badges live on an orphan `badges` branch, force-pushed from a scratch repo so
+      # nothing lands in main's history and the branch never accumulates one commit
+      # per run. README points at raw.githubusercontent.com.
+      - name: Publish the badges
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tmp=$(mktemp -d)
+          cp coverage/coverage.svg coverage/coverage-rust.svg coverage/coverage-ts.svg "$tmp/"
+          cd "$tmp"
+          git init -q -b badges
+          git add .
+          git -c user.name='github-actions[bot]' \
+              -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              commit -qm "Coverage badges for ${GITHUB_SHA}"
+          git push -q --force \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" badges
+
   build:
     name: build ${{ matrix.target }}
     strategy:

@@ -1,6 +1,10 @@
 # rust
 /target
 **/*.rs.bk
+# An instrumented addon left over from `bun run coverage` writes one of these on
+# exit, into whatever directory the process ran in, whenever LLVM_PROFILE_FILE is
+# not set — which is every ordinary `bun test test/integration`.
+*.profraw
 
 # node
 node_modules
@@ -26,6 +30,9 @@ apps/demo/public/*.pdf
 # The API model papyra-docs-gen extracts from the wrapper's TSDoc. Generated at
 # build time like the napi output above, and stale the moment a comment changes.
 apps/demo/public/papyra-api.json
+
+# `bun run coverage` output: lcov for both languages plus the merged LLVM profile.
+/coverage
 
 # misc
 .DS_Store

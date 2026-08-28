@@ -983,3 +983,30 @@ fn ensure_heap_reserved() {
 
 #[cfg(not(target_family = "wasm"))]
 fn ensure_heap_reserved() {}
+
+/// Write this process's LLVM coverage counters to `LLVM_PROFILE_FILE`.
+///
+/// Present only in `bun run coverage` builds, which set `--cfg=papyra_coverage`
+/// themselves. Keying this on cargo-llvm-cov's own `--cfg=coverage` instead put the
+/// hook in the local build and not in CI's, where a different version of the tool is
+/// installed — and a missing hook costs the whole wrapper stage. Nothing here ships.
+///
+/// The instrumentation normally dumps counters from an `atexit` handler registered
+/// when the addon is dlopened. Bun on Linux leaves the process without running it,
+/// so the whole wrapper test stage profiled nothing: `outline()` and the text
+/// extraction paths read as dead code in CI while their own integration tests passed
+/// in that same job, costing about seven points of the Rust total. Continuous mode
+/// (`%c`) is the documented fix and needs a different build flag on each platform to
+/// work at all, so the flush is triggered explicitly from the test preload instead —
+/// while the process is unambiguously still alive.
+#[cfg(papyra_coverage)]
+#[napi(js_name = "__writeCoverageProfile")]
+pub fn write_coverage_profile() {
+  unsafe extern "C" {
+    fn __llvm_profile_write_file() -> i32;
+  }
+  // Safe to call more than once, and it rewrites the same path each time.
+  unsafe {
+    __llvm_profile_write_file();
+  }
+}

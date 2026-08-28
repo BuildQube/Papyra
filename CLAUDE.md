@@ -32,6 +32,8 @@ bun run test:rust       # cargo test --workspace
 bun run test:all        # all three
 
 bun run typecheck
+bun run coverage        # both languages, one run -> coverage/{rust,ts}.lcov
+bun run coverage:report # ... -> summary.json, badge SVGs, the PR comment body
 bun run --filter papyra-docs-gen build   # regenerate the API model for /docs
 bun run lint            # biome check
 bun run format          # biome --write + cargo fmt + taplo format
@@ -249,6 +251,57 @@ gate; CI needed no new job.
   survived.
 - **`indexText()` must stay native-only on the rayon path.** It has the same wasm hazard
   as `renderPages`, and falls back to per-page extraction through the scheduler on wasm.
+- **Rust coverage comes mostly from the TypeScript tests, not `cargo test`.**
+  `packages/bindings` has no `#[test]` in it and the render path is only reachable
+  across the napi boundary, so `cargo test --workspace` reports that crate at a flat
+  0% and the workspace at 71.24%. `bun run coverage` instead builds the addon with
+  LLVM instrumentation, runs every suite against it, and unions the counters — 93.44%,
+  with bindings at 89.46%. `scripts/coverage.ts` carries the details. Two things there
+  are load-bearing and both fail *silently*, producing a lower but entirely plausible
+  number: the addon must be passed to `llvm-cov` as an extra `--object` (which is why
+  `cargo llvm-cov report` cannot finish the job — it has no flag for a cdylib), and
+  `target/<host-triple>/coverage` must be cleared by hand, since `napi build` writes
+  there and `cargo llvm-cov clean` does not look. The script asserts a non-zero
+  `packages/bindings/src/lib.rs` at the end for exactly this reason; if that assertion
+  fires, the pipeline broke, the tests did not.
+- **Bun does not flush the addon's coverage counters on exit.** The instrumentation
+  dumps them from an `atexit` handler registered when the addon is dlopened, and Bun
+  on Linux leaves the process without running it — the wrapper test stage contributed
+  532 covered lines on macOS and 0 in CI, reporting `outline()` and the text paths as
+  dead code while their own integration tests passed in that same job. `%c`
+  (continuous mode) is the documented fix and needs `-runtime-counter-relocation` on
+  Linux plus a `__llvm_prf_cnts` alignment flag at link time on macOS; tried without
+  both it silently profiles nothing, which is how it presents. So
+  `write_coverage_profile` in `packages/bindings/src/lib.rs`, behind
+  `#[cfg(papyra_coverage)]` and absent from every shipped build, is called from
+  `test/coverage-entry.ts`'s `afterAll`. That cfg is one `bun run coverage` sets
+  itself: keyed on cargo-llvm-cov's own `--cfg=coverage` the hook compiled in locally
+  and not in CI, which installs a different version of the tool, and a hook the
+  preload cannot find is the same zero all over again — so it throws rather than
+  skipping. `bun run coverage` fails if any stage contributes zero, because this
+  cost seven points of the Rust total behind a green build.
+- **Each coverage stage needs its own `LLVM_PROFILE_FILE`.** cargo-llvm-cov's
+  default pattern ends in `%18m` — online merging, where writers share a pool of 18
+  files. That is only valid between processes running the same coverage map, and
+  here the writers are a cargo test binary, node loading the addon and bun loading
+  the addon. On a pool collision LLVM discards the mismatched counters silently, and
+  which writer loses depends on timing: this reproduced on Linux CI and never on
+  macOS, reporting the outline and text paths 23 points low with all 73 tests
+  passing. `scripts/coverage.ts` overrides the pattern per stage with a plain `%p`;
+  llvm-profdata merges everything at the end, which is where merging belongs.
+- **There is no coverage service.** `scripts/coverage-report.ts` writes the badge
+  SVGs and the PR comment body itself, so CI needs only `GITHUB_TOKEN` — no account,
+  no repo activation, no secret. Badges are force-pushed to an orphan `badges`
+  branch from a scratch repo, so main's history stays clean and the branch never
+  grows a commit per run; the README points at raw.githubusercontent.com. The delta
+  column comes from the last green `main` run's `coverage-summary` artifact, which
+  is advisory — the first run has no baseline and the column renders empty. Adding
+  a service later would mean deleting this, not working around it.
+- **Bun's lcov lists only files a test imported.** A module nobody touches is not 0%,
+  it is absent, and the percentage is computed over what remains — `bun test
+  test/unit` covers 6 of the 13 files in the wrapper, silently omitting `document.ts`.
+  `packages/papyra/test/coverage-entry.ts` is preloaded solely to import the package
+  entrypoint and drag the rest into the denominator. There is no `--coverage.all`.
 
 ## Conventions
 
