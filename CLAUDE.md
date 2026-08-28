@@ -98,10 +98,15 @@ Four layers, each with a deliberate boundary:
 
 `packages/ui` (`@workspace/ui`) sits outside that stack: it is the private home of
 every shadcn component, consumed as **source** rather than as a build artifact, so
-Tailwind v4's scanner can follow the import graph into it. `apps/demo` has the
-plumbing (`@tailwindcss/vite`, the `@/*` and `@workspace/ui/*` paths, its own
-`components.json`) but does not yet import `globals.css` — the demo still ships its
-own 1191-line stylesheet. See `packages/ui/README.md`.
+Tailwind v4's scanner can follow the import graph into it. `apps/demo` is built
+entirely from it — there is no hand-written stylesheet left, and
+`packages/ui/src/styles/globals.css` is the only CSS file in the app's graph. Two
+things live there that semantic tokens cannot express: the API reference's syntax
+colours (`--syntax-*`, surfaced as `text-syntax-intrinsic` and friends — a type
+keyword is not "less important" than a literal, it is a different thing) and the
+`checkerboard` utility behind a transparent SVG. papyra's accent, #6ea8fe, is on
+`--primary` and `--ring`; **not** on `--accent`, which in shadcn is the hover
+surface. See `packages/ui/README.md`.
 
 Five features beyond rendering follow the same split:
 

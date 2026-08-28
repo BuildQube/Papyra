@@ -1,4 +1,11 @@
+import { cn } from '@workspace/ui/lib/utils';
 import type { CommentPart } from '../../lib/apiModel.js';
+
+/**
+ * `readme` is the package README opening the reference page; `prose` is a doc
+ * comment inside it.
+ */
+type Variant = 'prose' | 'readme';
 
 /**
  * Renders a TypeDoc comment token stream as prose.
@@ -176,6 +183,18 @@ function toBlocks(parts: readonly CommentPart[]): Block[] {
   return blocks;
 }
 
+/**
+ * Tight, and filled rather than bordered: a 4px pad plus a border reads as a real
+ * space, so `DOMException`, came out looking like `DOMException ,`.
+ */
+function Code({ children }: { children: React.ReactNode }) {
+  return (
+    <code className="rounded-xs bg-muted px-[3px] font-mono text-[0.9em]">
+      {children}
+    </code>
+  );
+}
+
 function Inlines({
   inline,
   hrefFor,
@@ -188,21 +207,29 @@ function Inlines({
       {inline.map((part, i) => {
         let node: React.ReactNode = part.v;
         if (part.t === 'code') {
-          node = <code>{part.v}</code>;
+          node = <Code>{part.v}</Code>;
         } else if (part.t === 'extlink') {
           node = (
-            <a href={part.href} rel="noreferrer" target="_blank">
+            <a
+              className="text-primary hover:underline"
+              href={part.href}
+              rel="noreferrer"
+              target="_blank"
+            >
               {part.v}
             </a>
           );
         } else if (part.t === 'link') {
           const href = hrefFor(part.target, part.v);
           node = href ? (
-            <a className="api-xref" href={href}>
+            <a
+              className="font-mono text-[0.9em] text-primary hover:underline"
+              href={href}
+            >
               {part.v}
             </a>
           ) : (
-            <code>{part.v}</code>
+            <Code>{part.v}</Code>
           );
         }
         return (
@@ -215,27 +242,49 @@ function Inlines({
   );
 }
 
+/**
+ * The README's own heading scale, deliberately distinct from the reference below it:
+ * this is the part you read, that part is the part you look things up in.
+ */
+const README_HEADINGS: Record<number, string> = {
+  1: 'mb-2.5 font-mono text-[22px] tracking-[0.01em]',
+  2: 'mt-6 border-t pt-3.5 text-sm',
+  3: 'mt-4 text-[13px]',
+};
+
 /** `#`..`######` as the matching element, so the README keeps its own outline. */
 function Heading({
   level,
+  variant,
   children,
 }: {
   level: number;
+  variant: Variant;
   children: React.ReactNode;
 }) {
   const Tag = `h${Math.min(Math.max(level, 1), 6)}` as 'h1';
-  return <Tag>{children}</Tag>;
+  return (
+    <Tag
+      className={cn(
+        'font-medium',
+        variant === 'readme' && (README_HEADINGS[level] ?? 'mt-4 text-[13px]'),
+      )}
+    >
+      {children}
+    </Tag>
+  );
 }
 
 export function CommentBody({
   parts,
   hrefFor,
-  className = '',
+  className,
+  variant = 'prose',
 }: {
   parts: readonly CommentPart[] | undefined;
   hrefFor: (target: number | undefined, text: string) => string | undefined;
-  /** Modifier added alongside `api-prose`, never instead of it. */
   className?: string;
+  variant?: Variant;
 }) {
   if (!parts?.length) return null;
   const blocks = toBlocks(parts);
@@ -246,9 +295,12 @@ export function CommentBody({
   const flushList = (at: number): void => {
     if (!bullets.length) return;
     rendered.push(
-      <ul key={`ul-${at}`}>
+      <ul className="my-2 list-disc pl-5" key={`ul-${at}`}>
         {bullets.map((b) => (
-          <li key={b.kind === 'li' ? inlineKey(b.inline) : ''}>
+          <li
+            className="my-0.5"
+            key={b.kind === 'li' ? inlineKey(b.inline) : ''}
+          >
             {b.kind === 'li' && <Inlines hrefFor={hrefFor} inline={b.inline} />}
           </li>
         ))}
@@ -265,19 +317,22 @@ export function CommentBody({
     flushList(i);
     if (block.kind === 'code') {
       rendered.push(
-        <pre className="api-code" key={`code-${i}`}>
-          <code>{block.code}</code>
+        <pre
+          className="my-2.5 overflow-x-auto rounded-md border bg-muted/40 px-3 py-2.5 text-xs leading-relaxed"
+          key={`code-${i}`}
+        >
+          <code className="font-mono">{block.code}</code>
         </pre>,
       );
     } else if (block.kind === 'h') {
       rendered.push(
-        <Heading key={`h-${i}`} level={block.level}>
+        <Heading key={`h-${i}`} level={block.level} variant={variant}>
           <Inlines hrefFor={hrefFor} inline={block.inline} />
         </Heading>,
       );
     } else {
       rendered.push(
-        <p key={`p-${i}`}>
+        <p className="my-2" key={`p-${i}`}>
           <Inlines hrefFor={hrefFor} inline={block.inline} />
         </p>,
       );
@@ -285,5 +340,17 @@ export function CommentBody({
   }
   flushList(blocks.length);
 
-  return <div className={`api-prose ${className}`.trim()}>{rendered}</div>;
+  /* A prose column, not full width: measured lines are the point of doc comments. */
+  return (
+    <div
+      className={cn(
+        'max-w-[74ch]',
+        variant === 'readme' &&
+          'border-b pb-5 [&_li]:text-muted-foreground [&_p]:text-muted-foreground [&_strong]:text-foreground',
+        className,
+      )}
+    >
+      {rendered}
+    </div>
+  );
 }

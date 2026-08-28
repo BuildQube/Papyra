@@ -34,19 +34,23 @@ upstream. Across the initial 28 components biome flagged ten such things
 `noLabelWithoutControl`, and the `cva` variants exported beside each component).
 Anything we actually write — `src/lib`, `src/hooks`, and every app — stays linted.
 
-## Wiring it into a consuming app
+## Theme
 
-`apps/demo` already has the plumbing — `@tailwindcss/vite` in `vite.config.ts`, the
-`@/*` and `@workspace/ui/*` paths in `tsconfig.json`, and its own `components.json`.
-Two switches are deliberately **not** flipped yet, because both change how the demo
-looks and the demo still ships 1191 lines of hand-written CSS:
+The palette is shadcn's neutral base with papyra's accent, #6ea8fe, on `--primary`
+and `--ring` — **not** on `--accent`, which in shadcn is the hover surface, so
+tinting it would turn every hover blue.
 
-1. `import '@workspace/ui/globals.css'` in `src/main.tsx`, **before** `./styles.css`.
-   Tailwind's preflight lands in `@layer base`, and unlayered CSS beats layered CSS
-   regardless of specificity, so `styles.css` keeps winning for every property it
-   sets — but preflight still resets what it does not (heading sizes, list markers,
-   `img { display: block }`).
-2. Wrapping the tree in `ThemeProvider` (`src/components/theme-provider.tsx`), which
-   puts `light`/`dark` on `<html>` for the `dark:` variant to key off.
+Two things here are not shadcn's and will not survive a blind `shadcn add` that
+rewrites `globals.css`:
 
-Both belong to the migration, not to the scaffold.
+- `--syntax-intrinsic` / `--syntax-literal` / `--syntax-keyword`, themed per mode
+  and surfaced as `text-syntax-*`. The API reference needs them because semantic
+  tokens do not stretch to syntax: `text-muted-foreground` says "less important",
+  and a type keyword is not less important than a literal, it is a different thing.
+- `@utility checkerboard`, the transparency checkerboard the export view paints
+  behind a transparent SVG.
+
+`apps/demo` is built entirely from this package — `@tailwindcss/vite` in
+`vite.config.ts`, the `@/*` and `@workspace/ui/*` paths in `tsconfig.json`, its own
+`components.json`, `globals.css` as the single CSS import in `src/main.tsx`, and
+`ThemeProvider` putting `light`/`dark` on `<html>`.

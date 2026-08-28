@@ -1,4 +1,5 @@
 import type { Quad, SearchMatch } from '@build-qube/papyra';
+import { cn } from '@workspace/ui/lib/utils';
 
 interface Props {
   matches: readonly SearchMatch[];
@@ -23,7 +24,7 @@ export function Highlights({ matches, active, scale, width, height }: Props) {
 
   return (
     <svg
-      className="highlights"
+      className="pointer-events-none absolute inset-0 size-full"
       width={width}
       height={height}
       viewBox={`0 0 ${width} ${height}`}
@@ -35,7 +36,10 @@ export function Highlights({ matches, active, scale, width, height }: Props) {
           // A quad's own corners identify it: two matches never share a position.
           <polygon
             key={points(quad, 1)}
-            className={match === active ? 'hit active' : 'hit'}
+            className={cn(
+              'fill-[#ffd54a] [fill-opacity:0.35]',
+              match === active && 'fill-[#ff8a3d] [fill-opacity:0.55]',
+            )}
             points={points(quad, scale)}
           />
         )),

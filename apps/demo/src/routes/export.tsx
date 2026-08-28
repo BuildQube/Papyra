@@ -6,6 +6,7 @@ import type {
 } from '@build-qube/papyra';
 import { PageImage } from '@build-qube/papyra';
 import { useNavigate, useSearch } from '@tanstack/react-router';
+import { cn } from '@workspace/ui/lib/utils';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ExportControls } from '../components/ExportControls.js';
 import {
@@ -14,6 +15,7 @@ import {
 } from '../components/PageImageView.js';
 import { ViewerLayout } from '../components/ViewerLayout.js';
 import { useDocument } from '../lib/documentContext.js';
+import { PAGE } from '../lib/pageClass.js';
 import { usePage } from '../lib/usePage.js';
 import { defaultViewWidth } from '../lib/width.js';
 
@@ -172,7 +174,7 @@ export function ExportRoute() {
     <ViewerLayout
       status={
         timing && (
-          <span className="muted">
+          <span className="text-xs text-muted-foreground">
             {format} · page {page + 1} · {timing.width}×{timing.height}
             {timing.raw === null ? ' pt' : ''} · wait {timing.wait.toFixed(0)} ·
             run {timing.run.toFixed(0)} · encode {timing.encode.toFixed(0)} ·
@@ -204,7 +206,7 @@ export function ExportRoute() {
     >
       <PageImageView
         ref={view}
-        className={transparent && format === 'svg' ? 'page checkered' : 'page'}
+        className={cn(PAGE, transparent && format === 'svg' && 'checkerboard')}
         alt={`Page ${page + 1} encoded as ${format}`}
       />
     </ViewerLayout>

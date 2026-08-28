@@ -1,5 +1,6 @@
 import type { Document } from '@build-qube/papyra';
 import { useNavigate, useSearch } from '@tanstack/react-router';
+import { cn } from '@workspace/ui/lib/utils';
 import {
   useCallback,
   useEffect,
@@ -15,6 +16,7 @@ import { PageView, type PageViewHandle } from '../components/PageView.js';
 import { ViewerLayout } from '../components/ViewerLayout.js';
 import { type ViewMode, ZoomBar } from '../components/ZoomBar.js';
 import { useDocument } from '../lib/documentContext.js';
+import { PAGE } from '../lib/pageClass.js';
 import { usePage } from '../lib/usePage.js';
 import {
   labelsDiffer,
@@ -254,7 +256,7 @@ export function ViewerRoute() {
         mode === 'scroll'
           ? doc && <QueueStatus doc={doc} scale={zoom.scale} />
           : timing && (
-              <span className="muted">
+              <span className="text-xs text-muted-foreground">
                 canvas · page {index + 1} · {formatZoom(zoom.scale)}
                 {size && ` · ${size.w}×${size.h}`} · wait{' '}
                 {timing.wait.toFixed(0)} · run {timing.run.toFixed(0)} · paint{' '}
@@ -281,10 +283,15 @@ export function ViewerRoute() {
           active={active}
         />
       ) : (
-        <div className="page-stack" ref={stack} style={box ?? undefined}>
+        <div
+          className="relative leading-[0]"
+          ref={stack}
+          style={box ?? undefined}
+        >
           <PageView
             ref={surface}
-            className="page zoomable"
+            // Zoom sets an explicit box, so the fit-to-container cap comes off.
+            className={cn(PAGE, 'max-w-none')}
             style={box ?? undefined}
           />
           {size && loaded && (
@@ -338,7 +345,7 @@ function QueueStatus({ doc, scale }: { doc: Document; scale: number }) {
   }, [doc]);
 
   return (
-    <span className="muted">
+    <span className="text-xs text-muted-foreground">
       continuous · {doc.pageCount} pages · {formatZoom(scale)} ·{' '}
       <strong>{queue.running} rendering</strong> · {queue.pending} queued ·{' '}
       {hits} cached

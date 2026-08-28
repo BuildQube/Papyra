@@ -4,6 +4,7 @@ import {
   type RenderHandle,
   type SearchMatch,
 } from '@build-qube/papyra';
+import { cn } from '@workspace/ui/lib/utils';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Highlights } from './Highlights.js';
 import { Links } from './Links.js';
@@ -105,12 +106,25 @@ export const PageSurface = memo(function PageSurface({
 
   return (
     <div
-      className={current ? 'page-slot current' : 'page-slot'}
+      className={cn(
+        'absolute bg-white shadow-[0_4px_18px_rgb(0_0_0/0.45)]',
+        current && 'outline-2 outline-offset-1 outline-primary/55',
+      )}
       style={{ top, left, width, height }}
     >
-      <canvas ref={canvas} hidden={!painted} />
+      <canvas ref={canvas} className="block size-full" hidden={!painted} />
       {!painted && (
-        <div className={pending ? 'page-blank pending' : 'page-blank'}>
+        /*
+         * A placeholder of exactly the right size, from `pageSize()`, before anything
+         * has rendered. That is what lets the column be scrolled to the end
+         * immediately: the geometry never depends on the pixels arriving.
+         */
+        <div
+          className={cn(
+            'grid size-full place-items-center border bg-card text-muted-foreground tabular-nums',
+            pending && 'animate-pulse',
+          )}
+        >
           {index + 1}
         </div>
       )}

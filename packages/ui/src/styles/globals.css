@@ -49,7 +49,18 @@
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
   --font-sans: "Geist Variable", sans-serif;
+  --color-syntax-intrinsic: var(--syntax-intrinsic);
+  --color-syntax-literal: var(--syntax-literal);
+  --color-syntax-keyword: var(--syntax-keyword);
 }
+
+/*
+ * Syntax colours for the generated API reference. Semantic tokens do not stretch to
+ * these — `text-muted-foreground` says "less important", and a type keyword is not
+ * less important than a literal, it is a different thing. Three hues, themed like
+ * everything else; punctuation, parameters and references reuse `muted-foreground`,
+ * `foreground` and `primary` and need no token of their own.
+ */
 
 /*
  * papyra's accent, #6ea8fe, carried over from the demo's hand-written stylesheet.
@@ -89,6 +100,9 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.7287 0.1398 258.07);
+  --syntax-intrinsic: #2f7d3a;
+  --syntax-literal: #8a5200;
+  --syntax-keyword: #6f3a9c;
 }
 
 .dark {
@@ -123,6 +137,19 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.7287 0.1398 258.07);
+  --syntax-intrinsic: #9ad1a0;
+  --syntax-literal: #e0b478;
+  --syntax-keyword: #c39ae0;
+}
+
+/*
+ * Transparency needs something behind it to be visible at all: a page paints white,
+ * so a transparent SVG over it is pixel-identical to an opaque one. The checkerboard
+ * is the usual convention, and it belongs to the viewer rather than to the file.
+ */
+@utility checkerboard {
+  background:
+    repeating-conic-gradient(#d8d8d8 0% 25%, #fff 0% 50%) 50% / 20px 20px;
 }
 
 @layer base {

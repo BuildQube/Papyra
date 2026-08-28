@@ -83,7 +83,7 @@ export function PageImageView({ ref, className, alt }: Props) {
 
   return (
     <>
-      <div ref={placeholder} className="placeholder page-placeholder" />
+      <div ref={placeholder} className="aspect-[1/1.294] w-[min(100%,600px)]" />
       <img ref={img} className={className} alt={alt} hidden />
     </>
   );

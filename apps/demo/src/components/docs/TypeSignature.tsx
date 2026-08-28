@@ -24,11 +24,11 @@ export function TypeSignature({
 
   switch (type.type) {
     case 'intrinsic':
-      return <span className="ty-intrinsic">{type.name}</span>;
+      return <span className="text-syntax-intrinsic">{type.name}</span>;
 
     case 'literal':
       return (
-        <span className="ty-literal">
+        <span className="text-syntax-literal">
           {typeof type.value === 'string'
             ? `'${type.value}'`
             : String(type.value)}
@@ -39,11 +39,11 @@ export function TypeSignature({
       const target = typeof type.target === 'number' ? type.target : undefined;
       const href = hrefFor(target, type.name);
       const name = href ? (
-        <a className="ty-ref" href={href}>
+        <a className="text-primary hover:underline" href={href}>
           {type.name}
         </a>
       ) : (
-        <span className="ty-ref">{type.name}</span>
+        <span className="text-primary">{type.name}</span>
       );
       if (!type.typeArguments?.length) return name;
       return (
@@ -79,7 +79,7 @@ export function TypeSignature({
     case 'typeOperator':
       return (
         <>
-          <span className="ty-keyword">{type.operator} </span>
+          <span className="text-syntax-keyword">{type.operator} </span>
           <TypeSignature hrefFor={hrefFor} type={type.target} />
         </>
       );
@@ -90,7 +90,7 @@ export function TypeSignature({
       );
 
     default:
-      return <span className="ty-ref">unknown</span>;
+      return <span className="text-primary">unknown</span>;
   }
 }
 
@@ -116,7 +116,7 @@ function ReflectionType({
         {call.parameters?.map((param, i) => (
           <span key={param.id}>
             {i > 0 && <Punct>, </Punct>}
-            <span className="ty-param">{param.name}</span>
+            <span className="text-foreground">{param.name}</span>
             <Punct>: </Punct>
             <TypeSignature hrefFor={hrefFor} type={param.type} />
           </span>
@@ -135,7 +135,7 @@ function ReflectionType({
       {fields.map((field, i) => (
         <span key={field.id}>
           {i > 0 && <Punct>; </Punct>}
-          <span className="ty-param">{field.name}</span>
+          <span className="text-foreground">{field.name}</span>
           {field.flags?.isOptional && <Punct>?</Punct>}
           <Punct>: </Punct>
           <TypeSignature
@@ -171,5 +171,5 @@ function Joined({
 }
 
 function Punct({ children }: { children: React.ReactNode }) {
-  return <span className="ty-punct">{children}</span>;
+  return <span className="text-muted-foreground">{children}</span>;
 }

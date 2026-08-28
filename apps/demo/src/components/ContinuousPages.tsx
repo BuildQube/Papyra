@@ -321,7 +321,7 @@ export function ContinuousPages({
   return (
     <div
       ref={content}
-      className="pages"
+      className="relative"
       style={{ width: layout.width, height: layout.height }}
     >
       {inWindow.map((slot) => (

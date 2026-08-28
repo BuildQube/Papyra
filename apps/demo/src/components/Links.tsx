@@ -43,7 +43,7 @@ export function Links({ doc, index, scale, onSelect }: Props) {
   if (links.length === 0) return null;
 
   return (
-    <div className="links">
+    <div className="pointer-events-none absolute inset-0">
       {links.map((link) => {
         const { x, y, width, height } = scaleRect(link.rect, scale);
         const style = { left: x, top: y, width, height };
@@ -54,7 +54,7 @@ export function Links({ doc, index, scale, onSelect }: Props) {
           return (
             <a
               key={key}
-              className="link-hit"
+              className="pointer-events-auto absolute cursor-pointer rounded-xs border-0 bg-transparent p-0 ring-1 ring-transparent ring-inset transition-[background-color,box-shadow] duration-100 hover:bg-primary/20 hover:ring-primary focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary"
               style={style}
               href={uri}
               target="_blank"
@@ -73,7 +73,7 @@ export function Links({ doc, index, scale, onSelect }: Props) {
           <button
             key={key}
             type="button"
-            className="link-hit"
+            className="pointer-events-auto absolute cursor-pointer rounded-xs border-0 bg-transparent p-0 ring-1 ring-transparent ring-inset transition-[background-color,box-shadow] duration-100 hover:bg-primary/20 hover:ring-primary focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary"
             style={style}
             onClick={() => onSelect(page)}
             title={link.alt ?? `Page ${page + 1}`}
