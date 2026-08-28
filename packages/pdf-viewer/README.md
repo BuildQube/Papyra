@@ -61,6 +61,33 @@ The components themselves stay **controlled** — `Sidebar` still takes `matches
 lets each one be documented and demonstrated on its own; the provider supplies the
 props, it does not replace them.
 
+## The registry
+
+`registry.json` is the source; `bun run build:registry` turns it into
+`apps/demo/public/r/*.json`, which the demo serves alongside itself. Turbo runs it
+before the demo's build, so the items ship with the site.
+
+```bash
+npx shadcn@latest add https://buildqube.github.io/Papyra/r/pdf-sidebar.json
+```
+
+**Sibling items are named by absolute URL.** A bare `registryDependencies` entry like
+`"button"` always means an *official* shadcn item, never a same-registry one, so
+every cross-item edge carries a `{{REGISTRY}}` placeholder that
+`scripts/build-registry.ts` substitutes at build time. `PAPYRA_REGISTRY` overrides the
+destination for a fork or a preview; the default is production, deliberately, because
+a base derived from `PAPYRA_BASE` would let a local build emit items pointing at a
+host that does not serve them — a failure only the person installing them would ever
+see.
+
+**The items declare `@build-qube/papyra@^0.2.0`, which is not published yet.** They
+use `doc.pageLabels()`, `doc.links()` and `doc.fingerprint`, none of which exist in
+the published 0.1.0; the queued changeset that adds them makes the next release 0.2.0.
+Until it ships, an install stops at `npm error notarget No matching version found`,
+which is the honest failure — an unversioned dependency would instead install 0.1.0
+and fail later, inside the consumer's build, with a type error about a property that
+does not exist.
+
 ## Adding a shadcn primitive
 
 Run it against this package, not the app; the `ui` alias points back at

@@ -107,6 +107,12 @@ real CLI rather than guessed — see `packages/pdf-viewer/README.md`:
   consumer and breaks. `@/` therefore means this package repo-wide; `apps/demo`
   mirrors the mappings in its tsconfig and vite config, most specific first.
 - Filenames are flat and `pdf-`-prefixed, because `add` drops subdirectories.
+- Sibling items are named by **absolute URL**: a bare `registryDependencies` entry
+  always means an official shadcn item. `scripts/build-registry.ts` substitutes
+  `{{REGISTRY}}` and turbo runs it before the demo's build, so the items ship with
+  the site. The items pin `@build-qube/papyra@^0.2.0` — they use `pageLabels()`,
+  `links()` and `fingerprint`, which the published 0.1.0 does not have, so the
+  registry is not installable until that release goes out.
 - `globals.css` names this package in an `@source`. Tailwind's detection reaches
   `packages/ui` and whichever app holds the CSS entry, but no further, so a class
   used only here is otherwise never generated — silently, with a plausible

@@ -4,9 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build:registry": "bun run scripts/build-registry.ts",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf .turbo *.tsbuildinfo",
-    "test:integration": "bun test test/integration"
+    "test:integration": "bun test test/integration",
+    "clean": "rm -rf .turbo registry.generated.json ../../apps/demo/public/r *.tsbuildinfo"
   },
   "exports": {
     "./components/*": "./src/components/*.tsx",

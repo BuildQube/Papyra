@@ -44,3 +44,5 @@ skills-lock.json
 
 # Local tooling cache (impeccable design hook)
 .impeccable/
+apps/demo/public/r
+packages/pdf-viewer/registry.generated.json
