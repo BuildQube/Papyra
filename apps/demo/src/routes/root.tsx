@@ -145,6 +145,9 @@ function NavLink({
     <Button
       variant="ghost"
       size="sm"
+      // Base UI's Button assumes a native <button> and says so at runtime when it
+      // gets anything else; this one renders the router's <a>.
+      nativeButton={false}
       className="text-muted-foreground data-[status=active]:bg-muted data-[status=active]:text-foreground"
       render={
         <Link

@@ -6,7 +6,7 @@ export function BenchRoute() {
   const { loaded } = useDocument();
   if (!loaded) return null;
   return (
-    <main className="workspace bench-only">
+    <main className="flex min-h-0 flex-1 justify-center overflow-y-auto p-6">
       <BenchPanel bytes={loaded.bytes} name={loaded.name} />
     </main>
   );
