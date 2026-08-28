@@ -10,6 +10,10 @@ const bindings = fileURLToPath(
   new URL('../../packages/bindings', import.meta.url),
 );
 
+const viewerSrc = fileURLToPath(
+  new URL('../../packages/pdf-viewer/src/', import.meta.url),
+);
+
 /**
  * papyra's wasm build uses shared memory (napi-rs generates
  * `new WebAssembly.Memory({ shared: true })`), so the page must be cross-origin
@@ -141,9 +145,28 @@ export default defineConfig({
       },
       {
         find: /^@\/(components|hooks|lib)\//,
-        replacement: fileURLToPath(
-          new URL('../../packages/pdf-viewer/src/$1/', import.meta.url),
-        ),
+        replacement: `${viewerSrc}$1/`,
+        /*
+         * A block names its siblings `@/components/…` because that is where
+         * `shadcn add` puts every item in a consumer — but here the blocks sit in
+         * `src/blocks/`. Alias entries are first-match-wins with no fallback, so
+         * the fallback lives here: the `components/` path, then the same file
+         * under `blocks/`, then plugin-alias's own default so an unresolvable
+         * import still reports the real path rather than the alias.
+         */
+        async customResolver(id, importer, options) {
+          const opts = { skipSelf: true, ...options };
+          const inBlocks = id.replace(
+            `${viewerSrc}components/`,
+            `${viewerSrc}blocks/`,
+          );
+          return (
+            (await this.resolve(id, importer, opts)) ??
+            (inBlocks === id
+              ? null
+              : await this.resolve(inBlocks, importer, opts)) ?? { id }
+          );
+        },
       },
       {
         // In the published package `browser.js` re-exports the per-platform wasm

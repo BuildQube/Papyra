@@ -127,7 +127,7 @@
         "{{REGISTRY}}/use-pdf-zoom.json"
       ],
       "files": [
-        { "path": "src/components/pdf-viewer.tsx", "type": "registry:block" }
+        { "path": "src/blocks/pdf-viewer.tsx", "type": "registry:block" }
       ]
     },
     {
@@ -146,7 +146,7 @@
       ],
       "files": [
         {
-          "path": "src/components/pdf-viewer-basic.tsx",
+          "path": "src/blocks/pdf-viewer-basic.tsx",
           "type": "registry:block"
         }
       ]
@@ -164,7 +164,7 @@
       ],
       "files": [
         {
-          "path": "src/components/pdf-page-preview.tsx",
+          "path": "src/blocks/pdf-page-preview.tsx",
           "type": "registry:block"
         }
       ]
@@ -181,7 +181,7 @@
       ],
       "files": [
         {
-          "path": "src/components/pdf-thumbnail-picker.tsx",
+          "path": "src/blocks/pdf-thumbnail-picker.tsx",
           "type": "registry:block"
         }
       ]
@@ -195,7 +195,7 @@
       "registryDependencies": ["dialog", "{{REGISTRY}}/pdf-viewer-basic.json"],
       "files": [
         {
-          "path": "src/components/pdf-preview-dialog.tsx",
+          "path": "src/blocks/pdf-preview-dialog.tsx",
           "type": "registry:block"
         }
       ]

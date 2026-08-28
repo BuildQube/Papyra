@@ -8,7 +8,10 @@
     "paths": {
       "@/components/ui/*": ["../../packages/ui/src/components/*"],
       "@/lib/utils": ["../../packages/ui/src/lib/utils"],
-      "@/components/*": ["../../packages/pdf-viewer/src/components/*"],
+      "@/components/*": [
+        "../../packages/pdf-viewer/src/components/*",
+        "../../packages/pdf-viewer/src/blocks/*"
+      ],
       "@/hooks/*": ["../../packages/pdf-viewer/src/hooks/*"],
       "@/lib/*": ["../../packages/pdf-viewer/src/lib/*"],
       "@workspace/ui/*": ["../../packages/ui/src/*"],

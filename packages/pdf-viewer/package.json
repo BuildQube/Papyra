@@ -10,6 +10,7 @@
     "clean": "rm -rf .turbo registry.generated.json ../../apps/demo/public/r *.tsbuildinfo"
   },
   "exports": {
+    "./blocks/*": "./src/blocks/*.tsx",
     "./components/*": "./src/components/*.tsx",
     "./lib/*": "./src/lib/*.ts",
     "./hooks/*": "./src/hooks/*.ts"

@@ -106,7 +106,13 @@ real CLI rather than guessed — see `packages/pdf-viewer/README.md`:
   rewrites only those forms, so a `@workspace/…` specifier ships verbatim into a
   consumer and breaks. `@/` therefore means this package repo-wide; `apps/demo`
   mirrors the mappings in its tsconfig and vite config, most specific first.
-- Filenames are flat and `pdf-`-prefixed, because `add` drops subdirectories.
+- Filenames are flat and `pdf-`-prefixed: `add` takes the install directory from a
+  file's `type`, so every item lands in one directory in the consumer. The five
+  blocks live in `src/blocks` and everything else in `src/components`, which is a
+  distinction only this repo sees — but `src/blocks` must stay a *sibling* of
+  `src/components`, since a subdirectory under the aliased one survives the install.
+  A block therefore still imports a sibling block as `@/components/…`; the two
+  tsconfigs and the demo's vite alias carry `src/blocks` as a fallback for that.
 - Sibling items are named by **absolute URL**: a bare `registryDependencies` entry
   always means an official shadcn item. `scripts/build-registry.ts` substitutes
   `{{REGISTRY}}` and turbo runs it before the demo's build, so the items ship with
