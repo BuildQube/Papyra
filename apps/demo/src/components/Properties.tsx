@@ -1,5 +1,12 @@
 import type { Document } from '@build-qube/papyra';
-import { useEffect, useRef } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@workspace/ui/components/dialog';
+import { cn } from '@workspace/ui/lib/utils';
 
 interface Props {
   doc: Document;
@@ -14,63 +21,54 @@ interface Props {
 /**
  * Document properties, as every viewer shows them.
  *
- * A native `<dialog>` opened with `showModal`, so focus trapping, Escape, inertness
- * of the page behind it and the top layer all come from the platform rather than from
- * a hand-rolled modal that gets one of them wrong.
+ * This was a native `<dialog>` on `showModal`, for focus trapping, Escape, inertness
+ * of the page behind it and the top layer. Base UI's Dialog gives the first three and
+ * is what the rest of this app is built from; only the top layer is traded away, and
+ * nothing here competes for a stacking context.
  *
  * `doc.metadata` is synchronous — the engine reads the information dictionary while
  * loading — so there is no pending state to design around.
  */
 export function Properties({ doc, name, byteLength, page, onClose }: Props) {
-  const dialog = useRef<HTMLDialogElement>(null);
   const { metadata } = doc;
   const size = doc.pageSize(page);
 
-  useEffect(() => {
-    const el = dialog.current;
-    if (!el || el.open) return;
-    el.showModal();
-
-    // Dismiss on a backdrop click. A click on the backdrop lands on the dialog
-    // element itself; anything inside it reports a different target. Bound here
-    // rather than as an `onClick` prop because on the element it is a click with no
-    // keyboard equivalent — Escape, which `showModal` already handles, is the
-    // keyboard path, and a JSX handler would only look like it needed a second one.
-    const dismiss = (e: MouseEvent) => {
-      if (e.target === el) el.close();
-    };
-    el.addEventListener('click', dismiss);
-    return () => el.removeEventListener('click', dismiss);
-  }, []);
-
   return (
-    <dialog ref={dialog} className="properties" onClose={onClose}>
-      <h2>Document properties</h2>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Document properties</DialogTitle>
+        </DialogHeader>
 
-      <dl>
-        <Row label="File name" value={name} />
-        <Row label="File size" value={fileSize(byteLength)} />
+        {/* The label column sizes to its widest entry; the value takes the rest. */}
+        <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-5 gap-y-2">
+          <Row label="File name" value={name} />
+          <Row label="File size" value={fileSize(byteLength)} />
 
-        <Row label="Title" value={metadata.title} />
-        <Row label="Author" value={metadata.author} />
-        <Row label="Subject" value={metadata.subject} />
-        <Row label="Keywords" value={metadata.keywords} />
+          <Row label="Title" value={metadata.title} />
+          <Row label="Author" value={metadata.author} />
+          <Row label="Subject" value={metadata.subject} />
+          <Row label="Keywords" value={metadata.keywords} />
 
-        <Row label="Created" value={date(metadata.created)} />
-        <Row label="Modified" value={date(metadata.modified)} />
-        <Row label="Creator" value={metadata.creator} />
-        <Row label="PDF Producer" value={metadata.producer} />
+          <Row label="Created" value={date(metadata.created)} />
+          <Row label="Modified" value={date(metadata.modified)} />
+          <Row label="Creator" value={metadata.creator} />
+          <Row label="PDF Producer" value={metadata.producer} />
 
-        <Row label="PDF version" value={doc.pdfVersion} />
-        <Row label="Page count" value={String(doc.pageCount)} />
-        <Row label={`Page size (page ${page + 1})`} value={pageSize(size)} />
-        <Row label="Fingerprint" value={doc.fingerprint} mono />
-      </dl>
+          <Row label="PDF version" value={doc.pdfVersion} />
+          <Row label="Page count" value={String(doc.pageCount)} />
+          <Row label={`Page size (page ${page + 1})`} value={pageSize(size)} />
+          <Row label="Fingerprint" value={doc.fingerprint} mono />
+        </dl>
 
-      <form method="dialog">
-        <button type="submit">Close</button>
-      </form>
-    </dialog>
+        <DialogFooter showCloseButton />
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -85,9 +83,10 @@ function Row({
 }) {
   return (
     <>
-      <dt>{label}</dt>
-      {/* An em dash, not an empty cell: "the document did not say" is information. */}
-      <dd className={mono ? 'mono' : undefined}>{value ?? '—'}</dd>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className={cn('wrap-anywhere', mono && 'font-mono text-xs')}>
+        {value ?? '—'}
+      </dd>
     </>
   );
 }
@@ -105,8 +104,6 @@ function fileSize(bytes: number): string {
 function date(iso: string | null): string | null {
   if (!iso) return null;
   const parsed = new Date(iso);
-  // A PDF date is self-reported and can be nonsense; show what was written rather
-  // than "Invalid Date".
   return Number.isNaN(parsed.getTime()) ? iso : parsed.toLocaleString();
 }
 

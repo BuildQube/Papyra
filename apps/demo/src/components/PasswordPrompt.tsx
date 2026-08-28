@@ -1,3 +1,14 @@
+import { Button } from '@workspace/ui/components/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@workspace/ui/components/card';
+import { Field, FieldGroup, FieldLabel } from '@workspace/ui/components/field';
+import { Input } from '@workspace/ui/components/input';
 import { useEffect, useId, useRef, useState } from 'react';
 
 interface Props {
@@ -16,51 +27,69 @@ interface Props {
  * was wrong. The engine underneath cannot tell those apart — both are one
  * "password-protected" — so without the distinction this would either always accuse
  * the reader of getting it wrong or never tell them they had.
+ *
+ * A card in the page rather than a `Dialog`: there is no document behind it to be
+ * modal over, and a modal with nothing underneath is a card with extra machinery.
  */
 export function PasswordPrompt({ name, retry, onSubmit, onCancel }: Props) {
   const [password, setPassword] = useState('');
   const input = useRef<HTMLInputElement>(null);
   const titleId = useId();
+  const inputId = useId();
 
-  // Clear the box on a rejection, so the next attempt starts from empty rather than
-  // from the password that just failed.
   useEffect(() => {
     setPassword('');
     input.current?.focus();
   }, [retry]);
 
   return (
-    <section className="password" aria-labelledby={titleId}>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (password) onSubmit(password);
-        }}
-      >
-        <h2 id={titleId}>
-          {retry ? 'That password did not work' : 'This PDF needs a password'}
-        </h2>
-        <p className="muted">{name}</p>
+    <section
+      aria-labelledby={titleId}
+      className="grid flex-1 place-items-center p-12"
+    >
+      <Card className="w-90 max-w-full">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (password) onSubmit(password);
+          }}
+        >
+          <CardHeader>
+            <CardTitle id={titleId}>
+              {retry
+                ? 'That password did not work'
+                : 'This PDF needs a password'}
+            </CardTitle>
+            <CardDescription className="wrap-anywhere">{name}</CardDescription>
+          </CardHeader>
 
-        <input
-          ref={input}
-          type="password"
-          aria-label="Password"
-          aria-invalid={retry}
-          autoComplete="off"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+          <CardContent>
+            <FieldGroup>
+              <Field data-invalid={retry || undefined}>
+                <FieldLabel htmlFor={inputId}>Password</FieldLabel>
+                <Input
+                  id={inputId}
+                  ref={input}
+                  type="password"
+                  aria-invalid={retry}
+                  autoComplete="off"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </Field>
+            </FieldGroup>
+          </CardContent>
 
-        <div className="password-actions">
-          <button type="button" className="ghost" onClick={onCancel}>
-            Cancel
-          </button>
-          <button type="submit" disabled={!password}>
-            Open
-          </button>
-        </div>
-      </form>
+          <CardFooter className="justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={onCancel}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={!password}>
+              Open
+            </Button>
+          </CardFooter>
+        </form>
+      </Card>
     </section>
   );
 }
