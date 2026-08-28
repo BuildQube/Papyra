@@ -92,6 +92,12 @@ before the demo's build, so the items ship with the site.
 npx shadcn@latest add https://buildqube.github.io/Papyra/r/pdf-sidebar.json
 ```
 
+**This package is versioned even though it is never published.** An item installed by
+URL carries no version with it, so `package.json` and `CHANGELOG.md` here are the only
+record of what changed under a given item's name — `.changeset/config.json` therefore
+leaves it out of `ignore` and sets `privatePackages: { version: true, tag: false }`.
+Changing an item means writing a changeset for it, the same as for the wrapper.
+
 **Sibling items are named by absolute URL.** A bare `registryDependencies` entry like
 `"button"` always means an *official* shadcn item, never a same-registry one, so
 every cross-item edge carries a `{{REGISTRY}}` placeholder that

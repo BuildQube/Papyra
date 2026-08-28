@@ -70,7 +70,15 @@ bun run --filter papyra-bench priority  # also: cache, scaling, large-format
 
 Releases go through changesets: `bun run change` to add one, `bun run release` to publish.
 `@build-qube/papyra` and `@build-qube/papyra-native` are version-locked (`fixed` in
-`.changeset/config.json`); `papyra-demo` and `papyra-bench` are private and ignored.
+`.changeset/config.json`); `papyra-demo`, `papyra-bench` and `@workspace/ui` are
+ignored. `@workspace/pdf-viewer` is **not** — it is private and never published, but
+`privatePackages: { version: true, tag: false }` gives it a version and a CHANGELOG,
+because its registry items are installed by URL and that changelog is the only record
+a consumer of them has. It is also what a Pages deploy can be gated on, instead of
+every push to `main`. `tag: false` keeps it out of the git tags, which name published
+packages; being private exempts it from the rule that a dependent of an ignored
+package must itself be ignored, which is what lets it depend on `@workspace/ui`.
+Because of `updateInternalDependencies: "patch"` a papyra release bumps it too.
 
 ## Architecture
 
