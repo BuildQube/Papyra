@@ -122,11 +122,26 @@ consumer may have installed one item and not the other.
 
 ## Blocks
 
-`pdf-viewer` is the first: an open `Document` in, a working viewer out — sidebar,
-toolbar and a continuous column. **Continuous only.** Two view modes double the
-zoom-anchoring work for a choice most applications make once, and the single-page
-arrangement will be its own, smaller block. The mode still lives in the store, so
-adding a toggle is a UI change rather than a state change.
+Five, from a whole reader down to a picture of a page:
+
+| Item | What it is |
+| --- | --- |
+| `pdf-viewer` | Sidebar, toolbar, continuous column. The reader. |
+| `pdf-viewer-basic` | One page, a pager and zoom. The one to embed. |
+| `pdf-page-preview` | A page as an image. No interaction. |
+| `pdf-thumbnail-picker` | Pick a page out of a grid. |
+| `pdf-preview-dialog` | A document in a dialog, for attachments. |
+
+`pdf-viewer` is **continuous only** and `pdf-viewer-basic` is single-page. Carrying
+both modes in one block would double the zoom-anchoring work for a choice most
+applications make once — and the two anchor differently, which is the actual cost: a
+single page scales about the cursor exactly, while a continuous column cannot, because
+the gaps between pages do not scale with the pages. The mode still lives in the store,
+so adding a toggle is a UI change rather than a state change.
+
+Only `pdf-viewer` uses the store. The others hold what little state they have —
+a page index, a selection — and are controlled or uncontrolled at the caller's
+choice, which keeps them usable anywhere.
 
 Blocks take a `Document`, never a `File`. Opening a PDF means owning a file input, a
 password prompt and a policy for failures, all of which belong to the application.

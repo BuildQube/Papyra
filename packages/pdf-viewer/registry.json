@@ -131,6 +131,76 @@
       ]
     },
     {
+      "name": "pdf-viewer-basic",
+      "type": "registry:block",
+      "title": "Basic PDF viewer",
+      "description": "One page at a time with a pager and zoom. The viewer to embed in a panel or a modal, where the full one would be more furniture than document.",
+      "dependencies": ["@build-qube/papyra@^0.2.0"],
+      "registryDependencies": [
+        "{{REGISTRY}}/pdf-isolation-guard.json",
+        "{{REGISTRY}}/pdf-page-class.json",
+        "{{REGISTRY}}/pdf-page-view.json",
+        "{{REGISTRY}}/pdf-zoom-bar.json",
+        "{{REGISTRY}}/use-pdf-page-labels.json",
+        "{{REGISTRY}}/use-pdf-zoom.json"
+      ],
+      "files": [
+        {
+          "path": "src/components/pdf-viewer-basic.tsx",
+          "type": "registry:block"
+        }
+      ]
+    },
+    {
+      "name": "pdf-page-preview",
+      "type": "registry:block",
+      "title": "Page preview",
+      "description": "One page, rendered once, with nothing to interact with — for the places a PDF is a picture rather than a document.",
+      "dependencies": ["@build-qube/papyra@^0.2.0"],
+      "registryDependencies": [
+        "skeleton",
+        "{{REGISTRY}}/pdf-isolation-guard.json",
+        "{{REGISTRY}}/pdf-page-canvas.json"
+      ],
+      "files": [
+        {
+          "path": "src/components/pdf-page-preview.tsx",
+          "type": "registry:block"
+        }
+      ]
+    },
+    {
+      "name": "pdf-thumbnail-picker",
+      "type": "registry:block",
+      "title": "Thumbnail picker",
+      "description": "Pick a page out of a document: a streaming grid of thumbnails, controlled or not.",
+      "dependencies": ["@build-qube/papyra@^0.2.0"],
+      "registryDependencies": [
+        "{{REGISTRY}}/pdf-isolation-guard.json",
+        "{{REGISTRY}}/pdf-thumbnails.json"
+      ],
+      "files": [
+        {
+          "path": "src/components/pdf-thumbnail-picker.tsx",
+          "type": "registry:block"
+        }
+      ]
+    },
+    {
+      "name": "pdf-preview-dialog",
+      "type": "registry:block",
+      "title": "Preview dialog",
+      "description": "A document in a dialog, for previewing an attachment without leaving the page.",
+      "dependencies": ["@build-qube/papyra@^0.2.0"],
+      "registryDependencies": ["dialog", "{{REGISTRY}}/pdf-viewer-basic.json"],
+      "files": [
+        {
+          "path": "src/components/pdf-preview-dialog.tsx",
+          "type": "registry:block"
+        }
+      ]
+    },
+    {
       "name": "pdf-page-canvas",
       "type": "registry:component",
       "title": "Page canvas",

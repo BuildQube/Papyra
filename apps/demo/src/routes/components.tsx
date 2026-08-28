@@ -1,10 +1,15 @@
+import { PagePreview } from '@workspace/pdf-viewer/components/pdf-page-preview';
+import { PdfPreviewDialog } from '@workspace/pdf-viewer/components/pdf-preview-dialog';
+import { ThumbnailPicker } from '@workspace/pdf-viewer/components/pdf-thumbnail-picker';
 import { PdfViewer } from '@workspace/pdf-viewer/components/pdf-viewer';
+import { PdfViewerBasic } from '@workspace/pdf-viewer/components/pdf-viewer-basic';
 import {
   Alert,
   AlertDescription,
   AlertTitle,
 } from '@workspace/ui/components/alert';
 import { Badge } from '@workspace/ui/components/badge';
+import { Button } from '@workspace/ui/components/button';
 import { CopyButton } from '@workspace/ui/components/copy-button';
 import {
   InputGroup,
@@ -205,12 +210,59 @@ const noLinks = () => undefined;
 function Preview({ name }: { name: string }) {
   const doc = usePreviewDocument();
   if (!doc) return null;
-  if (name !== 'pdf-viewer') return null;
-  return (
-    <BlockPreview>
-      <PdfViewer doc={doc} />
-    </BlockPreview>
-  );
+
+  switch (name) {
+    case 'pdf-viewer':
+      return (
+        <BlockPreview>
+          <PdfViewer doc={doc} />
+        </BlockPreview>
+      );
+    case 'pdf-viewer-basic':
+      return (
+        <BlockPreview>
+          <PdfViewerBasic className="flex-1" doc={doc} />
+        </BlockPreview>
+      );
+    case 'pdf-page-preview':
+      return (
+        <BlockPreview height="h-auto">
+          {/* Three at once, which is the case this exists for. */}
+          <div className="flex flex-wrap gap-4 p-4">
+            {[0, 1, 2].map((page) => (
+              <PagePreview
+                className="w-40 rounded-sm shadow-md"
+                doc={doc}
+                key={page}
+                page={Math.min(page, doc.pageCount - 1)}
+                width={240}
+              />
+            ))}
+          </div>
+        </BlockPreview>
+      );
+    case 'pdf-thumbnail-picker':
+      return (
+        <BlockPreview height="h-80">
+          <ThumbnailPicker className="flex-1" columns={4} doc={doc} />
+        </BlockPreview>
+      );
+    case 'pdf-preview-dialog':
+      return (
+        <BlockPreview height="h-auto">
+          <div className="p-4">
+            <PdfPreviewDialog
+              description={`${doc.pageCount} pages`}
+              doc={doc}
+              title="sample.pdf"
+              trigger={<Button variant="outline">Preview document</Button>}
+            />
+          </div>
+        </BlockPreview>
+      );
+    default:
+      return null;
+  }
 }
 
 function Item({ entry }: { entry: RegistryEntry }) {

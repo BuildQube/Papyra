@@ -13,6 +13,10 @@ export interface ThumbnailsProps {
   current: number;
   /** Called with a 0-based page index when the reader picks a page. */
   onSelect: (index: number) => void;
+  /** Tiles per row. One is the sidebar strip; more makes it a picker grid. */
+  columns?: number;
+  /** Classes for the scrolling container. */
+  className?: string;
 }
 
 /** Thumbnails yield to the page on screen; the scheduler enforces it. */
@@ -29,7 +33,13 @@ const THUMB_WIDTH = 160;
  * Streams thumbnails in, yielding each as it finishes rather than waiting for the
  * whole document. Rendering is abandoned if the document changes mid-stream.
  */
-export function Thumbnails({ doc, current, onSelect }: ThumbnailsProps) {
+export function Thumbnails({
+  doc,
+  current,
+  onSelect,
+  columns = 1,
+  className,
+}: ThumbnailsProps) {
   const [thumbs, setThumbs] = useState<Map<number, RenderedPage>>(new Map());
   const [elapsed, setElapsed] = useState<number | null>(null);
   const labels = usePageLabels(doc);
@@ -57,14 +67,17 @@ export function Thumbnails({ doc, current, onSelect }: ThumbnailsProps) {
   }, [doc]);
 
   return (
-    <div>
+    <div className={className}>
       <header className="sticky top-0 z-10 flex justify-between border-b bg-card px-2.5 py-2 text-xs">
         <span>{doc.pageCount} pages</span>
         {elapsed !== null && (
           <span className="text-muted-foreground">{elapsed.toFixed(0)}ms</span>
         )}
       </header>
-      <ol className="grid gap-2 p-2">
+      <ol
+        className="grid gap-2 p-2"
+        style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+      >
         {Array.from({ length: doc.pageCount }, (_, i) => (
           // The list is `Array.from({ length: pageCount })` and never reorders,
           // so page 7 is the seventh item for the life of the document.
