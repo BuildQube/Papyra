@@ -37,6 +37,30 @@ lands as `<components-alias>/outline.tsx` in the consumer, subdirectory dropped.
 grouping cannot come from a folder, and every file carries a `pdf-` prefix instead —
 these land in a flat directory beside the consumer's own components.
 
+## State
+
+`PdfViewerProvider` puts a store in scope; the selector hooks subscribe to one slice
+each. The context carries the **store**, never the state, so it never re-renders
+anything — a page change replaces `page` and leaves `search` and `document` pointing
+at the same objects, and `useSyncExternalStore` compares by `Object.is`, so a
+component reading only `search` does not re-render. With a 400-page thumbnail strip
+mounted, a plain context here would walk the whole tree on every page change.
+`test/integration/pdf-viewer-store.test.ts` pins that property.
+
+Two things deliberately stay out of the store:
+
+- **Zoom.** A pinch changes the scale every animation frame; a store notification per
+  frame would re-render every subscriber for a value only the page surface reads.
+  `useZoom` keeps it local and commits the settled value.
+- **Routing.** The store knows nothing about URLs, which is what lets these
+  components work under a different router or none. `apps/demo/src/lib/urlSync.ts`
+  is the adapter, and it lives in the app.
+
+The components themselves stay **controlled** — `Sidebar` still takes `matches` and
+`onMatches` rather than reading the store. That is what keeps `memo` effective and
+lets each one be documented and demonstrated on its own; the provider supplies the
+props, it does not replace them.
+
 ## Adding a shadcn primitive
 
 Run it against this package, not the app; the `ui` alias points back at

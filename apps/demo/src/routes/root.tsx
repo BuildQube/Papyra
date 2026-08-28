@@ -3,6 +3,13 @@ import { Link, Outlet, useMatchRoute, useSearch } from '@tanstack/react-router';
 import { PasswordPrompt } from '@workspace/pdf-viewer/components/pdf-password-prompt';
 import { Properties } from '@workspace/pdf-viewer/components/pdf-properties';
 import {
+  usePdfDocument,
+  usePdfError,
+  usePdfPage,
+  usePdfPassword,
+  usePdfViewerActions,
+} from '@workspace/pdf-viewer/hooks/use-pdf-viewer';
+import {
   Alert,
   AlertDescription,
   AlertTitle,
@@ -19,8 +26,7 @@ import {
 import { cn } from '@workspace/ui/lib/utils';
 import { FileUpIcon, TriangleAlertIcon, UploadIcon } from 'lucide-react';
 import { useState } from 'react';
-import { useDocument, useFileParam } from '../lib/documentContext.js';
-import { usePage } from '../lib/usePage.js';
+import { useFileParam, usePageUrlSync } from '../lib/urlSync.js';
 
 /**
  * Shell for every route: identity, the file picker, and the nav.
@@ -29,11 +35,15 @@ import { usePage } from '../lib/usePage.js';
  * renders its own status line in the same place, so the two read as a comparison.
  */
 export function RootShell() {
-  const { loaded, error, load, password, cancelPassword } = useDocument();
+  const loaded = usePdfDocument();
+  const error = usePdfError();
+  const password = usePdfPassword();
+  const { load, cancelPassword } = usePdfViewerActions();
   const [showProperties, setShowProperties] = useState(false);
-  const [page] = usePage();
+  const [page] = usePdfPage();
   const { file } = useSearch({ strict: false }) as { file?: string };
   useFileParam(file);
+  usePageUrlSync();
 
   const matchRoute = useMatchRoute();
   const standalone = !!matchRoute({ to: '/docs' });

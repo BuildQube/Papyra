@@ -17,6 +17,12 @@ import {
   usePageLabels,
 } from '@workspace/pdf-viewer/hooks/use-pdf-page-labels';
 import {
+  usePdfDocument,
+  usePdfPage,
+  usePdfSearch,
+  usePdfViewerActions,
+} from '@workspace/pdf-viewer/hooks/use-pdf-viewer';
+import {
   useZoom,
   type ZoomAnchor,
 } from '@workspace/pdf-viewer/hooks/use-pdf-zoom';
@@ -37,8 +43,6 @@ import {
   useState,
 } from 'react';
 import { ViewerLayout } from '../components/ViewerLayout.js';
-import { useDocument } from '../lib/documentContext.js';
-import { usePage } from '../lib/usePage.js';
 
 interface Timing {
   /** Queued behind other work before this render started. */
@@ -81,8 +85,10 @@ interface PageAnchor {
  * which is why it wins on time to first pixel and loses by ~27x on bytes.
  */
 export function ViewerRoute() {
-  const { loaded, setError, matches, active } = useDocument();
-  const [page, setPage] = usePage();
+  const loaded = usePdfDocument();
+  const { setError } = usePdfViewerActions();
+  const { matches, active } = usePdfSearch();
+  const [page, setPage] = usePdfPage();
   const navigate = useNavigate();
   const {
     width,

@@ -10,13 +10,16 @@ import {
   type PageImageHandle,
   PageImageView,
 } from '@workspace/pdf-viewer/components/pdf-page-image-view';
+import {
+  usePdfDocument,
+  usePdfPage,
+  usePdfViewerActions,
+} from '@workspace/pdf-viewer/hooks/use-pdf-viewer';
 import { PAGE } from '@workspace/pdf-viewer/lib/pdf-page-class';
 import { cn } from '@workspace/ui/lib/utils';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ExportControls } from '../components/ExportControls.js';
 import { ViewerLayout } from '../components/ViewerLayout.js';
-import { useDocument } from '../lib/documentContext.js';
-import { usePage } from '../lib/usePage.js';
 import { defaultViewWidth } from '../lib/width.js';
 
 interface Timing {
@@ -55,8 +58,9 @@ interface Search {
  * bytes, which is what matters the moment the pixels leave the process.
  */
 export function ExportRoute() {
-  const { loaded, setError } = useDocument();
-  const [page] = usePage();
+  const loaded = usePdfDocument();
+  const { setError } = usePdfViewerActions();
+  const [page] = usePdfPage();
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as Search;
 

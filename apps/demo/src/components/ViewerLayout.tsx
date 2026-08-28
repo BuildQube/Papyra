@@ -1,7 +1,11 @@
 import { Sidebar } from '@workspace/pdf-viewer/components/pdf-sidebar';
+import {
+  usePdfDocument,
+  usePdfPage,
+  usePdfSearch,
+  usePdfViewerActions,
+} from '@workspace/pdf-viewer/hooks/use-pdf-viewer';
 import type { ReactNode, RefObject } from 'react';
-import { useDocument } from '../lib/documentContext.js';
-import { usePage } from '../lib/usePage.js';
 
 interface Props {
   /** Page and zoom controls. Pinned above the scroll area, as in any viewer. */
@@ -37,15 +41,19 @@ export function ViewerLayout({
   viewport,
   children,
 }: Props) {
-  const { loaded, matches, setMatches, active, setActive } = useDocument();
-  const [page, setPage] = usePage();
-  if (!loaded) return null;
+  const doc = usePdfDocument();
+  const [page, setPage] = usePdfPage();
+  const { matches, active } = usePdfSearch();
+  const { setMatches, setActive } = usePdfViewerActions();
+  if (!doc) return null;
 
   return (
     <main className="flex min-h-0 flex-1">
+      {/* The store feeds the props; `Sidebar` stays controlled, so it is still
+          usable — and documentable — without any of this. */}
       {showThumbs && (
         <Sidebar
-          doc={loaded.doc}
+          doc={doc.doc}
           current={page}
           onSelect={setPage}
           matches={matches}

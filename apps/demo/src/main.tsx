@@ -1,8 +1,8 @@
 import { RouterProvider } from '@tanstack/react-router';
+import { PdfViewerProvider } from '@workspace/pdf-viewer/components/pdf-viewer-provider';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ThemeProvider } from './components/theme-provider.js';
-import { DocumentProvider } from './lib/document.js';
 import { router } from './router.js';
 import '@workspace/ui/globals.css';
 
@@ -22,9 +22,9 @@ createRoot(el).render(
     <ThemeProvider defaultTheme="dark" storageKey="papyra-theme">
       {/* Above the router on purpose: the open document — and its 128 MB render cache —
           must survive navigation between the viewer and the export view. */}
-      <DocumentProvider>
+      <PdfViewerProvider>
         <RouterProvider router={router} />
-      </DocumentProvider>
+      </PdfViewerProvider>
     </ThemeProvider>
   </StrictMode>,
 );

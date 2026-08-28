@@ -2,6 +2,11 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+@import "@fontsource-variable/geist";
+
+@custom-variant dark (&:is(.dark *));
+@source "../../../apps/**/*.{ts,tsx}";
+@source "../../../components/**/*.{ts,tsx}";
 /*
  * Tailwind's automatic source detection reaches this package and whichever app holds
  * the entry, but no further — a class used only in `@workspace/pdf-viewer` is simply
@@ -13,11 +18,6 @@
  * at a path the consumer does not have and has to go with it.
  */
 @source "../../../pdf-viewer/src";
-@import "@fontsource-variable/geist";
-
-@custom-variant dark (&:is(.dark *));
-@source "../../../apps/**/*.{ts,tsx}";
-@source "../../../components/**/*.{ts,tsx}";
 @source "../**/*.{ts,tsx}";
 
 @theme inline {
