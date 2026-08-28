@@ -1,3 +1,34 @@
+import { Badge } from '@workspace/ui/components/badge';
+import { Button } from '@workspace/ui/components/button';
+import { ButtonGroup } from '@workspace/ui/components/button-group';
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupText,
+} from '@workspace/ui/components/input-group';
+import { Kbd } from '@workspace/ui/components/kbd';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from '@workspace/ui/components/select';
+import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from '@workspace/ui/components/toggle-group';
+import { cn } from '@workspace/ui/lib/utils';
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  MinusIcon,
+  PlusIcon,
+} from 'lucide-react';
 import {
   FIT_MODES,
   formatZoom,
@@ -51,117 +82,147 @@ export function ZoomBar({
   onPage,
   onMode,
 }: Props) {
-  // A pinch lands on values the ladder does not have, and a select with no matching
-  // option renders blank — so the current scale is always offered as an option.
   const custom =
     typeof spec === 'number' && !ZOOM_STEPS.includes(spec) ? spec : null;
 
   return (
     <>
-      <div className="pager">
-        <button
-          type="button"
+      <ButtonGroup>
+        <Button
+          variant="outline"
+          size="icon-sm"
           aria-label="Previous page"
           disabled={page <= 0}
           onClick={() => onPage(page - 1)}
         >
-          ‹
-        </button>
-        <input
-          type="number"
-          aria-label="Page number"
-          min={1}
-          max={pageCount}
-          value={page + 1}
-          onChange={(e) => {
-            const next = Number(e.target.value) - 1;
-            if (Number.isInteger(next) && next >= 0 && next < pageCount) {
-              onPage(next);
-            }
-          }}
-        />
-        <span className="muted">of {pageCount}</span>
-        {label && (
-          <span className="page-label" title="The number printed on this page">
-            {label}
-          </span>
-        )}
-        <button
-          type="button"
+          <ChevronLeftIcon />
+        </Button>
+        <InputGroup className="h-7 w-28">
+          <InputGroupInput
+            type="number"
+            aria-label="Page number"
+            className="text-right tabular-nums"
+            min={1}
+            max={pageCount}
+            value={page + 1}
+            onChange={(e) => {
+              const next = Number(e.target.value) - 1;
+              if (Number.isInteger(next) && next >= 0 && next < pageCount) {
+                onPage(next);
+              }
+            }}
+          />
+          <InputGroupAddon align="inline-end">
+            <InputGroupText>of {pageCount}</InputGroupText>
+          </InputGroupAddon>
+        </InputGroup>
+        <Button
+          variant="outline"
+          size="icon-sm"
           aria-label="Next page"
           disabled={page >= pageCount - 1}
           onClick={() => onPage(page + 1)}
         >
-          ›
-        </button>
-      </div>
+          <ChevronRightIcon />
+        </Button>
+      </ButtonGroup>
 
-      <div className="pager">
-        <button
-          type="button"
+      {label && (
+        <Badge variant="outline" title="The number printed on this page">
+          {label}
+        </Badge>
+      )}
+
+      <ButtonGroup>
+        <Button
+          variant="outline"
+          size="icon-sm"
           aria-label="Zoom out"
           disabled={scale <= MIN_ZOOM}
           onClick={onStepOut}
         >
-          −
-        </button>
-        <button
-          type="button"
+          <MinusIcon />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon-sm"
           aria-label="Zoom in"
           disabled={scale >= MAX_ZOOM}
           onClick={onStepIn}
         >
-          +
-        </button>
-        <select
+          <PlusIcon />
+        </Button>
+      </ButtonGroup>
+
+      {/* Values cross as strings, as they did through the native `<select>` this
+          replaces: a fit mode and a scale share one control, and one type of option
+          value is less to go wrong than a union that has to survive inference. */}
+      <Select
+        value={String(spec)}
+        onValueChange={(value) =>
+          onSpec(isFitMode(value) ? value : Number(value))
+        }
+      >
+        <SelectTrigger
+          size="sm"
           aria-label="Zoom"
-          className={settling ? 'zoom settling' : 'zoom'}
-          value={typeof spec === 'number' ? String(spec) : spec}
-          onChange={(e) =>
-            onSpec(
-              isFitMode(e.target.value)
-                ? e.target.value
-                : Number(e.target.value),
-            )
-          }
+          // The pages on screen are a stretched bitmap until the gesture settles.
+          className={cn('w-40', settling && 'border-primary')}
         >
-          {FIT_MODES.map((fit) => (
-            <option key={fit} value={fit}>
-              {FIT_LABELS[fit] ?? fit}
-              {spec === fit ? ` · ${formatZoom(scale)}` : ''}
-            </option>
-          ))}
-          {custom !== null && (
-            <option value={String(custom)}>{formatZoom(custom)}</option>
-          )}
-          {ZOOM_STEPS.map((step) => (
-            <option key={step} value={String(step)}>
-              {formatZoom(step)}
-            </option>
-          ))}
-        </select>
-      </div>
+          <SelectValue>{describeZoom(spec, scale)}</SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            <SelectLabel>Fit</SelectLabel>
+            {FIT_MODES.map((fit) => (
+              <SelectItem key={fit} value={fit}>
+                {FIT_LABELS[fit] ?? fit}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+          <SelectSeparator />
+          <SelectGroup>
+            <SelectLabel>Zoom</SelectLabel>
+            {custom !== null && (
+              <SelectItem value={String(custom)}>
+                {formatZoom(custom)}
+              </SelectItem>
+            )}
+            {ZOOM_STEPS.map((step) => (
+              <SelectItem key={step} value={String(step)}>
+                {formatZoom(step)}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
 
-      <div className="segmented">
-        <button
-          type="button"
-          className={mode === 'page' ? 'selected' : undefined}
-          onClick={() => onMode('page')}
-        >
-          Single
-        </button>
-        <button
-          type="button"
-          className={mode === 'scroll' ? 'selected' : undefined}
-          onClick={() => onMode('scroll')}
-        >
-          Continuous
-        </button>
-      </div>
+      <ToggleGroup
+        variant="outline"
+        size="sm"
+        spacing={0}
+        value={[mode]}
+        onValueChange={(value) => {
+          // A toggle group can be emptied by clicking the active item; this one is a
+          // segmented control, so the current mode stands rather than falling to none.
+          const next = value[0];
+          if (next) onMode(next as ViewMode);
+        }}
+      >
+        <ToggleGroupItem value="page">Single</ToggleGroupItem>
+        <ToggleGroupItem value="scroll">Continuous</ToggleGroupItem>
+      </ToggleGroup>
 
-      <span className="muted hint">
-        ⌘/ctrl + scroll, pinch, or ⌘/ctrl +/− to zoom
+      <span className="ml-auto flex items-center gap-1 text-xs whitespace-nowrap text-muted-foreground">
+        <Kbd>⌘/ctrl</Kbd> + scroll, pinch, or <Kbd>⌘/ctrl</Kbd>
+        <Kbd>+</Kbd>/<Kbd>−</Kbd> to zoom
       </span>
     </>
   );
+}
+
+/** What the trigger reads: a fit mode also says what it actually came out as. */
+function describeZoom(spec: ZoomSpec, scale: number): string {
+  if (typeof spec === 'number') return formatZoom(spec);
+  return `${FIT_LABELS[spec] ?? spec} · ${formatZoom(scale)}`;
 }

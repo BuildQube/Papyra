@@ -1,10 +1,16 @@
+/*
+ * `--legacy-muted` and `--legacy-accent` carry the `--` prefix they had as `--muted`
+ * and `--accent`, which are also two of shadcn's own token names. This block is
+ * unlayered and Tailwind's `:root` is not, so the old values silently won and every
+ * `bg-muted` in a shadcn component painted #8b93a7. Renamed until this file is gone.
+ */
 :root {
   --bg: #0f1115;
   --panel: #171a21;
   --line: #262b36;
   --text: #e6e8ee;
-  --muted: #8b93a7;
-  --accent: #6ea8fe;
+  --legacy-muted: #8b93a7;
+  --legacy-accent: #6ea8fe;
   color-scheme: dark;
 }
 
@@ -28,11 +34,11 @@ body {
   border: 1px solid var(--line);
   border-radius: 999px;
   font-size: 11px;
-  color: var(--muted);
+  color: var(--legacy-muted);
 }
 
 .muted {
-  color: var(--muted);
+  color: var(--legacy-muted);
   font-size: 12px;
 }
 .error {
@@ -83,47 +89,6 @@ body {
   border-radius: 3px;
 }
 
-.viewer {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.viewer-bar {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--line);
-  background: var(--panel);
-}
-/* The segmented control is full-width in the export sidebar; here it is a chip. */
-.viewer-bar .segmented button {
-  flex: none;
-  padding: 4px 12px;
-}
-
-/*
- * The zoom gestures live here, so the browser must not claim them first:
- * `touch-action` leaves us the two-finger pinch and keeps the one-finger pan, and
- * `overscroll-behavior` stops a scroll that hits the end from navigating back.
- */
-.viewer-scroll {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  display: grid;
-  place-items: start center;
-  padding: 24px;
-  touch-action: pan-x pan-y;
-  overscroll-behavior: contain;
-}
-
 .page {
   max-width: 100%;
   height: auto;
@@ -168,7 +133,7 @@ body {
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: var(--muted);
+  color: var(--legacy-muted);
 }
 .bench input {
   width: 64px;
@@ -179,7 +144,7 @@ body {
   padding: 3px 6px;
 }
 .bench button {
-  background: var(--accent);
+  background: var(--legacy-accent);
   color: #0b0d12;
   border: 0;
   border-radius: 6px;
@@ -199,7 +164,7 @@ body {
 }
 .bench th {
   text-align: left;
-  color: var(--muted);
+  color: var(--legacy-muted);
   font-weight: 500;
   border-bottom: 1px solid var(--line);
   padding: 4px 0;
@@ -210,20 +175,11 @@ body {
 }
 .verdict {
   font-size: 12px;
-  color: var(--muted);
+  color: var(--legacy-muted);
   margin-top: 12px;
 }
 .verdict strong {
   color: var(--text);
-}
-
-.status {
-  flex: none;
-  font-size: 12px;
-  padding: 5px 12px;
-  min-height: 24px;
-  text-align: center;
-  border-bottom: 1px solid var(--line);
 }
 
 /* Stands in for the <img> until it has decoded real pixels. */
@@ -256,7 +212,7 @@ body {
 }
 .controls legend {
   font-size: 11px;
-  color: var(--muted);
+  color: var(--legacy-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   padding: 0 0 6px;
@@ -294,7 +250,7 @@ body {
   padding: 5px 0;
   border: 1px solid var(--line);
   background: var(--bg);
-  color: var(--muted);
+  color: var(--legacy-muted);
   cursor: pointer;
 }
 .segmented button:first-child {
@@ -340,65 +296,6 @@ body {
   fill-opacity: 0.55;
 }
 
-/* --- toolbar ------------------------------------------------------------------ */
-
-.pager {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.pager button {
-  width: 26px;
-  height: 26px;
-  display: grid;
-  place-items: center;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  color: var(--text);
-  font: inherit;
-  font-size: 15px;
-  line-height: 1;
-  cursor: pointer;
-}
-.pager button:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-.pager input {
-  width: 48px;
-  padding: 3px 6px;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  color: var(--text);
-  font: inherit;
-  font-size: 12px;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
-
-.zoom {
-  min-width: 130px;
-  padding: 3px 6px;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  color: var(--text);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-/* The pages on screen are a stretched bitmap until the gesture settles. */
-.zoom.settling {
-  border-color: var(--accent);
-}
-
-.viewer-bar .hint {
-  margin-left: auto;
-  white-space: nowrap;
-}
-
 /* --- continuous pages --------------------------------------------------------- */
 
 .pages {
@@ -411,7 +308,7 @@ body {
   box-shadow: 0 4px 18px rgb(0 0 0 / 0.45);
 }
 .page-slot.current {
-  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--legacy-accent) 55%, transparent);
   outline-offset: 1px;
 }
 .page-slot canvas {
@@ -432,7 +329,7 @@ body {
   place-items: center;
   background: var(--panel);
   border: 1px solid var(--line);
-  color: var(--muted);
+  color: var(--legacy-muted);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
@@ -445,7 +342,7 @@ body {
     background: var(--panel);
   }
   50% {
-    background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+    background: color-mix(in srgb, var(--legacy-accent) 12%, var(--panel));
   }
 }
 
@@ -476,7 +373,7 @@ body {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--muted);
+  color: var(--legacy-muted);
   margin: 12px 0 4px;
   padding: 0 10px;
   font-weight: 500;
@@ -497,7 +394,7 @@ body {
 }
 .api-nav li a:hover {
   background: var(--bg);
-  border-left-color: var(--accent);
+  border-left-color: var(--legacy-accent);
 }
 
 .api-content {
@@ -536,13 +433,13 @@ body {
 }
 .api-readme p,
 .api-readme li {
-  color: var(--muted);
+  color: var(--legacy-muted);
 }
 .api-readme strong {
   color: var(--text);
 }
 .api-readme a {
-  color: var(--accent);
+  color: var(--legacy-accent);
 }
 .api-note {
   max-width: 74ch;
@@ -552,7 +449,7 @@ body {
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--muted);
+  color: var(--legacy-muted);
   font-weight: 500;
   margin: 32px 0 0;
   padding-bottom: 6px;
@@ -580,17 +477,17 @@ body {
   text-decoration: none;
 }
 .api-anchor:hover {
-  color: var(--accent);
+  color: var(--legacy-accent);
 }
 .api-source {
   margin-left: auto;
-  color: var(--muted);
+  color: var(--legacy-muted);
   font-size: 11px;
   font-family: ui-monospace, monospace;
   text-decoration: none;
 }
 .api-source:hover {
-  color: var(--accent);
+  color: var(--legacy-accent);
 }
 
 .api-signature,
@@ -636,7 +533,7 @@ body {
   padding: 0 3px;
 }
 .api-xref {
-  color: var(--accent);
+  color: var(--legacy-accent);
   text-decoration: none;
   font-family: ui-monospace, monospace;
   font-size: 0.9em;
@@ -669,7 +566,7 @@ body {
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--muted);
+  color: var(--legacy-muted);
   margin-bottom: 2px;
 }
 
@@ -685,7 +582,7 @@ body {
 }
 .api-params dd {
   margin: 0 0 0 16px;
-  color: var(--muted);
+  color: var(--legacy-muted);
 }
 .api-params dd .api-prose p {
   margin: 2px 0;
@@ -714,7 +611,7 @@ body {
 }
 .api-member .api-prose {
   font-size: 13px;
-  color: var(--muted);
+  color: var(--legacy-muted);
 }
 .api-member .api-prose strong {
   color: var(--text);
@@ -722,7 +619,7 @@ body {
 .api-flag {
   margin-left: 8px;
   font-size: 10px;
-  color: var(--muted);
+  color: var(--legacy-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -734,14 +631,14 @@ body {
   color: #e0b478;
 }
 .ty-ref {
-  color: var(--accent);
+  color: var(--legacy-accent);
   text-decoration: none;
 }
 a.ty-ref:hover {
   text-decoration: underline;
 }
 .ty-punct {
-  color: var(--muted);
+  color: var(--legacy-muted);
 }
 .ty-param {
   color: var(--text);
@@ -782,11 +679,11 @@ a.ty-ref:hover {
     box-shadow 120ms ease;
 }
 .link-hit:hover {
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-  box-shadow: inset 0 0 0 1px var(--accent);
+  background: color-mix(in srgb, var(--legacy-accent) 18%, transparent);
+  box-shadow: inset 0 0 0 1px var(--legacy-accent);
 }
 .link-hit:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--legacy-accent);
   outline-offset: 1px;
 }
 
@@ -798,15 +695,6 @@ a.ty-ref:hover {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
-}
-
-.page-label {
-  padding: 1px 6px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  color: var(--muted);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
 }
 
 button.ghost {
@@ -880,7 +768,7 @@ button.ghost {
   margin: 0 0 20px;
 }
 .properties dt {
-  color: var(--muted);
+  color: var(--legacy-muted);
 }
 .properties dd {
   margin: 0;
