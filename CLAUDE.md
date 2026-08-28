@@ -70,7 +70,15 @@ bun run --filter papyra-bench priority  # also: cache, scaling, large-format
 
 Releases go through changesets: `bun run change` to add one, `bun run release` to publish.
 `@build-qube/papyra` and `@build-qube/papyra-native` are version-locked (`fixed` in
-`.changeset/config.json`); `papyra-demo` and `papyra-bench` are private and ignored.
+`.changeset/config.json`); `papyra-demo`, `papyra-bench` and `@workspace/ui` are
+ignored. `@workspace/pdf-viewer` is **not** — it is private and never published, but
+`privatePackages: { version: true, tag: false }` gives it a version and a CHANGELOG,
+because its registry items are installed by URL and that changelog is the only record
+a consumer of them has. It is also what a Pages deploy can be gated on, instead of
+every push to `main`. `tag: false` keeps it out of the git tags, which name published
+packages; being private exempts it from the rule that a dependent of an ignored
+package must itself be ignored, which is what lets it depend on `@workspace/ui`.
+Because of `updateInternalDependencies: "patch"` a papyra release bumps it too.
 
 ## Architecture
 
@@ -106,7 +114,13 @@ real CLI rather than guessed — see `packages/pdf-viewer/README.md`:
   rewrites only those forms, so a `@workspace/…` specifier ships verbatim into a
   consumer and breaks. `@/` therefore means this package repo-wide; `apps/demo`
   mirrors the mappings in its tsconfig and vite config, most specific first.
-- Filenames are flat and `pdf-`-prefixed, because `add` drops subdirectories.
+- Filenames are flat and `pdf-`-prefixed: `add` takes the install directory from a
+  file's `type`, so every item lands in one directory in the consumer. The five
+  blocks live in `src/blocks` and everything else in `src/components`, which is a
+  distinction only this repo sees — but `src/blocks` must stay a *sibling* of
+  `src/components`, since a subdirectory under the aliased one survives the install.
+  A block therefore still imports a sibling block as `@/components/…`; the two
+  tsconfigs and the demo's vite alias carry `src/blocks` as a fallback for that.
 - Sibling items are named by **absolute URL**: a bare `registryDependencies` entry
   always means an official shadcn item. `scripts/build-registry.ts` substitutes
   `{{REGISTRY}}` and turbo runs it before the demo's build, so the items ship with

@@ -1,8 +1,8 @@
-import { PagePreview } from '@workspace/pdf-viewer/components/pdf-page-preview';
-import { PdfPreviewDialog } from '@workspace/pdf-viewer/components/pdf-preview-dialog';
-import { ThumbnailPicker } from '@workspace/pdf-viewer/components/pdf-thumbnail-picker';
-import { PdfViewer } from '@workspace/pdf-viewer/components/pdf-viewer';
-import { PdfViewerBasic } from '@workspace/pdf-viewer/components/pdf-viewer-basic';
+import { PagePreview } from '@workspace/pdf-viewer/blocks/pdf-page-preview';
+import { PdfPreviewDialog } from '@workspace/pdf-viewer/blocks/pdf-preview-dialog';
+import { ThumbnailPicker } from '@workspace/pdf-viewer/blocks/pdf-thumbnail-picker';
+import { PdfViewer } from '@workspace/pdf-viewer/blocks/pdf-viewer';
+import { PdfViewerBasic } from '@workspace/pdf-viewer/blocks/pdf-viewer-basic';
 import {
   Alert,
   AlertDescription,

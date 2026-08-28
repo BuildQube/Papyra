@@ -7,10 +7,7 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": [
-    "papyra-demo",
-    "papyra-bench",
-    "@workspace/ui",
-    "@workspace/pdf-viewer"
-  ]
+  "ignore": ["papyra-demo", "papyra-bench", "@workspace/ui"],
+  "//": "@workspace/pdf-viewer is deliberately not ignored: it is private and never published, but its registry items are installed by URL, so its version and CHANGELOG are the only record a consumer of them has. tag: false keeps it out of the git tags, which name published packages.",
+  "privatePackages": { "version": true, "tag": false }
 }

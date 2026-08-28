@@ -30,12 +30,27 @@ its `tsconfig.json` and `vite.config.ts` (most specific first — `@/components/
 and `@/lib/utils` resolve into `@workspace/ui`, everything else here). The demo never
 used `@/` for its own files, which is what made the name available.
 
-## Flat, prefixed filenames
+## Flat, prefixed filenames, and where `src/blocks` goes
 
-`shadcn add` **flattens** paths: a registry file at `components/pdf-viewer/outline.tsx`
-lands as `<components-alias>/outline.tsx` in the consumer, subdirectory dropped. So
-grouping cannot come from a folder, and every file carries a `pdf-` prefix instead —
-these land in a flat directory beside the consumer's own components.
+`shadcn add` picks an installed file's directory from its **`type`**, never its path:
+`registry:block` and `registry:component` both land in the consumer's `components`
+alias. The filename comes from matching the target directory's last segment inside
+the source path and taking what follows, falling back to the basename when there is
+no match. So `src/components/x.tsx` and `src/blocks/x.tsx` both install as
+`<components-alias>/x.tsx` — the two directories here are one directory there.
+
+That is why grouping cannot come from a folder *name* in the consumer, and every file
+carries a `pdf-` prefix instead. It is also why `src/blocks` is a **sibling** of
+`src/components` rather than `src/components/blocks`: a subdirectory *under* the one
+the alias resolves to survives the move — `src/components/blocks/x.tsx` would install
+as `<components-alias>/blocks/x.tsx` — and every `@/components/pdf-…` import would
+then be pointing a level up from the file that satisfies it.
+
+The consequence in this repo: a block naming a sibling block still writes
+`@/components/…`, because that is true in a consumer. `tsconfig.json` lists
+`src/blocks` as a second candidate for `@/components/*`, and `apps/demo`'s vite alias
+carries the same fallback in a `customResolver`, since alias entries are
+first-match-wins.
 
 ## State
 
@@ -76,6 +91,12 @@ before the demo's build, so the items ship with the site.
 ```bash
 npx shadcn@latest add https://buildqube.github.io/Papyra/r/pdf-sidebar.json
 ```
+
+**This package is versioned even though it is never published.** An item installed by
+URL carries no version with it, so `package.json` and `CHANGELOG.md` here are the only
+record of what changed under a given item's name — `.changeset/config.json` therefore
+leaves it out of `ignore` and sets `privatePackages: { version: true, tag: false }`.
+Changing an item means writing a changeset for it, the same as for the wrapper.
 
 **Sibling items are named by absolute URL.** A bare `registryDependencies` entry like
 `"button"` always means an *official* shadcn item, never a same-registry one, so
