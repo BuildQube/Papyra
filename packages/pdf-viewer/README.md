@@ -114,6 +114,18 @@ The consequence to know: a `{@link}` **across files** has no target, so cross-it
 references are written as plain code spans instead — which is also honest, since a
 consumer may have installed one item and not the other.
 
+## The showcase
+
+`apps/demo`'s `/components` route renders this registry: the sidebar, the install
+command, the dependency badges and the props table all come from the two artifacts
+the build already produces — `r/registry.json` and `papyra-registry-api.json`.
+Nothing on that page is hand-written, so a component whose props change cannot leave
+a stale table behind; the docs build fails first.
+
+An item's headline export is found by name: `ZoomBarProps` means `ZoomBar`. Guessing
+from declaration order picks whatever the file happens to export first, which for
+`pdf-viewer-provider` is the context, not the provider.
+
 ## Tailwind
 
 `packages/ui/src/styles/globals.css` names this package in an `@source`. Tailwind's

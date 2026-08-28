@@ -6,6 +6,7 @@ import {
 } from '@tanstack/react-router';
 import { parseZoom, type ZoomSpec } from '@workspace/pdf-viewer/lib/pdf-zoom';
 import { BenchRoute } from './routes/bench.js';
+import { ComponentsRoute } from './routes/components.js';
 import { DocsRoute } from './routes/docs.js';
 import { ExportRoute } from './routes/export.js';
 import { RootShell } from './routes/root.js';
@@ -97,6 +98,12 @@ const benchRoute = createRoute({
 // No `validateSearch`: the reference is addressed by fragment, and the root route's
 // `file`/`page` params are carried through by the nav so leaving /docs returns you to
 // the document you had open.
+const componentsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/components',
+  component: ComponentsRoute,
+});
+
 const docsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/docs',
@@ -107,6 +114,7 @@ const routeTree = rootRoute.addChildren([
   viewerRoute,
   exportRoute,
   benchRoute,
+  componentsRoute,
   docsRoute,
 ]);
 

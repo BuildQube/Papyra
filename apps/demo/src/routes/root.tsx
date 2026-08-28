@@ -46,7 +46,8 @@ export function RootShell() {
   usePageUrlSync();
 
   const matchRoute = useMatchRoute();
-  const standalone = !!matchRoute({ to: '/docs' });
+  const standalone =
+    !!matchRoute({ to: '/docs' }) || !!matchRoute({ to: '/components' });
 
   return (
     <div className="flex h-screen flex-col">
@@ -63,6 +64,7 @@ export function RootShell() {
           </NavLink>
           <NavLink to="/export">export</NavLink>
           <NavLink to="/bench">bench</NavLink>
+          <NavLink to="/components">components</NavLink>
           <NavLink to="/docs">docs</NavLink>
         </nav>
 
@@ -147,7 +149,7 @@ function NavLink({
   exact,
   children,
 }: {
-  to: '/' | '/export' | '/bench' | '/docs';
+  to: '/' | '/export' | '/bench' | '/components' | '/docs';
   exact?: boolean;
   children: string;
 }) {

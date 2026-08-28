@@ -12,6 +12,13 @@ import { cn } from '@workspace/ui/lib/utils';
 import '@workspace/ui/globals.css';
 ```
 
+## What is ours
+
+`src/components` is vendored — an `add` overwrites it — with one exception:
+`copy-button.tsx` is written here, and `biome.json` re-enables the linter for that
+one file. Anything else authored in this directory should get the same treatment,
+or it silently stops being linted.
+
 ## Adding components
 
 Run shadcn from the app, not from here — `-c apps/demo` makes it read

@@ -53,6 +53,12 @@
       }
     },
     {
+      "includes": ["packages/ui/src/components/copy-button.tsx"],
+      "linter": {
+        "enabled": true
+      }
+    },
+    {
       "includes": [
         "apps/demo/src/components/theme-provider.tsx",
         "packages/pdf-viewer/src/components/pdf-viewer-provider.tsx"
