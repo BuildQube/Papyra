@@ -190,6 +190,13 @@ const countProfraw = async () =>
  */
 const stageEnv = (stage: string) => ({
   ...env,
+  // Plain `%p`, not cargo-llvm-cov's `%18m` pool: that is online merging, valid only
+  // between processes sharing a coverage map, and here the writers are a cargo test
+  // binary, node loading the addon and bun loading the addon.
+  //
+  // `%c` (continuous mode) would be the principled answer to a process that exits
+  // without flushing, but on Linux it additionally needs runtime counter relocation
+  // and here it produced unusable profiles on every stage, macOS included.
   LLVM_PROFILE_FILE: join(targetDir, `${stage}-%p.profraw`),
 });
 
@@ -260,6 +267,7 @@ const common = [
  * number that is wrong but believable. A stage at zero here means its counters were
  * written and then lost, which is not something the totals will ever say out loud.
  */
+const contributions: Record<string, number> = {};
 console.log('coverage: per-stage contribution (Rust lines covered)');
 for (const stage of ['cargo-test', 'bindings', 'wrapper']) {
   const own = profraw.filter((f) => f.includes(`/${stage}-`));
@@ -275,6 +283,22 @@ for (const stage of ['cargo-test', 'bindings', 'wrapper']) {
   console.log(
     `  ${stage.padEnd(11)} ${String(covered).padStart(5)} lines, from ${own.length} profraw`,
   );
+  contributions[stage] = covered;
+}
+
+// A stage that ran, wrote a profile and covered nothing has lost its counters. That
+// is not a number to publish: it cost 7 points of the Rust total and reported a
+// three-line `outline()` as dead while its own test passed. The existing
+// bindings assertion cannot see it — the other stages keep that file non-zero.
+const dead = Object.entries(contributions).filter(([, n]) => n === 0);
+if (dead.length > 0) {
+  console.error(
+    `coverage: ${dead.map(([s]) => s).join(', ')} contributed no covered lines.\n` +
+      'The stage ran and wrote a profile, so its counters were discarded rather than\n' +
+      'never produced. Publishing this would undercount by however much that stage\n' +
+      'uniquely covers. Refusing.',
+  );
+  process.exit(1);
 }
 // llvm-cov records absolute paths. Codecov matches an lcov `SF:` against the repo
 // tree, so an absolute one from a runner's checkout directory resolves to nothing and
