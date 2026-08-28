@@ -15,6 +15,7 @@
     "@build-qube/papyra": "workspace:*",
     "@tanstack/react-router": "^1.170.32",
     "@workspace/ui": "workspace:*",
+    "lucide-react": "^1.35.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

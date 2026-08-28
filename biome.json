@@ -47,13 +47,18 @@
   },
   "overrides": [
     {
-      "includes": [
-        "packages/ui/src/components/**",
-        "apps/demo/src/components/theme-provider.tsx"
-      ],
+      "includes": ["packages/ui/src/components/**"],
+      "linter": {
+        "enabled": false
+      }
+    },
+    {
+      "includes": ["apps/demo/src/components/theme-provider.tsx"],
       "linter": {
         "rules": {
-          "style": { "useComponentExportOnlyModules": "off" }
+          "style": {
+            "useComponentExportOnlyModules": "off"
+          }
         }
       }
     }

@@ -26,10 +26,13 @@ bunx shadcn@latest add dialog -c apps/demo
 shadcn writes double quotes and its own spacing; this repo is biome (single quotes,
 80 cols). Run `bun run format` after an `add` or `bun run check` fails in CI.
 
-`biome.json` turns `style/useComponentExportOnlyModules` off for
-`packages/ui/src/components/**`: every shadcn component exports its `cva` variants
-alongside the component itself, so the Fast Refresh rule would warn forever on a
-file layout we re-take from upstream on each `add`.
+`biome.json` turns the **linter** off for `packages/ui/src/components/**` — the
+formatter and the import assist still run. This directory is vendored: an `add`
+overwrites it, so a lint fix here is undone by the next upgrade rather than sent
+upstream. Across the initial 28 components biome flagged ten such things
+(`useSemanticElements` on `role="group"`, `noArrayIndexKey`, `noDoubleEquals`,
+`noLabelWithoutControl`, and the `cva` variants exported beside each component).
+Anything we actually write — `src/lib`, `src/hooks`, and every app — stays linted.
 
 ## Wiring it into a consuming app
 
