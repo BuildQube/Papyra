@@ -45,6 +45,19 @@
       "quoteStyle": "single"
     }
   },
+  "overrides": [
+    {
+      "includes": [
+        "packages/ui/src/components/**",
+        "apps/demo/src/components/theme-provider.tsx"
+      ],
+      "linter": {
+        "rules": {
+          "style": { "useComponentExportOnlyModules": "off" }
+        }
+      }
+    }
+  ],
   "assist": {
     "enabled": true,
     "actions": {

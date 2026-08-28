@@ -42,15 +42,26 @@
       // declared, and declaring it also keys the cache on it, so a /Papyra/ build
       // is never served out of a / build's cache entry.
       "env": ["PAPYRA_BASE"],
+      // The UI package is consumed as source and has no build task of its own, so
+      // turbo would not otherwise hash it — a changed component would be served out
+      // of a stale demo bundle.
       "inputs": [
         "src/**",
         "*.html",
         "vite.config.ts",
         "tsconfig.json",
+        "components.json",
         "package.json",
-        "public/**"
+        "public/**",
+        "../../packages/ui/src/**"
       ],
       "outputs": ["dist/**"]
+    },
+    // Same reason as the build inputs above: the demo's types depend on files turbo
+    // cannot see from the default `typecheck` inputs.
+    "papyra-demo#typecheck": {
+      "dependsOn": ["^build"],
+      "inputs": ["src/**", "*.ts", "*.tsx", "../../packages/ui/src/**"]
     },
     "dev": { "cache": false, "persistent": true },
     "test": {

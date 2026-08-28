@@ -59,6 +59,7 @@ Apps (both need `bun run corpus` first; the demo also needs the wasm build):
 
 ```bash
 bun run --filter papyra-demo dev        # Vite + React viewer at :5173
+bunx shadcn@latest add <component> -c apps/demo   # lands in packages/ui/src/components
 bun run --filter papyra-demo fixtures   # copy corpus PDFs into public/ for ?file=/x.pdf
 bun run --filter papyra-bench smoke     # quick correctness/sanity pass
 bun run --filter papyra-bench bench     # vs pdf.js on the corpus
@@ -94,6 +95,13 @@ Four layers, each with a deliberate boundary:
    tree assembly, link and metadata normalisation, typed password errors, and canvas
    painting. Deliberately in TS so it works identically on both runtimes without
    doubling the Rust surface.
+
+`packages/ui` (`@workspace/ui`) sits outside that stack: it is the private home of
+every shadcn component, consumed as **source** rather than as a build artifact, so
+Tailwind v4's scanner can follow the import graph into it. `apps/demo` has the
+plumbing (`@tailwindcss/vite`, the `@/*` and `@workspace/ui/*` paths, its own
+`components.json`) but does not yet import `globals.css` — the demo still ships its
+own 1191-line stylesheet. See `packages/ui/README.md`.
 
 Five features beyond rendering follow the same split:
 

@@ -2,6 +2,7 @@ import { copyFileSync, existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig, type Plugin } from 'vite';
 
@@ -116,9 +117,10 @@ export default defineConfig({
   // GitHub Pages serves the project site from /<repo>/, so the deploy workflow
   // sets PAPYRA_BASE. Local dev and previews stay at the root.
   base: process.env.PAPYRA_BASE ?? '/',
-  plugins: [react(), perfSink, coiServiceWorker, spaFallback],
+  plugins: [react(), tailwindcss(), perfSink, coiServiceWorker, spaFallback],
   resolve: {
     alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
       // In the published package `browser.js` re-exports the per-platform wasm
       // package. In the monorepo that package does not exist until release, so point
       // at the generated glue directly.
