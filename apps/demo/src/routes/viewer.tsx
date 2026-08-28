@@ -7,10 +7,7 @@ import {
   PageView,
   type PageViewHandle,
 } from '@workspace/pdf-viewer/components/pdf-page-view';
-import {
-  type ViewMode,
-  ZoomBar,
-} from '@workspace/pdf-viewer/components/pdf-zoom-bar';
+import { ZoomBar } from '@workspace/pdf-viewer/components/pdf-zoom-bar';
 import {
   labelsDiffer,
   pageLabel,
@@ -20,6 +17,7 @@ import {
   usePdfDocument,
   usePdfPage,
   usePdfSearch,
+  usePdfView,
   usePdfViewerActions,
 } from '@workspace/pdf-viewer/hooks/use-pdf-viewer';
 import {
@@ -31,6 +29,7 @@ import {
   formatZoom,
   pageBox,
   renderWidth,
+  type ViewMode,
   type ZoomSpec,
 } from '@workspace/pdf-viewer/lib/pdf-zoom';
 import { cn } from '@workspace/ui/lib/utils';
@@ -43,6 +42,7 @@ import {
   useState,
 } from 'react';
 import { ViewerLayout } from '../components/ViewerLayout.js';
+import { useViewUrlSync } from '../lib/urlSync.js';
 
 interface Timing {
   /** Queued behind other work before this render started. */
@@ -95,12 +95,12 @@ export function ViewerRoute() {
     thumbs,
     probe: probeCount,
     zoom: zoomParam,
-    view,
   } = useSearch({
     strict: false,
   }) as Search;
 
-  const mode: ViewMode = view === 'scroll' ? 'scroll' : 'page';
+  const [mode, setMode] = usePdfView();
+  useViewUrlSync();
   const doc = loaded?.doc;
 
   const viewport = useRef<HTMLDivElement>(null);
@@ -263,7 +263,7 @@ export function ViewerRoute() {
             onStepIn={zoom.stepIn}
             onStepOut={zoom.stepOut}
             onPage={setPage}
-            onMode={(next) => patch({ view: next })}
+            onMode={setMode}
           />
         )
       }
@@ -286,7 +286,7 @@ export function ViewerRoute() {
         // Keyed, so opening a different file starts the column over rather than
         // inheriting the old one's scroll position and visible range.
         <ContinuousPages
-          key={loaded.name}
+          key={loaded.name ?? 'document'}
           doc={doc}
           viewport={viewport}
           anchor={anchor}

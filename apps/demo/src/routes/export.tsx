@@ -167,7 +167,7 @@ export function ExportRoute() {
     const url = out.toBlobUrl();
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${loaded.name.replace(/\.pdf$/i, '')}-p${page + 1}.${
+    a.download = `${(loaded.name ?? 'document.pdf').replace(/\.pdf$/i, '')}-p${page + 1}.${
       format === 'jpeg' ? 'jpg' : format
     }`;
     a.click();

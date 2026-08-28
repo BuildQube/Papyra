@@ -31,13 +31,11 @@ import {
   isFitMode,
   MAX_ZOOM,
   MIN_ZOOM,
+  type ViewMode,
   ZOOM_STEPS,
   type ZoomSpec,
 } from '@/lib/pdf-zoom';
 import { cn } from '@/lib/utils';
-
-/** Whether pages are shown one at a time or in a scrolling column. */
-export type ViewMode = 'page' | 'scroll';
 
 /** Props for {@link ZoomBar}. */
 export interface ZoomBarProps {

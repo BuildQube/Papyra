@@ -47,6 +47,12 @@ component reading only `search` does not re-render. With a 400-page thumbnail st
 mounted, a plain context here would walk the whole tree on every page change.
 `test/integration/pdf-viewer-store.test.ts` pins that property.
 
+The store also carries the **view mode**, single-page or continuous, even though the
+blocks each render only one of the two: the full viewer is continuous and the basic
+one is a single page. Keeping it in state means a toggle, a saved preference and a
+deep link are the same thing, and adding the toggle to a block later is a UI change
+rather than a state change. The demo already exercises both.
+
 Two things deliberately stay out of the store:
 
 - **Zoom.** A pinch changes the scale every animation frame; a store notification per

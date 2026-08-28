@@ -22,7 +22,7 @@ createRoot(el).render(
     <ThemeProvider defaultTheme="dark" storageKey="papyra-theme">
       {/* Above the router on purpose: the open document — and its 128 MB render cache —
           must survive navigation between the viewer and the export view. */}
-      <PdfViewerProvider>
+      <PdfViewerProvider view="page">
         <RouterProvider router={router} />
       </PdfViewerProvider>
     </ThemeProvider>

@@ -22,8 +22,9 @@
       "name": "pdf-viewer-store",
       "type": "registry:lib",
       "title": "Viewer store",
-      "description": "A subscribable store for the open document, page and search results, sliced so a page change does not re-render every panel.",
+      "description": "A subscribable store for the open document, page, view mode and search results, sliced so a page change does not re-render every panel.",
       "dependencies": ["@build-qube/papyra@^0.2.0"],
+      "registryDependencies": ["{{REGISTRY}}/pdf-zoom.json"],
       "files": [
         { "path": "src/lib/pdf-viewer-store.ts", "type": "registry:lib" }
       ]

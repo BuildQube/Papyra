@@ -98,7 +98,7 @@ export function RootShell() {
             title="Document properties"
             onClick={() => setShowProperties(true)}
           >
-            {loaded.name}
+            {loaded.name ?? 'document.pdf'}
           </Button>
         )}
       </header>
@@ -129,8 +129,8 @@ export function RootShell() {
       {loaded && showProperties && (
         <Properties
           doc={loaded.doc}
-          name={loaded.name}
-          byteLength={loaded.bytes.byteLength}
+          name={loaded.name ?? 'document.pdf'}
+          byteLength={loaded.bytes?.byteLength ?? 0}
           page={Math.min(page, loaded.doc.pageCount - 1)}
           onClose={() => setShowProperties(false)}
         />

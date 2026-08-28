@@ -8,6 +8,7 @@ import type {
   PdfViewerState,
   PdfViewerStore,
 } from '@/lib/pdf-viewer-store';
+import type { ViewMode } from '@/lib/pdf-zoom';
 
 /**
  * The store itself.
@@ -70,6 +71,17 @@ export function usePdfSearch(): PdfSearchSlice {
 /** The last load failure, or null. */
 export function usePdfError(): string | null {
   return useSlice((state) => state.error);
+}
+
+/**
+ * The current view mode and a setter.
+ *
+ * A block may render only one of the two — the setter still works, so adding a toggle
+ * later is a UI change rather than a state change.
+ */
+export function usePdfView(): [ViewMode, (view: ViewMode) => void] {
+  const view = useSlice((state) => state.view);
+  return [view, usePdfViewerActions().setView];
 }
 
 /** The pending password request, or null. */

@@ -11,6 +11,15 @@ export const CSS_UNITS = 96 / 72;
 
 /** A rule that tracks the viewport rather than a fixed percentage. */
 export type FitMode = 'auto' | 'page-fit' | 'page-width';
+
+/**
+ * Whether pages are shown one at a time or in a scrolling column.
+ *
+ * Presentation vocabulary rather than zoom, but it lives here for the same reason the
+ * fit modes do: the toolbar, the store and the page views all need the word, and none
+ * of them should have to depend on one of the others to get it.
+ */
+export type ViewMode = 'page' | 'scroll';
 /** What the user asked for: a fixed percentage, or a rule that tracks the viewport. */
 export type ZoomSpec = number | FitMode;
 

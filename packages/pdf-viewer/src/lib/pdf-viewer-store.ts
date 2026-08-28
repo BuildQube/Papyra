@@ -4,18 +4,21 @@ import {
   PasswordError,
   type SearchMatch,
 } from '@build-qube/papyra';
+import type { ViewMode } from '@/lib/pdf-zoom';
 
 /** The open document, and the bytes it was opened from. */
 export interface PdfDocumentSlice {
   /** The parsed PDF, with its render cache attached. */
   doc: Document;
   /**
-   * The file's own bytes, kept because re-reading a `File` is not free and a caller
-   * may want to hand them to something else — a second engine, a download.
+   * The file's own bytes, when the store opened it.
+   *
+   * Optional because a caller may hand over an already-open `Document` and have no
+   * bytes to give — {@link PdfViewerActions.setDocument} is exactly that case.
    */
-  bytes: Uint8Array;
-  /** The file name, for display. */
-  name: string;
+  bytes?: Uint8Array;
+  /** The file name, when one is known. Documents do not carry their own. */
+  name?: string;
 }
 
 /** Every match found so far, and whichever one the viewer is showing. */
@@ -53,6 +56,13 @@ export interface PdfViewerState {
   error: string | null;
   /** Set while a document waits on a password, cleared when it opens. */
   password: PdfPasswordRequest | null;
+  /**
+   * Whether pages are shown one at a time or in a scrolling column.
+   *
+   * State rather than a prop on the view, so a toolbar toggle, a saved preference and
+   * a deep link are all the same thing to whatever is rendering.
+   */
+  view: ViewMode;
 }
 
 /**
@@ -67,6 +77,13 @@ export interface PdfViewerActions {
    * is what lets one prompt both ask cold and say the last answer was wrong.
    */
   load(file: File, password?: string): Promise<void>;
+  /**
+   * Put an already-open document in.
+   *
+   * For callers that opened the PDF themselves — which is every block in this
+   * registry, since opening a file is the application's job and not a viewer's.
+   */
+  setDocument(document: PdfDocumentSlice | null): void;
   /** Move to a page. Clamped to the open document. */
   setPage(index: number): void;
   /** Replace the search results. */
@@ -77,10 +94,14 @@ export interface PdfViewerActions {
   setError(message: string | null): void;
   /** Give up on a password prompt. */
   cancelPassword(): void;
+  /** Switch between single-page and continuous. */
+  setView(view: ViewMode): void;
 }
 
 /** Options for {@link createPdfViewerStore}. */
 export interface PdfViewerStoreOptions {
+  /** The view to start in. Defaults to `scroll`. */
+  view?: ViewMode;
   /**
    * Renders in flight at once.
    *
@@ -122,7 +143,7 @@ const EMPTY_SEARCH: PdfSearchSlice = { matches: [], active: null };
 export function createPdfViewerStore(
   options: PdfViewerStoreOptions = {},
 ): PdfViewerStore {
-  const { concurrency = 4 } = options;
+  const { concurrency = 4, view = 'scroll' } = options;
 
   let state: PdfViewerState = {
     document: null,
@@ -130,6 +151,7 @@ export function createPdfViewerStore(
     search: EMPTY_SEARCH,
     error: null,
     password: null,
+    view,
   };
 
   const listeners = new Set<() => void>();
@@ -168,6 +190,17 @@ export function createPdfViewerStore(
       }
     },
 
+    setDocument(document) {
+      if (document === state.document) return;
+      commit({
+        ...state,
+        document,
+        page: 0,
+        search: EMPTY_SEARCH,
+        password: null,
+      });
+    },
+
     setPage(index) {
       const count = state.document?.doc.pageCount ?? 0;
       const next = count > 0 ? Math.min(Math.max(index, 0), count - 1) : 0;
@@ -194,6 +227,11 @@ export function createPdfViewerStore(
     cancelPassword() {
       if (state.password === null) return;
       commit({ ...state, password: null });
+    },
+
+    setView(next) {
+      if (next === state.view) return;
+      commit({ ...state, view: next });
     },
   };
 

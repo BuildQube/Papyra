@@ -53,6 +53,34 @@ describe('slice identity', () => {
     expect(notifications).toBe(2);
   });
 
+  test('setting a document does not disturb the view mode', () => {
+    const store = createPdfViewerStore({ view: 'page' });
+    const doc = { doc: { pageCount: 3 } } as never;
+
+    store.actions.setDocument(doc);
+    expect(store.getState().view).toBe('page');
+    expect(store.getState().document).toBe(doc);
+
+    store.actions.setDocument(doc);
+    expect(store.getState().document).toBe(doc); // idempotent
+  });
+
+  test('the view mode is live even where nothing renders both', () => {
+    const store = createPdfViewerStore();
+    // The registry default is continuous; the full block renders only that, but the
+    // state carries the other so a toggle is a UI change and not a state change.
+    expect(store.getState().view).toBe('scroll');
+
+    let notifications = 0;
+    store.subscribe(() => {
+      notifications++;
+    });
+    store.actions.setView('page');
+    store.actions.setView('page');
+    expect(store.getState().view).toBe('page');
+    expect(notifications).toBe(1);
+  });
+
   test('page is clamped to the open document', () => {
     const store = createPdfViewerStore();
     store.actions.setPage(9);

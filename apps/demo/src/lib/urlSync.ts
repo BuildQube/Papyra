@@ -2,8 +2,10 @@ import { useNavigate, useSearch } from '@tanstack/react-router';
 import {
   usePdfDocument,
   usePdfPage,
+  usePdfView,
   usePdfViewerActions,
 } from '@workspace/pdf-viewer/hooks/use-pdf-viewer';
+import type { ViewMode } from '@workspace/pdf-viewer/lib/pdf-zoom';
 import { useEffect, useRef } from 'react';
 
 /**
@@ -45,6 +47,42 @@ export function usePageUrlSync(): void {
       replace: true,
     });
   }, [doc, page, fromUrl, navigate]);
+}
+
+/**
+ * Keeps `?view=` and the store's view mode in step.
+ *
+ * Same shape as {@link usePageUrlSync}, and separate from it because `?view=` belongs
+ * to the viewer route while `?page=` is on the root: a deep link into the export view
+ * carries a page but has no opinion about how the viewer lays pages out.
+ */
+export function useViewUrlSync(): void {
+  const { view: param } = useSearch({ strict: false }) as { view?: ViewMode };
+  const navigate = useNavigate();
+  const [view, setView] = usePdfView();
+  const settled = useRef<ViewMode | null>(null);
+
+  const fromUrl: ViewMode = param === 'scroll' ? 'scroll' : 'page';
+
+  useEffect(() => {
+    if (fromUrl === view || settled.current === fromUrl) return;
+    settled.current = fromUrl;
+    setView(fromUrl);
+  }, [fromUrl, view, setView]);
+
+  useEffect(() => {
+    if (view === fromUrl) return;
+    settled.current = view;
+    void navigate({
+      to: '.',
+      search: (prev: Record<string, unknown>) => ({
+        ...prev,
+        // The default is not worth a search param; drop it rather than write `page`.
+        view: view === 'scroll' ? ('scroll' as const) : undefined,
+      }),
+      replace: true,
+    });
+  }, [view, fromUrl, navigate]);
 }
 
 /**
