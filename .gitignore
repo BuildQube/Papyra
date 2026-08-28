@@ -26,6 +26,8 @@ packages/bindings/npm
 # third-party test PDFs are fetched, never vendored (mixed provenance)
 /corpus
 apps/demo/public/*.pdf
+# ...except the one the /components previews render, which must work on a cold visit.
+!apps/demo/public/sample.pdf
 
 # The API model papyra-docs-gen extracts from the wrapper's TSDoc. Generated at
 # build time like the napi output above, and stale the moment a comment changes.
@@ -44,3 +46,6 @@ skills-lock.json
 
 # Local tooling cache (impeccable design hook)
 .impeccable/
+apps/demo/public/r
+packages/pdf-viewer/registry.generated.json
+apps/demo/public/papyra-registry-api.json

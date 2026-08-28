@@ -59,6 +59,7 @@ Apps (both need `bun run corpus` first; the demo also needs the wasm build):
 
 ```bash
 bun run --filter papyra-demo dev        # Vite + React viewer at :5173
+bunx shadcn@latest add <component> -c apps/demo   # lands in packages/ui/src/components
 bun run --filter papyra-demo fixtures   # copy corpus PDFs into public/ for ?file=/x.pdf
 bun run --filter papyra-bench smoke     # quick correctness/sanity pass
 bun run --filter papyra-bench bench     # vs pdf.js on the corpus
@@ -94,6 +95,48 @@ Four layers, each with a deliberate boundary:
    tree assembly, link and metadata normalisation, typed password errors, and canvas
    painting. Deliberately in TS so it works identically on both runtimes without
    doubling the Rust surface.
+
+`packages/pdf-viewer` (`@workspace/pdf-viewer`) is the viewer UI as a **shadcn
+registry**: private, unbuilt, depending on `@workspace/ui` and `@build-qube/papyra`.
+Three things about it are not negotiable, and all three were established against the
+real CLI rather than guessed — see `packages/pdf-viewer/README.md`:
+
+- Files import through `@/components/ui/*`, `@/components/*`, `@/lib/*`,
+  `@/hooks/*` and `@/lib/utils`. `shadcn build` rewrites **nothing**, and `add`
+  rewrites only those forms, so a `@workspace/…` specifier ships verbatim into a
+  consumer and breaks. `@/` therefore means this package repo-wide; `apps/demo`
+  mirrors the mappings in its tsconfig and vite config, most specific first.
+- Filenames are flat and `pdf-`-prefixed, because `add` drops subdirectories.
+- Sibling items are named by **absolute URL**: a bare `registryDependencies` entry
+  always means an official shadcn item. `scripts/build-registry.ts` substitutes
+  `{{REGISTRY}}` and turbo runs it before the demo's build, so the items ship with
+  the site. The items pin `@build-qube/papyra@^0.2.0` — they use `pageLabels()`,
+  `links()` and `fingerprint`, which the published 0.1.0 does not have, so the
+  registry is not installable until that release goes out.
+- `globals.css` names this package in an `@source`. Tailwind's detection reaches
+  `packages/ui` and whichever app holds the CSS entry, but no further, so a class
+  used only here is otherwise never generated — silently, with a plausible
+  stylesheet.
+
+Its props are documented under the same gate the wrapper's reference has:
+`packages/docs-gen` runs a second TypeDoc pass over the package into
+`papyra-registry-api.json`, with `treatValidationWarningsAsErrors`, so an
+undocumented prop fails the build. Each file is its own entry point
+(`entryPointStrategy: "expand"`) since registry items install one at a time — which
+means a `{@link}` across files has no target and cross-item references are code
+spans.
+
+`packages/ui` (`@workspace/ui`) sits outside that stack: it is the private home of
+every shadcn component, consumed as **source** rather than as a build artifact, so
+Tailwind v4's scanner can follow the import graph into it. `apps/demo` is built
+entirely from it — there is no hand-written stylesheet left, and
+`packages/ui/src/styles/globals.css` is the only CSS file in the app's graph. Two
+things live there that semantic tokens cannot express: the API reference's syntax
+colours (`--syntax-*`, surfaced as `text-syntax-intrinsic` and friends — a type
+keyword is not "less important" than a literal, it is a different thing) and the
+`checkerboard` utility behind a transparent SVG. papyra's accent, #6ea8fe, is on
+`--primary` and `--ring`; **not** on `--accent`, which in shadcn is the hover
+surface. See `packages/ui/README.md`.
 
 Five features beyond rendering follow the same split:
 

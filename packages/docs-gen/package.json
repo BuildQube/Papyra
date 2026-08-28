@@ -5,11 +5,12 @@
   "type": "module",
   "description": "Extracts the @build-qube/papyra API model from its TSDoc comments",
   "scripts": {
-    "build": "typedoc",
+    "build": "typedoc && typedoc --options typedoc.registry.json",
     "clean": "rm -rf ../../apps/demo/src/generated .turbo"
   },
   "devDependencies": {
     "@build-qube/papyra": "workspace:*",
+    "@workspace/pdf-viewer": "workspace:*",
     "typedoc": "^0.28.20",
     "typescript": "5.9.3"
   }

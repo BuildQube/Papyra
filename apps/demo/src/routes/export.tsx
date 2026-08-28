@@ -6,15 +6,20 @@ import type {
 } from '@build-qube/papyra';
 import { PageImage } from '@build-qube/papyra';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ExportControls } from '../components/ExportControls.js';
 import {
   type PageImageHandle,
   PageImageView,
-} from '../components/PageImageView.js';
-import { ViewerLayout } from '../components/ViewerLayout.js';
-import { useDocument } from '../lib/documentContext.js';
-import { usePage } from '../lib/usePage.js';
+} from '@workspace/pdf-viewer/components/pdf-page-image-view';
+import { ViewerLayout } from '@workspace/pdf-viewer/components/pdf-viewer-layout';
+import {
+  usePdfDocument,
+  usePdfPage,
+  usePdfViewerActions,
+} from '@workspace/pdf-viewer/hooks/use-pdf-viewer';
+import { PAGE } from '@workspace/pdf-viewer/lib/pdf-page-class';
+import { cn } from '@workspace/ui/lib/utils';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ExportControls } from '../components/ExportControls.js';
 import { defaultViewWidth } from '../lib/width.js';
 
 interface Timing {
@@ -53,8 +58,9 @@ interface Search {
  * bytes, which is what matters the moment the pixels leave the process.
  */
 export function ExportRoute() {
-  const { loaded, setError } = useDocument();
-  const [page] = usePage();
+  const loaded = usePdfDocument();
+  const { setError } = usePdfViewerActions();
+  const [page] = usePdfPage();
   const navigate = useNavigate();
   const search = useSearch({ strict: false }) as Search;
 
@@ -161,7 +167,7 @@ export function ExportRoute() {
     const url = out.toBlobUrl();
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${loaded.name.replace(/\.pdf$/i, '')}-p${page + 1}.${
+    a.download = `${(loaded.name ?? 'document.pdf').replace(/\.pdf$/i, '')}-p${page + 1}.${
       format === 'jpeg' ? 'jpg' : format
     }`;
     a.click();
@@ -172,7 +178,7 @@ export function ExportRoute() {
     <ViewerLayout
       status={
         timing && (
-          <span className="muted">
+          <span className="text-xs text-muted-foreground">
             {format} · page {page + 1} · {timing.width}×{timing.height}
             {timing.raw === null ? ' pt' : ''} · wait {timing.wait.toFixed(0)} ·
             run {timing.run.toFixed(0)} · encode {timing.encode.toFixed(0)} ·
@@ -204,7 +210,7 @@ export function ExportRoute() {
     >
       <PageImageView
         ref={view}
-        className={transparent && format === 'svg' ? 'page checkered' : 'page'}
+        className={cn(PAGE, transparent && format === 'svg' && 'checkerboard')}
         alt={`Page ${page + 1} encoded as ${format}`}
       />
     </ViewerLayout>

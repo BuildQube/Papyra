@@ -1,13 +1,15 @@
+import { usePdfDocument } from '@workspace/pdf-viewer/hooks/use-pdf-viewer';
 import { BenchPanel } from '../components/BenchPanel.js';
-import { useDocument } from '../lib/documentContext.js';
 
 /** papyra vs pdf.js on the open document. Its own route now — it needs the room. */
 export function BenchRoute() {
-  const { loaded } = useDocument();
-  if (!loaded) return null;
+  const loaded = usePdfDocument();
+  // The bench re-opens the bytes under pdf.js, so it only runs for a document this
+  // app loaded itself rather than one handed straight to the store.
+  if (!loaded?.bytes) return null;
   return (
-    <main className="workspace bench-only">
-      <BenchPanel bytes={loaded.bytes} name={loaded.name} />
+    <main className="flex min-h-0 flex-1 justify-center overflow-y-auto p-6">
+      <BenchPanel bytes={loaded.bytes} name={loaded.name ?? 'document.pdf'} />
     </main>
   );
 }

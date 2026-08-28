@@ -1,5 +1,39 @@
 import type { Document } from '@build-qube/papyra';
 import { useNavigate, useSearch } from '@tanstack/react-router';
+import { ContinuousPages } from '@workspace/pdf-viewer/components/pdf-continuous-pages';
+import { Highlights } from '@workspace/pdf-viewer/components/pdf-highlights';
+import { Links } from '@workspace/pdf-viewer/components/pdf-links';
+import {
+  PageView,
+  type PageViewHandle,
+} from '@workspace/pdf-viewer/components/pdf-page-view';
+import { ViewerLayout } from '@workspace/pdf-viewer/components/pdf-viewer-layout';
+import { ZoomBar } from '@workspace/pdf-viewer/components/pdf-zoom-bar';
+import {
+  labelsDiffer,
+  pageLabel,
+  usePageLabels,
+} from '@workspace/pdf-viewer/hooks/use-pdf-page-labels';
+import {
+  usePdfDocument,
+  usePdfPage,
+  usePdfSearch,
+  usePdfView,
+  usePdfViewerActions,
+} from '@workspace/pdf-viewer/hooks/use-pdf-viewer';
+import {
+  useZoom,
+  type ZoomAnchor,
+} from '@workspace/pdf-viewer/hooks/use-pdf-zoom';
+import { PAGE } from '@workspace/pdf-viewer/lib/pdf-page-class';
+import {
+  formatZoom,
+  pageBox,
+  renderWidth,
+  type ViewMode,
+  type ZoomSpec,
+} from '@workspace/pdf-viewer/lib/pdf-zoom';
+import { cn } from '@workspace/ui/lib/utils';
 import {
   useCallback,
   useEffect,
@@ -8,26 +42,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { ContinuousPages } from '../components/ContinuousPages.js';
-import { Highlights } from '../components/Highlights.js';
-import { Links } from '../components/Links.js';
-import { PageView, type PageViewHandle } from '../components/PageView.js';
-import { ViewerLayout } from '../components/ViewerLayout.js';
-import { type ViewMode, ZoomBar } from '../components/ZoomBar.js';
-import { useDocument } from '../lib/documentContext.js';
-import { usePage } from '../lib/usePage.js';
-import {
-  labelsDiffer,
-  pageLabel,
-  usePageLabels,
-} from '../lib/usePageLabels.js';
-import { useZoom, type ZoomAnchor } from '../lib/useZoom.js';
-import {
-  formatZoom,
-  pageBox,
-  renderWidth,
-  type ZoomSpec,
-} from '../lib/zoom.js';
+import { useViewUrlSync } from '../lib/urlSync.js';
 
 interface Timing {
   /** Queued behind other work before this render started. */
@@ -70,20 +85,22 @@ interface PageAnchor {
  * which is why it wins on time to first pixel and loses by ~27x on bytes.
  */
 export function ViewerRoute() {
-  const { loaded, setError, matches, active } = useDocument();
-  const [page, setPage] = usePage();
+  const loaded = usePdfDocument();
+  const { setError } = usePdfViewerActions();
+  const { matches, active } = usePdfSearch();
+  const [page, setPage] = usePdfPage();
   const navigate = useNavigate();
   const {
     width,
     thumbs,
     probe: probeCount,
     zoom: zoomParam,
-    view,
   } = useSearch({
     strict: false,
   }) as Search;
 
-  const mode: ViewMode = view === 'scroll' ? 'scroll' : 'page';
+  const [mode, setMode] = usePdfView();
+  useViewUrlSync();
   const doc = loaded?.doc;
 
   const viewport = useRef<HTMLDivElement>(null);
@@ -246,7 +263,7 @@ export function ViewerRoute() {
             onStepIn={zoom.stepIn}
             onStepOut={zoom.stepOut}
             onPage={setPage}
-            onMode={(next) => patch({ view: next })}
+            onMode={setMode}
           />
         )
       }
@@ -254,7 +271,7 @@ export function ViewerRoute() {
         mode === 'scroll'
           ? doc && <QueueStatus doc={doc} scale={zoom.scale} />
           : timing && (
-              <span className="muted">
+              <span className="text-xs text-muted-foreground">
                 canvas · page {index + 1} · {formatZoom(zoom.scale)}
                 {size && ` · ${size.w}×${size.h}`} · wait{' '}
                 {timing.wait.toFixed(0)} · run {timing.run.toFixed(0)} · paint{' '}
@@ -269,7 +286,7 @@ export function ViewerRoute() {
         // Keyed, so opening a different file starts the column over rather than
         // inheriting the old one's scroll position and visible range.
         <ContinuousPages
-          key={loaded.name}
+          key={loaded.name ?? 'document'}
           doc={doc}
           viewport={viewport}
           anchor={anchor}
@@ -281,10 +298,15 @@ export function ViewerRoute() {
           active={active}
         />
       ) : (
-        <div className="page-stack" ref={stack} style={box ?? undefined}>
+        <div
+          className="relative leading-[0]"
+          ref={stack}
+          style={box ?? undefined}
+        >
           <PageView
             ref={surface}
-            className="page zoomable"
+            // Zoom sets an explicit box, so the fit-to-container cap comes off.
+            className={cn(PAGE, 'max-w-none')}
             style={box ?? undefined}
           />
           {size && loaded && (
@@ -338,7 +360,7 @@ function QueueStatus({ doc, scale }: { doc: Document; scale: number }) {
   }, [doc]);
 
   return (
-    <span className="muted">
+    <span className="text-xs text-muted-foreground">
       continuous · {doc.pageCount} pages · {formatZoom(scale)} ·{' '}
       <strong>{queue.running} rendering</strong> · {queue.pending} queued ·{' '}
       {hits} cached

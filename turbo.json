@@ -33,24 +33,63 @@
     // build and typecheck through `^build`, being a devDependency of the demo.
     "papyra-docs-gen#build": {
       "dependsOn": ["^build"],
-      "inputs": ["typedoc.json", "../papyra/src/**"],
-      "outputs": ["../../apps/demo/public/papyra-api.json"]
+      "inputs": [
+        "typedoc.json",
+        "typedoc.registry.json",
+        "../papyra/src/**",
+        "../pdf-viewer/src/**"
+      ],
+      "outputs": [
+        "../../apps/demo/public/papyra-api.json",
+        "../../apps/demo/public/papyra-registry-api.json"
+      ]
+    },
+    // The registry is built into the demo's `public/`, so it has to exist before
+    // vite copies that directory. `PAPYRA_REGISTRY` is declared because it is baked
+    // into every item's sibling URLs — turbo strips undeclared env vars, and keying
+    // the cache on it stops a localhost build being replayed for a deploy.
+    "@workspace/pdf-viewer#build:registry": {
+      "env": ["PAPYRA_REGISTRY"],
+      "inputs": ["registry.json", "src/**", "scripts/**"],
+      "outputs": ["../../apps/demo/public/r/**"]
     },
     "papyra-demo#build": {
-      "dependsOn": ["^build", "@build-qube/papyra-native#build:wasm"],
+      "dependsOn": [
+        "^build",
+        "@build-qube/papyra-native#build:wasm",
+        "@workspace/pdf-viewer#build:registry"
+      ],
       // PAPYRA_BASE sets vite's base path. Turbo strips env vars a task has not
       // declared, and declaring it also keys the cache on it, so a /Papyra/ build
       // is never served out of a / build's cache entry.
       "env": ["PAPYRA_BASE"],
+      // The UI package is consumed as source and has no build task of its own, so
+      // turbo would not otherwise hash it — a changed component would be served out
+      // of a stale demo bundle.
       "inputs": [
         "src/**",
         "*.html",
         "vite.config.ts",
         "tsconfig.json",
+        "components.json",
         "package.json",
-        "public/**"
+        "public/**",
+        "../../packages/ui/src/**",
+        "../../packages/pdf-viewer/src/**"
       ],
       "outputs": ["dist/**"]
+    },
+    // Same reason as the build inputs above: the demo's types depend on files turbo
+    // cannot see from the default `typecheck` inputs.
+    "papyra-demo#typecheck": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "src/**",
+        "*.ts",
+        "*.tsx",
+        "../../packages/ui/src/**",
+        "../../packages/pdf-viewer/src/**"
+      ]
     },
     "dev": { "cache": false, "persistent": true },
     "test": {

@@ -1,3 +1,15 @@
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from '@workspace/ui/components/alert';
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from '@workspace/ui/components/input-group';
+import { Spinner } from '@workspace/ui/components/spinner';
+import { SearchIcon, TriangleAlertIcon } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { ApiMember } from '../components/docs/ApiMember.js';
 import { CommentBody } from '../components/docs/CommentBody.js';
@@ -57,15 +69,22 @@ export function DocsRoute() {
 
   if (error) {
     return (
-      <div className="workspace">
-        <p className="error">{error}</p>
+      <div className="flex min-h-0 flex-1 p-6">
+        <Alert variant="destructive" className="h-fit">
+          <TriangleAlertIcon />
+          <AlertTitle>The API reference could not be loaded</AlertTitle>
+          <AlertDescription className="font-mono text-xs">
+            {error}
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }
   if (!api) {
     return (
-      <div className="workspace">
-        <p className="api-loading muted">Loading the API reference…</p>
+      <div className="flex min-h-0 flex-1 items-start gap-2 p-6 text-sm text-muted-foreground">
+        <Spinner />
+        Loading the API reference…
       </div>
     );
   }
@@ -84,52 +103,72 @@ export function DocsRoute() {
     .filter((group) => group.members.length > 0);
 
   return (
-    <div className="workspace">
-      <nav aria-label="API members" className="sidebar api-nav">
-        <div className="api-filter">
-          <input
-            aria-label="Filter API members"
-            onChange={(e) => setFilter(e.target.value)}
-            placeholder="Filter…"
-            type="search"
-            value={filter}
-          />
+    <div className="flex min-h-0 flex-1">
+      <nav
+        aria-label="API members"
+        className="flex w-56 flex-none flex-col border-r bg-card"
+      >
+        <div className="flex-none border-b p-2">
+          <InputGroup>
+            <InputGroupAddon>
+              <SearchIcon />
+            </InputGroupAddon>
+            <InputGroupInput
+              aria-label="Filter API members"
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="Filter…"
+              type="search"
+              value={filter}
+            />
+          </InputGroup>
         </div>
-        <div className="panel">
+        <div className="min-h-0 flex-1 overflow-y-auto pb-2">
           {groups.map((group) => (
             <section key={group.title}>
-              <h3>{group.title}</h3>
+              <h3 className="px-2.5 pt-3 pb-1 text-xs font-medium tracking-wider text-muted-foreground uppercase">
+                {group.title}
+              </h3>
               <ul>
                 {group.members.map((node) => (
                   <li key={node.id}>
-                    <a href={`#${node.name}`}>{node.name}</a>
+                    <a
+                      className="block border-l-2 border-transparent px-2.5 py-0.5 font-mono text-xs hover:border-primary hover:bg-muted"
+                      href={`#${node.name}`}
+                    >
+                      {node.name}
+                    </a>
                   </li>
                 ))}
               </ul>
             </section>
           ))}
           {groups.length === 0 && (
-            <p className="panel-note muted">No members match “{filter}”.</p>
+            <p className="border-b px-2.5 py-2 text-xs text-muted-foreground">
+              No members match “{filter}”.
+            </p>
           )}
         </div>
       </nav>
 
-      <main className="api-content">
+      {/*
+       * Padded well past the last entry so a fragment jump can always put its target
+       * at the top of the viewport, rather than wherever the page happens to bottom
+       * out.
+       */}
+      <main className="min-w-0 flex-1 overflow-y-auto px-8 pt-6 pb-[60vh]">
         {/* The package README, which is also the npm landing page — so the
             quickstart a reader needs first is the same text a reader gets there,
             and neither can go stale while the other is updated. */}
-        <CommentBody
-          className="api-readme"
-          hrefFor={hrefFor}
-          parts={api.readme}
-        />
-        <p className="api-note muted">
+        <CommentBody hrefFor={hrefFor} parts={api.readme} variant="readme" />
+        <p className="mt-4 max-w-[74ch] text-xs text-muted-foreground">
           Everything below is generated from the package's doc comments. Every
           entry links to the line it is declared on.
         </p>
         {groups.map((group) => (
           <div key={group.title}>
-            <h2 className="api-group">{group.title}</h2>
+            <h2 className="mt-8 border-b pb-1.5 text-xs font-medium tracking-wider text-muted-foreground uppercase">
+              {group.title}
+            </h2>
             {group.members.map((node) => (
               <ApiMember hrefFor={hrefFor} key={node.id} node={node} />
             ))}

@@ -14,16 +14,21 @@
   "dependencies": {
     "@build-qube/papyra": "workspace:*",
     "@tanstack/react-router": "^1.170.32",
+    "@workspace/pdf-viewer": "workspace:*",
+    "@workspace/ui": "workspace:*",
+    "lucide-react": "^1.35.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.1.18",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",
     "coi-serviceworker": "0.1.7",
-    "pdfjs-dist": "^6.2.108",
     "papyra-docs-gen": "workspace:*",
+    "pdfjs-dist": "^6.2.108",
+    "tailwindcss": "^4.1.18",
     "typescript": "^7.0.2",
     "vite": "^6.0.7"
   }

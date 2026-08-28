@@ -1,0 +1,430 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry.json",
+  "name": "papyra",
+  "homepage": "https://buildqube.github.io/Papyra/",
+  "items": [
+    {
+      "name": "pdf-zoom",
+      "type": "registry:lib",
+      "title": "Zoom",
+      "description": "Zoom ladder, fit modes, and the page-box maths a viewer resolves them against.",
+      "dependencies": ["@build-qube/papyra@^0.2.0"],
+      "files": [{ "path": "src/lib/pdf-zoom.ts", "type": "registry:lib" }]
+    },
+    {
+      "name": "pdf-page-class",
+      "type": "registry:lib",
+      "title": "Page surface class",
+      "description": "The shared Tailwind classes a rendered page is painted with.",
+      "files": [{ "path": "src/lib/pdf-page-class.ts", "type": "registry:lib" }]
+    },
+    {
+      "name": "pdf-viewer-store",
+      "type": "registry:lib",
+      "title": "Viewer store",
+      "description": "A subscribable store for the open document, page, view mode and search results, sliced so a page change does not re-render every panel.",
+      "dependencies": ["@build-qube/papyra@^0.2.0"],
+      "registryDependencies": ["{{REGISTRY}}/pdf-zoom.json"],
+      "files": [
+        { "path": "src/lib/pdf-viewer-store.ts", "type": "registry:lib" }
+      ]
+    },
+    {
+      "name": "pdf-viewer-provider",
+      "type": "registry:component",
+      "title": "Viewer provider",
+      "description": "Puts a viewer store in scope. Mount it above your router so the document and its render cache survive navigation.",
+      "registryDependencies": ["{{REGISTRY}}/pdf-viewer-store.json"],
+      "files": [
+        {
+          "path": "src/components/pdf-viewer-provider.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
+      "name": "use-pdf-viewer",
+      "type": "registry:hook",
+      "title": "Viewer hooks",
+      "description": "Selector hooks over the viewer store — one subscription per slice, so a component re-renders only for the state it reads.",
+      "registryDependencies": [
+        "{{REGISTRY}}/pdf-viewer-provider.json",
+        "{{REGISTRY}}/pdf-viewer-store.json"
+      ],
+      "files": [
+        { "path": "src/hooks/use-pdf-viewer.ts", "type": "registry:hook" }
+      ]
+    },
+    {
+      "name": "use-pdf-zoom",
+      "type": "registry:hook",
+      "title": "Zoom controller",
+      "description": "Wheel, pinch and keyboard zoom bound to a scroll container, with the settled scale committed separately from the one the layout follows.",
+      "dependencies": ["@build-qube/papyra@^0.2.0"],
+      "registryDependencies": ["{{REGISTRY}}/pdf-zoom.json"],
+      "files": [
+        { "path": "src/hooks/use-pdf-zoom.ts", "type": "registry:hook" }
+      ]
+    },
+    {
+      "name": "use-pdf-page-labels",
+      "type": "registry:hook",
+      "title": "Page labels",
+      "description": "The labels a document prints on its pages, when they differ from the index.",
+      "dependencies": ["@build-qube/papyra@^0.2.0"],
+      "files": [
+        {
+          "path": "src/hooks/use-pdf-page-labels.ts",
+          "type": "registry:hook"
+        }
+      ]
+    },
+    {
+      "name": "pdf-isolation-guard",
+      "type": "registry:component",
+      "title": "Isolation guard",
+      "description": "Refuses to render a viewer on a page that is not cross-origin isolated, and names the two headers that fix it.",
+      "dependencies": ["lucide-react"],
+      "registryDependencies": ["alert"],
+      "files": [
+        {
+          "path": "src/components/pdf-isolation-guard.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
+      "name": "pdf-viewer-layout",
+      "type": "registry:component",
+      "title": "Viewer layout",
+      "description": "The frame a viewer sits in: sidebar, toolbar, status line and a native scroll area the zoom gestures can bind to.",
+      "dependencies": ["@build-qube/papyra@^0.2.0"],
+      "registryDependencies": [
+        "{{REGISTRY}}/pdf-sidebar.json",
+        "{{REGISTRY}}/use-pdf-viewer.json"
+      ],
+      "files": [
+        {
+          "path": "src/components/pdf-viewer-layout.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
+      "name": "pdf-viewer",
+      "type": "registry:block",
+      "title": "PDF viewer",
+      "description": "A complete viewer: sidebar, toolbar and a continuous scrolling column. Give it an open document and it works.",
+      "dependencies": ["@build-qube/papyra@^0.2.0"],
+      "registryDependencies": [
+        "{{REGISTRY}}/pdf-continuous-pages.json",
+        "{{REGISTRY}}/pdf-isolation-guard.json",
+        "{{REGISTRY}}/pdf-viewer-layout.json",
+        "{{REGISTRY}}/pdf-viewer-provider.json",
+        "{{REGISTRY}}/pdf-zoom-bar.json",
+        "{{REGISTRY}}/use-pdf-page-labels.json",
+        "{{REGISTRY}}/use-pdf-viewer.json",
+        "{{REGISTRY}}/use-pdf-zoom.json"
+      ],
+      "files": [
+        { "path": "src/components/pdf-viewer.tsx", "type": "registry:block" }
+      ]
+    },
+    {
+      "name": "pdf-viewer-basic",
+      "type": "registry:block",
+      "title": "Basic PDF viewer",
+      "description": "One page at a time with a pager and zoom. The viewer to embed in a panel or a modal, where the full one would be more furniture than document.",
+      "dependencies": ["@build-qube/papyra@^0.2.0"],
+      "registryDependencies": [
+        "{{REGISTRY}}/pdf-isolation-guard.json",
+        "{{REGISTRY}}/pdf-page-class.json",
+        "{{REGISTRY}}/pdf-page-view.json",
+        "{{REGISTRY}}/pdf-zoom-bar.json",
+        "{{REGISTRY}}/use-pdf-page-labels.json",
+        "{{REGISTRY}}/use-pdf-zoom.json"
+      ],
+      "files": [
+        {
+          "path": "src/components/pdf-viewer-basic.tsx",
+          "type": "registry:block"
+        }
+      ]
+    },
+    {
+      "name": "pdf-page-preview",
+      "type": "registry:block",
+      "title": "Page preview",
+      "description": "One page, rendered once, with nothing to interact with — for the places a PDF is a picture rather than a document.",
+      "dependencies": ["@build-qube/papyra@^0.2.0"],
+      "registryDependencies": [
+        "skeleton",
+        "{{REGISTRY}}/pdf-isolation-guard.json",
+        "{{REGISTRY}}/pdf-page-canvas.json"
+      ],
+      "files": [
+        {
+          "path": "src/components/pdf-page-preview.tsx",
+          "type": "registry:block"
+        }
+      ]
+    },
+    {
+      "name": "pdf-thumbnail-picker",
+      "type": "registry:block",
+      "title": "Thumbnail picker",
+      "description": "Pick a page out of a document: a streaming grid of thumbnails, controlled or not.",
+      "dependencies": ["@build-qube/papyra@^0.2.0"],
+      "registryDependencies": [
+        "{{REGISTRY}}/pdf-isolation-guard.json",
+        "{{REGISTRY}}/pdf-thumbnails.json"
+      ],
+      "files": [
+        {
+          "path": "src/components/pdf-thumbnail-picker.tsx",
+          "type": "registry:block"
+        }
+      ]
+    },
+    {
+      "name": "pdf-preview-dialog",
+      "type": "registry:block",
+      "title": "Preview dialog",
+      "description": "A document in a dialog, for previewing an attachment without leaving the page.",
+      "dependencies": ["@build-qube/papyra@^0.2.0"],
+      "registryDependencies": ["dialog", "{{REGISTRY}}/pdf-viewer-basic.json"],
+      "files": [
+        {
+          "path": "src/components/pdf-preview-dialog.tsx",
+          "type": "registry:block"
+        }
+      ]
+    },
+    {
+      "name": "pdf-page-canvas",
+      "type": "registry:component",
+      "title": "Page canvas",
+      "description": "A declarative canvas for small bitmaps, such as thumbnails.",
+      "dependencies": ["@build-qube/papyra@^0.2.0"],
+      "files": [
+        {
+          "path": "src/components/pdf-page-canvas.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
+      "name": "pdf-page-view",
+      "type": "registry:component",
+      "title": "Page view",
+      "description": "The main viewport canvas, painted imperatively so a multi-megabyte page never passes through React state.",
+      "dependencies": ["@build-qube/papyra@^0.2.0"],
+      "files": [
+        {
+          "path": "src/components/pdf-page-view.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
+      "name": "pdf-page-image-view",
+      "type": "registry:component",
+      "title": "Page image view",
+      "description": "The encoded-image path: an <img> fed from an encoded page, with a correctly sized placeholder until it decodes.",
+      "files": [
+        {
+          "path": "src/components/pdf-page-image-view.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
+      "name": "pdf-links",
+      "type": "registry:component",
+      "title": "Link layer",
+      "description": "Hit regions over a page for its link annotations, invisible until hovered.",
+      "dependencies": ["@build-qube/papyra@^0.2.0"],
+      "files": [
+        { "path": "src/components/pdf-links.tsx", "type": "registry:component" }
+      ]
+    },
+    {
+      "name": "pdf-highlights",
+      "type": "registry:component",
+      "title": "Search highlights",
+      "description": "An SVG overlay drawing search hits as quadrilaterals at the text's own angle.",
+      "dependencies": ["@build-qube/papyra@^0.2.0"],
+      "files": [
+        {
+          "path": "src/components/pdf-highlights.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
+      "name": "pdf-page-surface",
+      "type": "registry:component",
+      "title": "Page surface",
+      "description": "One page in a scrolling column: its canvas, its link layer and its highlights, rendered at a priority the caller sets.",
+      "dependencies": ["@build-qube/papyra@^0.2.0"],
+      "registryDependencies": [
+        "{{REGISTRY}}/pdf-highlights.json",
+        "{{REGISTRY}}/pdf-links.json"
+      ],
+      "files": [
+        {
+          "path": "src/components/pdf-page-surface.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
+      "name": "pdf-continuous-pages",
+      "type": "registry:component",
+      "title": "Continuous pages",
+      "description": "A windowed scrolling column of pages, sized from pageSize() so the column can be scrolled to the end before anything has rendered.",
+      "dependencies": ["@build-qube/papyra@^0.2.0"],
+      "registryDependencies": [
+        "{{REGISTRY}}/pdf-page-surface.json",
+        "{{REGISTRY}}/pdf-zoom.json",
+        "{{REGISTRY}}/use-pdf-zoom.json"
+      ],
+      "files": [
+        {
+          "path": "src/components/pdf-continuous-pages.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
+      "name": "pdf-thumbnails",
+      "type": "registry:component",
+      "title": "Thumbnails",
+      "description": "A streaming thumbnail strip, sized by output width rather than DPI so a large-format drawing cannot exhaust the tab.",
+      "dependencies": ["@build-qube/papyra@^0.2.0"],
+      "registryDependencies": [
+        "button",
+        "skeleton",
+        "{{REGISTRY}}/pdf-page-canvas.json",
+        "{{REGISTRY}}/use-pdf-page-labels.json"
+      ],
+      "files": [
+        {
+          "path": "src/components/pdf-thumbnails.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
+      "name": "pdf-outline",
+      "type": "registry:component",
+      "title": "Outline",
+      "description": "The document outline as a collapsible tree, opening each node as the document asks.",
+      "dependencies": ["@build-qube/papyra@^0.2.0", "lucide-react"],
+      "registryDependencies": [
+        "alert",
+        "button",
+        "collapsible",
+        "empty",
+        "spinner"
+      ],
+      "files": [
+        {
+          "path": "src/components/pdf-outline.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
+      "name": "pdf-search",
+      "type": "registry:component",
+      "title": "Search",
+      "description": "Full-text search over a document, run outward from the page on screen so the first result is usually the one wanted.",
+      "dependencies": ["@build-qube/papyra@^0.2.0", "lucide-react"],
+      "registryDependencies": [
+        "badge",
+        "button",
+        "input-group",
+        "item",
+        "spinner",
+        "tooltip"
+      ],
+      "files": [
+        {
+          "path": "src/components/pdf-search.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
+      "name": "pdf-sidebar",
+      "type": "registry:component",
+      "title": "Viewer sidebar",
+      "description": "Pages, outline and search in one column, every panel kept mounted so a tab change does not discard a thumbnail stream or a result set.",
+      "dependencies": ["@build-qube/papyra@^0.2.0"],
+      "registryDependencies": [
+        "badge",
+        "tabs",
+        "{{REGISTRY}}/pdf-outline.json",
+        "{{REGISTRY}}/pdf-search.json",
+        "{{REGISTRY}}/pdf-thumbnails.json"
+      ],
+      "files": [
+        {
+          "path": "src/components/pdf-sidebar.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
+      "name": "pdf-zoom-bar",
+      "type": "registry:component",
+      "title": "Zoom bar",
+      "description": "Pager, zoom steppers, fit-mode select and a single/continuous toggle for a viewer toolbar.",
+      "dependencies": ["lucide-react"],
+      "registryDependencies": [
+        "badge",
+        "button",
+        "button-group",
+        "input-group",
+        "kbd",
+        "select",
+        "toggle-group",
+        "{{REGISTRY}}/pdf-zoom.json"
+      ],
+      "files": [
+        {
+          "path": "src/components/pdf-zoom-bar.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
+      "name": "pdf-properties",
+      "type": "registry:component",
+      "title": "Document properties",
+      "description": "The metadata dialog every viewer has: file, title, dates, producer, page size and a content fingerprint.",
+      "dependencies": ["@build-qube/papyra@^0.2.0"],
+      "registryDependencies": ["dialog"],
+      "files": [
+        {
+          "path": "src/components/pdf-properties.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
+      "name": "pdf-password-prompt",
+      "type": "registry:component",
+      "title": "Password prompt",
+      "description": "One form that either asks for a password cold or says the last answer was wrong.",
+      "registryDependencies": ["button", "card", "field", "input"],
+      "files": [
+        {
+          "path": "src/components/pdf-password-prompt.tsx",
+          "type": "registry:component"
+        }
+      ]
+    }
+  ]
+}

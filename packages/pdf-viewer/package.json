@@ -1,0 +1,36 @@
+{
+  "name": "@workspace/pdf-viewer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:registry": "bun run scripts/build-registry.ts",
+    "typecheck": "tsc --noEmit",
+    "test:integration": "bun test test/integration",
+    "clean": "rm -rf .turbo registry.generated.json ../../apps/demo/public/r *.tsbuildinfo"
+  },
+  "exports": {
+    "./components/*": "./src/components/*.tsx",
+    "./lib/*": "./src/lib/*.ts",
+    "./hooks/*": "./src/hooks/*.ts"
+  },
+  "dependencies": {
+    "@build-qube/papyra": "workspace:*",
+    "@workspace/ui": "workspace:*",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.35.0",
+    "tailwind-merge": "^3.6.0"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^7.0.2"
+  }
+}
