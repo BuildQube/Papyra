@@ -5,9 +5,14 @@
  * page-shaped content, which is why it is papyra's default. JPEG should win on scanned
  * or photographic pages and lose badly on line art.
  *
+ * SVG is reported apart from the table on purpose. Its cost is a whole-page conversion
+ * rather than an encode of pixels already rendered, and its size does not move with
+ * DPI at all, so putting it in a column beside the three raster encoders would compare
+ * two different things.
+ *
  * Usage: bun run encode [--dpi 150] [--rounds 3]
  */
-import { type EncodedFormat, open } from '@build-qube/papyra';
+import { open, type RasterFormat } from '@build-qube/papyra';
 import { loadCorpus } from './corpus.js';
 
 const arg = (name: string, fallback: number): number => {
@@ -18,13 +23,16 @@ const arg = (name: string, fallback: number): number => {
 
 const DPI = arg('dpi', 150);
 const ROUNDS = arg('rounds', 3);
-const FORMATS: readonly EncodedFormat[] = ['webp', 'png', 'jpeg'];
+const FORMATS: readonly RasterFormat[] = ['webp', 'png', 'jpeg'];
 
 interface Row {
   name: string;
   raw: number;
-  bytes: Record<EncodedFormat, number>;
-  ms: Record<EncodedFormat, number>;
+  bytes: Record<RasterFormat, number>;
+  ms: Record<RasterFormat, number>;
+  /** Vector output: markup bytes and the conversion that produced them. */
+  svgBytes: number;
+  svgMs: number;
 }
 
 const rows: Row[] = [];
@@ -34,8 +42,8 @@ for (const { name, bytes } of loadCorpus(['pr6531_1.pdf'])) {
   const doc = await open(bytes);
   const img = await doc.renderImage(0, { dpi: DPI });
 
-  const size = {} as Record<EncodedFormat, number>;
-  const time = {} as Record<EncodedFormat, number>;
+  const size = {} as Record<RasterFormat, number>;
+  const time = {} as Record<RasterFormat, number>;
 
   for (const format of FORMATS) {
     // Best-of, same as the throughput bench: we want the encoder's cost, not the
@@ -52,7 +60,23 @@ for (const { name, bytes } of loadCorpus(['pr6531_1.pdf'])) {
     time[format] = ms;
   }
 
-  rows.push({ name, raw: img.byteLength, bytes: size, ms: time });
+  let svgMs = Number.POSITIVE_INFINITY;
+  let svgBytes = 0;
+  for (let i = 0; i < ROUNDS; i++) {
+    const t = performance.now();
+    const svg = await doc.renderSvg(0);
+    svgMs = Math.min(svgMs, performance.now() - t);
+    svgBytes = svg.bytes.length;
+  }
+
+  rows.push({
+    name,
+    raw: img.byteLength,
+    bytes: size,
+    ms: time,
+    svgBytes,
+    svgMs,
+  });
 }
 
 const kb = (n: number) => `${(n / 1024).toFixed(0)}KB`;
@@ -91,3 +115,17 @@ for (const f of FORMATS) {
       `${ms.toFixed(0)}ms total`,
   );
 }
+
+const svgTotal = total((r) => r.svgBytes);
+const webpTotal = total((r) => r.bytes.webp);
+const vsWebp = svgTotal / webpTotal;
+console.log(
+  `\n  ${'svg'.padEnd(5)} ${kb(svgTotal).padStart(9)}  ` +
+    `${vsWebp.toFixed(2)}x ${vsWebp >= 1 ? 'larger' : 'smaller'} than WebP at ${DPI} DPI, ` +
+    `${total((r) => r.svgMs).toFixed(0)}ms total`,
+);
+console.log(
+  '\n  Not a like-for-like row. That time is a whole-page conversion, not an encode of\n' +
+    '  pixels already rendered; and the size does not move with DPI, so every doubling\n' +
+    '  of the raster shifts the comparison in SVG favour.',
+);

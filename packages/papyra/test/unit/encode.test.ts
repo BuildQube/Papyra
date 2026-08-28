@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { encodedImage, mimeType } from '../../src/encoded.js';
+import { encodedImage, mimeType, svgPage } from '../../src/encoded.js';
 
 /** Stand-in for encoder output. The bytes never need to be a real image here. */
 const bytes = new Uint8Array([0xde, 0xad, 0xbe, 0xef]);
@@ -9,6 +9,7 @@ describe('mimeType', () => {
     expect(mimeType('webp')).toBe('image/webp');
     expect(mimeType('png')).toBe('image/png');
     expect(mimeType('jpeg')).toBe('image/jpeg');
+    expect(mimeType('svg')).toBe('image/svg+xml');
   });
 });
 
@@ -61,6 +62,50 @@ describe('encodedImage', () => {
 
   test('toBlobUrl produces a revocable object URL', () => {
     const url = encodedImage(bytes, 'webp').toBlobUrl();
+    expect(url).toStartWith('blob:');
+    URL.revokeObjectURL(url);
+  });
+});
+
+describe('svgPage', () => {
+  const markup = '<svg viewBox="0 0 612 792"><path d="M0,0"/></svg>';
+
+  test('keeps the markup readable, which is the usual thing to want', () => {
+    const page = svgPage(markup);
+    expect(page.markup).toBe(markup);
+    expect(page.format).toBe('svg');
+    expect(page.mime).toBe('image/svg+xml');
+  });
+
+  test('bytes are UTF-8, and computed once', () => {
+    const page = svgPage(markup);
+    expect(new TextDecoder().decode(page.bytes)).toBe(markup);
+    expect(page.bytes).toBe(page.bytes);
+  });
+
+  /**
+   * SVG is text, so a non-ASCII glyph name or `<title>` costs more bytes than
+   * characters. Taking `markup.length` for the payload size would under-report it.
+   */
+  test('bytes count UTF-8 length, not characters', () => {
+    const page = svgPage('<svg><title>café — “x”</title></svg>');
+    expect(page.bytes.length).toBeGreaterThan(page.markup.length);
+  });
+
+  test('toDataUrl base64-encodes behind the svg mime type', () => {
+    const url = svgPage(markup).toDataUrl();
+    expect(url).toStartWith('data:image/svg+xml;base64,');
+    expect(atob(url.slice('data:image/svg+xml;base64,'.length))).toBe(markup);
+  });
+
+  test('toBlob carries the mime type an <img> needs to render it', () => {
+    const blob = svgPage(markup).toBlob();
+    expect(blob.type).toBe('image/svg+xml');
+    expect(blob.size).toBe(markup.length);
+  });
+
+  test('toBlobUrl produces a revocable object URL', () => {
+    const url = svgPage(markup).toBlobUrl();
     expect(url).toStartWith('blob:');
     URL.revokeObjectURL(url);
   });

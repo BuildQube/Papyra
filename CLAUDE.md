@@ -120,6 +120,12 @@ Five features beyond rendering follow the same split:
   since a C codec would put a toolchain in the middle of the wasm build — so WebP is
   lossless VP8L only and there is no AVIF. `image` is already in the tree via hayro, so
   `jpeg` costs no new crates and `webp` costs three tiny ones.
+- **SVG.** Deliberately *not* in `papyra-encode`: it is not an encoding of a bitmap but a
+  second interpretation of the page, so it lives on the `Document` trait as `page_svg`
+  and is implemented in `papyra-hayro` over `hayro-svg`. That is why `EncodeOptions.format`
+  takes `RasterFormat` (`webp`/`png`/`jpeg`) while `EncodedFormat` also includes `'svg'` —
+  `PageImage` holds pixels and can never produce one. `hayro-svg` needs the same
+  `embed-fonts` default feature as `hayro`, for the same reason.
 - **Text and search.** `crates/papyra-hayro/src/text.rs` implements
   `hayro_interpret::Device` and collects glyphs, which is how encodings, `ToUnicode`
   cmaps, CID and Type3 fonts, and the graphics-state transform all arrive already

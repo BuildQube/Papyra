@@ -15,6 +15,9 @@ papyra-core = { workspace = true }
 # would silently empty those pages rather than fail to build.
 hayro = { workspace = true }
 hayro-interpret = { workspace = true }
+# Same `embed-fonts` default-feature story as `hayro` above: SVG output draws the
+# standard 14 as outlines, and without it a non-embedding page converts to nothing.
+hayro-svg = { workspace = true }
 hayro-syntax = { workspace = true }
 bytemuck = { workspace = true }
 kurbo = { workspace = true }

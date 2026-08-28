@@ -75,7 +75,9 @@ for (const node of await doc.outline()) {
 ```
 
 `renderImage` keeps the pixels in Rust and encodes on demand, so nothing but the
-finished file crosses into JS.
+finished file crosses into JS. For output that has to survive being scaled there is
+`doc.renderSvg(0)`, which returns vector markup instead of pixels and so takes no
+size and no quality.
 
 ## Links, labels, and what the file says about itself
 
