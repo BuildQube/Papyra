@@ -119,13 +119,40 @@ export default defineConfig({
   base: process.env.PAPYRA_BASE ?? '/',
   plugins: [react(), tailwindcss(), perfSink, coiServiceWorker, spaFallback],
   resolve: {
-    alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
-      // In the published package `browser.js` re-exports the per-platform wasm
-      // package. In the monorepo that package does not exist until release, so point
-      // at the generated glue directly.
-      '@build-qube/papyra-native-wasm32-wasi': `${bindings}/papyra.wasi-browser.js`,
-    },
+    /*
+     * `@/` means the registry package, not this app — the files in
+     * `packages/pdf-viewer` are byte-identical to what `shadcn add` installs, and the
+     * only import forms that CLI rewrites are these canonical aliases. Vite matches
+     * this array in order, so the two `@/components/ui` and `@/lib/utils` entries
+     * must precede the broader ones.
+     */
+    alias: [
+      {
+        find: /^@\/components\/ui\//,
+        replacement: fileURLToPath(
+          new URL('../../packages/ui/src/components/', import.meta.url),
+        ),
+      },
+      {
+        find: '@/lib/utils',
+        replacement: fileURLToPath(
+          new URL('../../packages/ui/src/lib/utils', import.meta.url),
+        ),
+      },
+      {
+        find: /^@\/(components|hooks|lib)\//,
+        replacement: fileURLToPath(
+          new URL('../../packages/pdf-viewer/src/$1/', import.meta.url),
+        ),
+      },
+      {
+        // In the published package `browser.js` re-exports the per-platform wasm
+        // package. In the monorepo that package does not exist until release, so point
+        // at the generated glue directly.
+        find: '@build-qube/papyra-native-wasm32-wasi',
+        replacement: `${bindings}/papyra.wasi-browser.js`,
+      },
+    ],
   },
   // The glue loads the .wasm via `new URL(..., import.meta.url)`; leave it alone.
   optimizeDeps: {

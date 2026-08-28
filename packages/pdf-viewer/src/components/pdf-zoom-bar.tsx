@@ -1,13 +1,19 @@
-import { Badge } from '@workspace/ui/components/badge';
-import { Button } from '@workspace/ui/components/button';
-import { ButtonGroup } from '@workspace/ui/components/button-group';
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  MinusIcon,
+  PlusIcon,
+} from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { ButtonGroup } from '@/components/ui/button-group';
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
   InputGroupText,
-} from '@workspace/ui/components/input-group';
-import { Kbd } from '@workspace/ui/components/kbd';
+} from '@/components/ui/input-group';
+import { Kbd } from '@/components/ui/kbd';
 import {
   Select,
   SelectContent,
@@ -17,18 +23,8 @@ import {
   SelectSeparator,
   SelectTrigger,
   SelectValue,
-} from '@workspace/ui/components/select';
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from '@workspace/ui/components/toggle-group';
-import { cn } from '@workspace/ui/lib/utils';
-import {
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  MinusIcon,
-  PlusIcon,
-} from 'lucide-react';
+} from '@/components/ui/select';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
   FIT_MODES,
   formatZoom,
@@ -37,7 +33,8 @@ import {
   MIN_ZOOM,
   ZOOM_STEPS,
   type ZoomSpec,
-} from '../lib/zoom.js';
+} from '@/lib/pdf-zoom';
+import { cn } from '@/lib/utils';
 
 export type ViewMode = 'page' | 'scroll';
 

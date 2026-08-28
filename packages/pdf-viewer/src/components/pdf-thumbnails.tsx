@@ -1,9 +1,9 @@
 import type { Document, RenderedPage } from '@build-qube/papyra';
-import { Button } from '@workspace/ui/components/button';
-import { Skeleton } from '@workspace/ui/components/skeleton';
 import { useEffect, useState } from 'react';
-import { pageLabel, usePageLabels } from '../lib/usePageLabels.js';
-import { PageCanvas } from './PageCanvas.js';
+import { PageCanvas } from '@/components/pdf-page-canvas';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { pageLabel, usePageLabels } from '@/hooks/use-pdf-page-labels';
 
 interface Props {
   doc: Document;

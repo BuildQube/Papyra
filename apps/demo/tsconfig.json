@@ -6,8 +6,13 @@
     "noEmit": true,
     "types": ["vite/client"],
     "paths": {
-      "@/*": ["./src/*"],
-      "@workspace/ui/*": ["../../packages/ui/src/*"]
+      "@/components/ui/*": ["../../packages/ui/src/components/*"],
+      "@/lib/utils": ["../../packages/ui/src/lib/utils"],
+      "@/components/*": ["../../packages/pdf-viewer/src/components/*"],
+      "@/hooks/*": ["../../packages/pdf-viewer/src/hooks/*"],
+      "@/lib/*": ["../../packages/pdf-viewer/src/lib/*"],
+      "@workspace/ui/*": ["../../packages/ui/src/*"],
+      "@workspace/pdf-viewer/*": ["../../packages/pdf-viewer/src/*"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"]

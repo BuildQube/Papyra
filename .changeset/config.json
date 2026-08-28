@@ -7,5 +7,10 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": ["papyra-demo", "papyra-bench", "@workspace/ui"]
+  "ignore": [
+    "papyra-demo",
+    "papyra-bench",
+    "@workspace/ui",
+    "@workspace/pdf-viewer"
+  ]
 }

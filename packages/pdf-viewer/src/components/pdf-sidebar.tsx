@@ -1,15 +1,10 @@
 import type { Document, SearchMatch } from '@build-qube/papyra';
-import { Badge } from '@workspace/ui/components/badge';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@workspace/ui/components/tabs';
 import { useEffect, useState } from 'react';
-import { Outline } from './Outline.js';
-import { Search } from './Search.js';
-import { Thumbnails } from './Thumbnails.js';
+import { Outline } from '@/components/pdf-outline';
+import { Search } from '@/components/pdf-search';
+import { Thumbnails } from '@/components/pdf-thumbnails';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 type Tab = 'pages' | 'outline' | 'search';
 

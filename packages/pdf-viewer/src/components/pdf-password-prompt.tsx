@@ -1,4 +1,5 @@
-import { Button } from '@workspace/ui/components/button';
+import { useEffect, useId, useRef, useState } from 'react';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
@@ -6,10 +7,9 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@workspace/ui/components/card';
-import { Field, FieldGroup, FieldLabel } from '@workspace/ui/components/field';
-import { Input } from '@workspace/ui/components/input';
-import { useEffect, useId, useRef, useState } from 'react';
+} from '@/components/ui/card';
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
 
 interface Props {
   name: string;

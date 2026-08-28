@@ -4,7 +4,7 @@ import {
   createRoute,
   createRouter,
 } from '@tanstack/react-router';
-import { parseZoom, type ZoomSpec } from './lib/zoom.js';
+import { parseZoom, type ZoomSpec } from '@workspace/pdf-viewer/lib/pdf-zoom';
 import { BenchRoute } from './routes/bench.js';
 import { DocsRoute } from './routes/docs.js';
 import { ExportRoute } from './routes/export.js';

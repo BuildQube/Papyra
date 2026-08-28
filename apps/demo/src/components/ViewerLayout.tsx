@@ -1,7 +1,7 @@
+import { Sidebar } from '@workspace/pdf-viewer/components/pdf-sidebar';
 import type { ReactNode, RefObject } from 'react';
 import { useDocument } from '../lib/documentContext.js';
 import { usePage } from '../lib/usePage.js';
-import { Sidebar } from './Sidebar.js';
 
 interface Props {
   /** Page and zoom controls. Pinned above the scroll area, as in any viewer. */

@@ -5,8 +5,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@workspace/ui/components/dialog';
-import { cn } from '@workspace/ui/lib/utils';
+} from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 
 interface Props {
   doc: Document;

@@ -96,6 +96,21 @@ Four layers, each with a deliberate boundary:
    painting. Deliberately in TS so it works identically on both runtimes without
    doubling the Rust surface.
 
+`packages/pdf-viewer` (`@workspace/pdf-viewer`) is the viewer UI as a **shadcn
+registry**: private, unbuilt, depending on `@workspace/ui` and `@build-qube/papyra`.
+Three things about it are not negotiable, and all three were established against the
+real CLI rather than guessed — see `packages/pdf-viewer/README.md`:
+
+- Files import through `@/components/ui/*`, `@/components/*`, `@/lib/*`,
+  `@/hooks/*` and `@/lib/utils`. `shadcn build` rewrites **nothing**, and `add`
+  rewrites only those forms, so a `@workspace/…` specifier ships verbatim into a
+  consumer and breaks. `@/` therefore means this package repo-wide; `apps/demo`
+  mirrors the mappings in its tsconfig and vite config, most specific first.
+- Filenames are flat and `pdf-`-prefixed, because `add` drops subdirectories.
+- `apps/demo/src/app.css` names both packages in `@source`. Tailwind's detection is
+  rooted at the CSS entry's package, so a class used only in this one is otherwise
+  never generated — silently, with a plausible stylesheet.
+
 `packages/ui` (`@workspace/ui`) sits outside that stack: it is the private home of
 every shadcn component, consumed as **source** rather than as a build artifact, so
 Tailwind v4's scanner can follow the import graph into it. `apps/demo` is built

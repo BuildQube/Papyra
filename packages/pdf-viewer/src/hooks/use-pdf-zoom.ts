@@ -15,7 +15,7 @@ import {
   type ZoomSpec,
   zoomIn,
   zoomOut,
-} from './zoom.js';
+} from '@/lib/pdf-zoom';
 
 /**
  * How long after the last gesture frame the pages are re-rasterised.

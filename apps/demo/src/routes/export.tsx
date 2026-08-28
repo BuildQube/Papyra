@@ -6,16 +6,16 @@ import type {
 } from '@build-qube/papyra';
 import { PageImage } from '@build-qube/papyra';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { cn } from '@workspace/ui/lib/utils';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ExportControls } from '../components/ExportControls.js';
 import {
   type PageImageHandle,
   PageImageView,
-} from '../components/PageImageView.js';
+} from '@workspace/pdf-viewer/components/pdf-page-image-view';
+import { PAGE } from '@workspace/pdf-viewer/lib/pdf-page-class';
+import { cn } from '@workspace/ui/lib/utils';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ExportControls } from '../components/ExportControls.js';
 import { ViewerLayout } from '../components/ViewerLayout.js';
 import { useDocument } from '../lib/documentContext.js';
-import { PAGE } from '../lib/pageClass.js';
 import { usePage } from '../lib/usePage.js';
 import { defaultViewWidth } from '../lib/width.js';
 

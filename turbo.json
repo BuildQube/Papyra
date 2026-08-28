@@ -53,7 +53,8 @@
         "components.json",
         "package.json",
         "public/**",
-        "../../packages/ui/src/**"
+        "../../packages/ui/src/**",
+        "../../packages/pdf-viewer/src/**"
       ],
       "outputs": ["dist/**"]
     },
@@ -61,7 +62,13 @@
     // cannot see from the default `typecheck` inputs.
     "papyra-demo#typecheck": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "*.ts", "*.tsx", "../../packages/ui/src/**"]
+      "inputs": [
+        "src/**",
+        "*.ts",
+        "*.tsx",
+        "../../packages/ui/src/**",
+        "../../packages/pdf-viewer/src/**"
+      ]
     },
     "dev": { "cache": false, "persistent": true },
     "test": {

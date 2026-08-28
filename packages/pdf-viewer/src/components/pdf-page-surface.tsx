@@ -4,10 +4,10 @@ import {
   type RenderHandle,
   type SearchMatch,
 } from '@build-qube/papyra';
-import { cn } from '@workspace/ui/lib/utils';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { Highlights } from './Highlights.js';
-import { Links } from './Links.js';
+import { Highlights } from '@/components/pdf-highlights';
+import { Links } from '@/components/pdf-links';
+import { cn } from '@/lib/utils';
 
 interface Props {
   doc: Document;

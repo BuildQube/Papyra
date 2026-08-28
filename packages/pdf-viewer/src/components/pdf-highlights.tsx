@@ -1,5 +1,5 @@
 import type { Quad, SearchMatch } from '@build-qube/papyra';
-import { cn } from '@workspace/ui/lib/utils';
+import { cn } from '@/lib/utils';
 
 interface Props {
   matches: readonly SearchMatch[];

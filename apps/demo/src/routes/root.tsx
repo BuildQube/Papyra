@@ -1,5 +1,7 @@
 import { backend, currentRuntime } from '@build-qube/papyra';
 import { Link, Outlet, useMatchRoute, useSearch } from '@tanstack/react-router';
+import { PasswordPrompt } from '@workspace/pdf-viewer/components/pdf-password-prompt';
+import { Properties } from '@workspace/pdf-viewer/components/pdf-properties';
 import {
   Alert,
   AlertDescription,
@@ -17,8 +19,6 @@ import {
 import { cn } from '@workspace/ui/lib/utils';
 import { FileUpIcon, TriangleAlertIcon, UploadIcon } from 'lucide-react';
 import { useState } from 'react';
-import { PasswordPrompt } from '../components/PasswordPrompt.js';
-import { Properties } from '../components/Properties.js';
 import { useDocument, useFileParam } from '../lib/documentContext.js';
 import { usePage } from '../lib/usePage.js';
 

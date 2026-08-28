@@ -1,30 +1,26 @@
 import type { Document, OutlineNode } from '@build-qube/papyra';
 import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from '@workspace/ui/components/alert';
-import { Button } from '@workspace/ui/components/button';
+  ChevronRightIcon,
+  ListTreeIcon,
+  TriangleAlertIcon,
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from '@workspace/ui/components/collapsible';
+} from '@/components/ui/collapsible';
 import {
   Empty,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from '@workspace/ui/components/empty';
-import { Spinner } from '@workspace/ui/components/spinner';
-import { cn } from '@workspace/ui/lib/utils';
-import {
-  ChevronRightIcon,
-  ListTreeIcon,
-  TriangleAlertIcon,
-} from 'lucide-react';
-import { useEffect, useState } from 'react';
+} from '@/components/ui/empty';
+import { Spinner } from '@/components/ui/spinner';
+import { cn } from '@/lib/utils';
 
 interface Props {
   doc: Document;

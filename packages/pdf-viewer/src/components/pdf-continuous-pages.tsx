@@ -9,9 +9,9 @@ import {
   useReducer,
   useRef,
 } from 'react';
-import type { ZoomAnchor } from '../lib/useZoom.js';
-import { CSS_UNITS, renderWidth } from '../lib/zoom.js';
-import { PageSurface } from './PageSurface.js';
+import { PageSurface } from '@/components/pdf-page-surface';
+import type { ZoomAnchor } from '@/hooks/use-pdf-zoom';
+import { CSS_UNITS, renderWidth } from '@/lib/pdf-zoom';
 
 /** Gap between pages, in CSS pixels. Fixed, so it does not balloon at 800%. */
 const GAP = 16;

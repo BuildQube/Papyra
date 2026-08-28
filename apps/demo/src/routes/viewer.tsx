@@ -1,5 +1,32 @@
 import type { Document } from '@build-qube/papyra';
 import { useNavigate, useSearch } from '@tanstack/react-router';
+import { ContinuousPages } from '@workspace/pdf-viewer/components/pdf-continuous-pages';
+import { Highlights } from '@workspace/pdf-viewer/components/pdf-highlights';
+import { Links } from '@workspace/pdf-viewer/components/pdf-links';
+import {
+  PageView,
+  type PageViewHandle,
+} from '@workspace/pdf-viewer/components/pdf-page-view';
+import {
+  type ViewMode,
+  ZoomBar,
+} from '@workspace/pdf-viewer/components/pdf-zoom-bar';
+import {
+  labelsDiffer,
+  pageLabel,
+  usePageLabels,
+} from '@workspace/pdf-viewer/hooks/use-pdf-page-labels';
+import {
+  useZoom,
+  type ZoomAnchor,
+} from '@workspace/pdf-viewer/hooks/use-pdf-zoom';
+import { PAGE } from '@workspace/pdf-viewer/lib/pdf-page-class';
+import {
+  formatZoom,
+  pageBox,
+  renderWidth,
+  type ZoomSpec,
+} from '@workspace/pdf-viewer/lib/pdf-zoom';
 import { cn } from '@workspace/ui/lib/utils';
 import {
   useCallback,
@@ -9,27 +36,9 @@ import {
   useRef,
   useState,
 } from 'react';
-import { ContinuousPages } from '../components/ContinuousPages.js';
-import { Highlights } from '../components/Highlights.js';
-import { Links } from '../components/Links.js';
-import { PageView, type PageViewHandle } from '../components/PageView.js';
 import { ViewerLayout } from '../components/ViewerLayout.js';
-import { type ViewMode, ZoomBar } from '../components/ZoomBar.js';
 import { useDocument } from '../lib/documentContext.js';
-import { PAGE } from '../lib/pageClass.js';
 import { usePage } from '../lib/usePage.js';
-import {
-  labelsDiffer,
-  pageLabel,
-  usePageLabels,
-} from '../lib/usePageLabels.js';
-import { useZoom, type ZoomAnchor } from '../lib/useZoom.js';
-import {
-  formatZoom,
-  pageBox,
-  renderWidth,
-  type ZoomSpec,
-} from '../lib/zoom.js';
 
 interface Timing {
   /** Queued behind other work before this render started. */

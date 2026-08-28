@@ -1,26 +1,26 @@
 import type { Document, SearchMatch } from '@build-qube/papyra';
-import { Badge } from '@workspace/ui/components/badge';
-import { Button } from '@workspace/ui/components/button';
+import { SearchIcon } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
-} from '@workspace/ui/components/input-group';
+} from '@/components/ui/input-group';
 import {
   Item,
   ItemContent,
   ItemDescription,
   ItemGroup,
   ItemMedia,
-} from '@workspace/ui/components/item';
-import { Spinner } from '@workspace/ui/components/spinner';
+} from '@/components/ui/item';
+import { Spinner } from '@/components/ui/spinner';
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from '@workspace/ui/components/tooltip';
-import { SearchIcon } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+} from '@/components/ui/tooltip';
 
 interface Props {
   doc: Document;
