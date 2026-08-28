@@ -120,8 +120,26 @@ export function useZoom(options: ZoomOptions): ZoomController {
   const [spec, setSpecState] = useState<ZoomSpec>(initial);
   const [box, setBox] = useState<Viewport>({ width: 0, height: 0 });
 
+  /**
+   * The viewport as state, not as `ref.current` read inside an effect.
+   *
+   * A ref object is stable, so an effect that reads `.current` and lists the ref in
+   * its dependencies runs exactly once — and if the element is not mounted yet, it
+   * bails and never runs again. Nothing binds, nothing measures, and the failure is
+   * silent: a viewer that renders perfectly and ignores every gesture. That happens
+   * whenever the scroll container appears a commit later than this hook, which is the
+   * normal shape for a viewer that waits on its document.
+   *
+   * No dependency array on purpose: this has to notice the element on whichever
+   * render it arrives, and it settles immediately because the state then matches.
+   */
+  const [viewport, setViewport] = useState<HTMLElement | null>(null);
   useEffect(() => {
-    const el = viewportRef.current;
+    if (viewportRef.current !== viewport) setViewport(viewportRef.current);
+  });
+
+  useEffect(() => {
+    const el = viewport;
     if (!el) return;
     const measure = () =>
       setBox((prev) => {
@@ -135,7 +153,7 @@ export function useZoom(options: ZoomOptions): ZoomController {
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [viewportRef, gutter]);
+  }, [viewport, gutter]);
 
   // Destructured because `pageSize()` hands back a fresh object every call, which as
   // a dependency would re-resolve the zoom on every render of the route.
@@ -226,7 +244,7 @@ export function useZoom(options: ZoomOptions): ZoomController {
 
   // --- gestures --------------------------------------------------------------------
   useEffect(() => {
-    const el = viewportRef.current;
+    const el = viewport;
     if (!el) return;
 
     /** Safari fires gesture events *and* wheel events; the wheel half is ignored. */
@@ -350,7 +368,7 @@ export function useZoom(options: ZoomOptions): ZoomController {
       el.removeEventListener('gestureend', onGestureEnd);
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [viewportRef, setSpec, stepIn, stepOut, centre]);
+  }, [viewport, setSpec, stepIn, stepOut, centre]);
 
   return {
     spec,
