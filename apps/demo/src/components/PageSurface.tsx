@@ -6,6 +6,7 @@ import {
 } from '@build-qube/papyra';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Highlights } from './Highlights.js';
+import { Links } from './Links.js';
 
 interface Props {
   doc: Document;
@@ -24,6 +25,8 @@ interface Props {
   matches: readonly SearchMatch[];
   active: SearchMatch | null;
   current: boolean;
+  /** Where an internal link goes. */
+  onSelect: (index: number) => void;
 }
 
 /**
@@ -51,6 +54,7 @@ export const PageSurface = memo(function PageSurface({
   matches,
   active,
   current,
+  onSelect,
 }: Props) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const job = useRef<RenderHandle | null>(null);
@@ -109,6 +113,14 @@ export const PageSurface = memo(function PageSurface({
         <div className={pending ? 'page-blank pending' : 'page-blank'}>
           {index + 1}
         </div>
+      )}
+      {painted && pageWidth > 0 && (
+        <Links
+          doc={doc}
+          index={index}
+          scale={width / pageWidth}
+          onSelect={onSelect}
+        />
       )}
       {painted && mine.length > 0 && pageWidth > 0 && (
         <Highlights

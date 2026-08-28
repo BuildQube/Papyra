@@ -71,8 +71,14 @@ const KINDS = new Set<string>([
   'FitBV',
 ]);
 
-/** napi omits absent numbers rather than nulling them; normalise to one shape. */
-function destination(
+/**
+ * napi omits absent numbers rather than nulling them; normalise to one shape.
+ *
+ * Shared with the link reader, whose targets resolve to the same destinations.
+ *
+ * @internal
+ */
+export function toDestination(
   dest: NativeDestination | undefined,
 ): OutlineDestination | null {
   if (!dest) return null;
@@ -104,7 +110,7 @@ export function buildOutlineTree(
   const stack: OutlineNode[] = [];
 
   for (const entry of entries) {
-    const dest = destination(entry.dest);
+    const dest = toDestination(entry.dest);
     const node: OutlineNode = {
       title: entry.title,
       dest,

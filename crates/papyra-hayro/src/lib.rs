@@ -1,19 +1,25 @@
 //! hayro-backed implementation of the papyra engine traits.
 
+mod dest;
 #[cfg(test)]
 mod fixtures;
+mod info;
+mod links;
 mod outline;
+mod strings;
 mod text;
 
+pub use info::{read_metadata, read_page_labels};
+pub use links::read_links;
 pub use outline::read_outline;
 pub use text::extract as extract_text;
 
 use hayro::{RenderCache, RenderSettings};
 use hayro_interpret::InterpreterSettings;
-use hayro_syntax::Pdf;
+use hayro_syntax::{DecryptionError, LoadPdfError, Pdf};
 use papyra_core::{
-  Bitmap, Document, Engine, OutlineItem, PageSize, PageText, PapyraError, PixelFormat,
-  RenderOptions, Result,
+  Bitmap, Document, Engine, Link, Metadata, OutlineItem, PageSize, PageText, PapyraError,
+  PixelFormat, RenderOptions, Result,
 };
 use rayon::prelude::*;
 
@@ -39,15 +45,34 @@ impl Engine for HayroEngine {
   }
 
   fn load(data: Vec<u8>) -> Result<Self::Doc> {
-    let pdf = Pdf::new(data).map_err(|e| PapyraError::Parse(format!("{e:?}")))?;
+    let pdf = Pdf::new(data).map_err(|e| load_error(e, false))?;
     Ok(HayroDocument { pdf })
+  }
+}
+
+/// Turn hayro's load failure into ours.
+///
+/// hayro reports `PasswordProtected` both when no password was supplied and when the
+/// supplied one was wrong — from inside the decryptor those are the same event. We
+/// know which it was, because we know whether we passed one, and the two need
+/// different responses from a viewer: one asks for a password, the other says the
+/// answer was wrong.
+fn load_error(error: LoadPdfError, had_password: bool) -> PapyraError {
+  match error {
+    LoadPdfError::Decryption(DecryptionError::PasswordProtected) if had_password => {
+      PapyraError::IncorrectPassword
+    }
+    LoadPdfError::Decryption(DecryptionError::PasswordProtected) => PapyraError::PasswordRequired,
+    other => PapyraError::Parse(format!("{other:?}")),
   }
 }
 
 impl HayroDocument {
   pub fn load_with_password(data: Vec<u8>, password: &str) -> Result<Self> {
+    // An empty password is what `Pdf::new` passes anyway, so it cannot be the reason
+    // a document opened — report it as no password rather than a wrong one.
     let pdf =
-      Pdf::new_with_password(data, password).map_err(|e| PapyraError::Parse(format!("{e:?}")))?;
+      Pdf::new_with_password(data, password).map_err(|e| load_error(e, !password.is_empty()))?;
     Ok(Self { pdf })
   }
 
@@ -188,6 +213,22 @@ impl Document for HayroDocument {
       &InterpreterSettings::default(),
       &svg_settings(opts),
     ))
+  }
+
+  fn metadata(&self) -> Metadata {
+    info::read_metadata(&self.pdf)
+  }
+
+  fn pdf_version(&self) -> Option<String> {
+    Some(info::version_string(self.pdf.version()))
+  }
+
+  fn page_links(&self, index: usize) -> Result<Vec<Link>> {
+    links::read_links(&self.pdf, index)
+  }
+
+  fn page_labels(&self) -> Vec<String> {
+    info::read_page_labels(&self.pdf)
   }
 
   fn render_page(&self, index: usize, opts: &RenderOptions) -> Result<Bitmap> {

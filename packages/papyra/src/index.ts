@@ -32,6 +32,12 @@ export {
   PageImage,
   svgPage,
 } from './encode.js';
+export {
+  IncorrectPasswordError,
+  PasswordError,
+  PasswordRequiredError,
+} from './errors.js';
+export type { LinkTarget, PageLink } from './links.js';
 export type {
   DestinationKind,
   OutlineDestination,
@@ -55,8 +61,10 @@ export {
   pageString,
   quadBounds,
   scaleQuad,
+  scaleRect,
 } from './text.js';
 export type {
+  DocumentMetadata,
   OpenOptions,
   PageSize,
   PdfSource,

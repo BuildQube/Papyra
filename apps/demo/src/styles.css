@@ -1026,3 +1026,153 @@ a.ty-ref:hover {
 .api-loading {
   padding: 24px 32px;
 }
+
+/* --- links, page labels, password, properties ---------------------------------- */
+
+/*
+ * The link layer sits above the canvas and below the highlight SVG. It does not take
+ * pointer events itself — only the hit regions inside it do — so dragging to select
+ * or panning the page still works everywhere a link is not.
+ */
+.links {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.link-hit {
+  position: absolute;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  pointer-events: auto;
+  cursor: pointer;
+  /* Invisible until asked for: a viewer should show the document, not our overlay. */
+  box-shadow: inset 0 0 0 1px transparent;
+  transition:
+    background-color 120ms ease,
+    box-shadow 120ms ease;
+}
+.link-hit:hover {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.link-hit:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Visible to a screen reader, not on screen — the region itself is the target. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.page-label {
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+button.ghost {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.file-name {
+  color: var(--muted);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+.file-name:hover {
+  color: var(--text);
+}
+
+.password {
+  display: grid;
+  place-items: center;
+  flex: 1;
+  padding: 48px;
+}
+.password form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(360px, 100%);
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+.password h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.password p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.password input {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+.password input[aria-invalid="true"] {
+  border-color: #e5534b;
+}
+.password-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.properties {
+  max-width: min(520px, calc(100vw - 32px));
+  padding: 20px 24px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--text);
+}
+.properties::backdrop {
+  background: rgb(0 0 0 / 0.55);
+}
+.properties h2 {
+  margin: 0 0 16px;
+  font-size: 16px;
+}
+.properties dl {
+  display: grid;
+  /* The label column sizes to its widest entry; the value takes the rest. */
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 8px 20px;
+  margin: 0 0 20px;
+}
+.properties dt {
+  color: var(--muted);
+}
+.properties dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.properties dd.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+}
+.properties form {
+  display: flex;
+  justify-content: flex-end;
+}

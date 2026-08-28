@@ -8,11 +8,22 @@ export interface Loaded {
   name: string;
 }
 
+/** A document that would not open without a password. */
+export interface PasswordRequest {
+  file: File;
+  /** A password was already tried and rejected — `PasswordError.retry`. */
+  retry: boolean;
+}
+
 export interface DocumentState {
   loaded: Loaded | null;
   error: string | null;
-  load: (file: File) => Promise<void>;
+  /** Pass a password to retry a document that asked for one. */
+  load: (file: File, password?: string) => Promise<void>;
   setError: (message: string | null) => void;
+  /** Set while a document is waiting on a password, cleared when it opens. */
+  password: PasswordRequest | null;
+  cancelPassword: () => void;
   /**
    * Search results live here, not in a route, for the same reason the document does:
    * running a search and then flipping to the export view should not discard it.
