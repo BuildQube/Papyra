@@ -1,6 +1,18 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+
+/*
+ * Tailwind's automatic source detection reaches this package and whichever app holds
+ * the entry, but no further — a class used only in `@workspace/pdf-viewer` is simply
+ * never generated, with no error and a stylesheet that looks entirely plausible.
+ * Moving the viewer components out of `apps/demo` cost `fill-[#ffd54a]`,
+ * `aspect-[1/1.414]` and all 54 `data-[active=true]` variants exactly that way.
+ *
+ * Ships nowhere: if this file ever becomes a `registry:style` item, this line points
+ * at a path the consumer does not have and has to go with it.
+ */
+@source "../../../pdf-viewer/src";
 @import "@fontsource-variable/geist";
 
 @custom-variant dark (&:is(.dark *));

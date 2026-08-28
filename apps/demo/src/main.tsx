@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { ThemeProvider } from './components/theme-provider.js';
 import { DocumentProvider } from './lib/document.js';
 import { router } from './router.js';
-import './app.css';
+import '@workspace/ui/globals.css';
 
 const el = document.getElementById('root');
 if (!el) throw new Error('missing #root');

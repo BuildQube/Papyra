@@ -48,6 +48,6 @@ bunx shadcn@latest add dialog -c packages/pdf-viewer
 
 ## Tailwind
 
-`apps/demo/src/app.css` names this package in an `@source`. Tailwind's automatic
-detection is rooted at the package holding the CSS entry, so without that line a
-class used only here is silently never generated.
+`packages/ui/src/styles/globals.css` names this package in an `@source`. Tailwind's
+automatic detection reaches that package and whichever app holds the CSS entry, but
+no further, so without that line a class used only here is silently never generated.

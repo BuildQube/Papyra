@@ -107,9 +107,10 @@ real CLI rather than guessed — see `packages/pdf-viewer/README.md`:
   consumer and breaks. `@/` therefore means this package repo-wide; `apps/demo`
   mirrors the mappings in its tsconfig and vite config, most specific first.
 - Filenames are flat and `pdf-`-prefixed, because `add` drops subdirectories.
-- `apps/demo/src/app.css` names both packages in `@source`. Tailwind's detection is
-  rooted at the CSS entry's package, so a class used only in this one is otherwise
-  never generated — silently, with a plausible stylesheet.
+- `globals.css` names this package in an `@source`. Tailwind's detection reaches
+  `packages/ui` and whichever app holds the CSS entry, but no further, so a class
+  used only here is otherwise never generated — silently, with a plausible
+  stylesheet.
 
 `packages/ui` (`@workspace/ui`) sits outside that stack: it is the private home of
 every shadcn component, consumed as **source** rather than as a build artifact, so
