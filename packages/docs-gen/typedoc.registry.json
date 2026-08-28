@@ -1,0 +1,27 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+
+  // Every file is its own entry point: registry items are installed one at a time, so
+  // the package has no index to walk from and inventing one for the docs would
+  // describe a module no consumer ever gets.
+  "entryPoints": ["../pdf-viewer/src"],
+  "entryPointStrategy": "expand",
+  "tsconfig": "../pdf-viewer/tsconfig.json",
+
+  "json": "../../apps/demo/public/papyra-registry-api.json",
+  "pretty": false,
+  "basePath": "../..",
+
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "excludeExternals": true,
+
+  // The same gate the wrapper's reference has: a prop with no TSDoc fails the build
+  // rather than rendering a blank cell in the props table.
+  "validation": {
+    "notExported": true,
+    "notDocumented": true,
+    "invalidLink": true
+  },
+  "treatValidationWarningsAsErrors": true
+}

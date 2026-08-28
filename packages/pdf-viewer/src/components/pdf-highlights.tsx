@@ -1,7 +1,9 @@
 import type { Quad, SearchMatch } from '@build-qube/papyra';
 import { cn } from '@/lib/utils';
 
-interface Props {
+/** Props for {@link Highlights}. */
+export interface HighlightsProps {
+  /** The matches on this page. */
   matches: readonly SearchMatch[];
   /** The match to draw as current, if it is on this page. */
   active: SearchMatch | null;
@@ -9,6 +11,7 @@ interface Props {
   scale: number;
   /** Size of the canvas the overlay sits on, in CSS pixels. */
   width: number;
+  /** Height of the canvas the overlay sits on, in CSS pixels. */
   height: number;
 }
 
@@ -19,7 +22,13 @@ interface Props {
  * drawing's rotated dimension labels get a box at their own angle, which an
  * axis-aligned rectangle would smear across everything nearby.
  */
-export function Highlights({ matches, active, scale, width, height }: Props) {
+export function Highlights({
+  matches,
+  active,
+  scale,
+  width,
+  height,
+}: HighlightsProps) {
   if (matches.length === 0) return null;
 
   return (

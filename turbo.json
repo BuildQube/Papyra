@@ -33,8 +33,16 @@
     // build and typecheck through `^build`, being a devDependency of the demo.
     "papyra-docs-gen#build": {
       "dependsOn": ["^build"],
-      "inputs": ["typedoc.json", "../papyra/src/**"],
-      "outputs": ["../../apps/demo/public/papyra-api.json"]
+      "inputs": [
+        "typedoc.json",
+        "typedoc.registry.json",
+        "../papyra/src/**",
+        "../pdf-viewer/src/**"
+      ],
+      "outputs": [
+        "../../apps/demo/public/papyra-api.json",
+        "../../apps/demo/public/papyra-registry-api.json"
+      ]
     },
     // The registry is built into the demo's `public/`, so it has to exist before
     // vite copies that directory. `PAPYRA_REGISTRY` is declared because it is baked

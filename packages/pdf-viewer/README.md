@@ -97,6 +97,23 @@ Run it against this package, not the app; the `ui` alias points back at
 bunx shadcn@latest add dialog -c packages/pdf-viewer
 ```
 
+## Props are documented, and the build enforces it
+
+Every component exports a named `*Props` interface — `OutlineProps`, `ZoomBarProps`
+and so on — and `packages/docs-gen` runs a second TypeDoc pass over this package into
+`apps/demo/public/papyra-registry-api.json`, which the demo's `/components` route
+renders as a props table.
+
+That config sets `treatValidationWarningsAsErrors`, so **a prop with no TSDoc fails
+the build**. Adding a component here means documenting its props; there is no way to
+ship one with a blank cell in the table. The initial pass had 91 such members.
+
+Every file is its own TypeDoc entry point (`entryPointStrategy: "expand"`) because
+registry items are installed one at a time and the package has no index to walk from.
+The consequence to know: a `{@link}` **across files** has no target, so cross-item
+references are written as plain code spans instead — which is also honest, since a
+consumer may have installed one item and not the other.
+
 ## Tailwind
 
 `packages/ui/src/styles/globals.css` names this package in an `@source`. Tailwind's

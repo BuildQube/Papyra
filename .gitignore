@@ -46,3 +46,4 @@ skills-lock.json
 .impeccable/
 apps/demo/public/r
 packages/pdf-viewer/registry.generated.json
+apps/demo/public/papyra-registry-api.json

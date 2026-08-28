@@ -20,6 +20,7 @@ export interface PdfViewerProviderProps extends PdfViewerStoreOptions {
    * React, to share it between two trees, or to seed it in a test.
    */
   store?: PdfViewerStore;
+  /** The tree that may read the store. */
   children: ReactNode;
 }
 

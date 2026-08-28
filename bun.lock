@@ -70,6 +70,7 @@
       "version": "0.0.0",
       "devDependencies": {
         "@build-qube/papyra": "workspace:*",
+        "@workspace/pdf-viewer": "workspace:*",
         "typedoc": "^0.28.20",
         "typescript": "5.9.3",
       },

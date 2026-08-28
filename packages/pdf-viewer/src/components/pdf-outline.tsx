@@ -22,9 +22,13 @@ import {
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 
-interface Props {
+/** Props for {@link Outline}. */
+export interface OutlineProps {
+  /** The open document. */
   doc: Document;
+  /** The page on screen, 0-based. Its row is marked selected. */
   current: number;
+  /** Called with a 0-based page index when the reader picks a page. */
   onSelect: (index: number) => void;
 }
 
@@ -38,7 +42,7 @@ const NOTE = 'border-b px-2.5 py-2 text-xs text-muted-foreground';
  * the difference between a usable table of contents and a wall of 400 sheet numbers
  * on a construction set.
  */
-export function Outline({ doc, current, onSelect }: Props) {
+export function Outline({ doc, current, onSelect }: OutlineProps) {
   const [tree, setTree] = useState<OutlineNode[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
@@ -125,7 +129,9 @@ function OutlineRow({
 }: {
   node: OutlineNode;
   depth: number;
+  /** The page on screen, 0-based. Its row is marked selected. */
   current: number;
+  /** Called with a 0-based page index when the reader picks a page. */
   onSelect: (index: number) => void;
 }) {
   const [open, setOpen] = useState(node.open);

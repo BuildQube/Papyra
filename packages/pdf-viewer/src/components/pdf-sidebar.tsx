@@ -8,13 +8,21 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 type Tab = 'pages' | 'outline' | 'search';
 
-interface Props {
+/** Props for {@link Sidebar}. */
+export interface SidebarProps {
+  /** The open document. */
   doc: Document;
+  /** The page on screen, 0-based. Its row is marked selected. */
   current: number;
+  /** Called with a 0-based page index when the reader picks a page. */
   onSelect: (index: number) => void;
+  /** Search results, lifted so the page overlay and this list agree. */
   matches: SearchMatch[];
+  /** Called as results stream in, and once more when the search settles. */
   onMatches: (matches: SearchMatch[]) => void;
+  /** The result shown as current. */
   active: SearchMatch | null;
+  /** Called when the highlighted match changes. */
   onActive: (match: SearchMatch | null) => void;
 }
 
@@ -35,7 +43,7 @@ export function Sidebar({
   onMatches,
   active,
   onActive,
-}: Props) {
+}: SidebarProps) {
   const [tab, setTab] = useState<Tab>('pages');
   const [hasOutline, setHasOutline] = useState<boolean | null>(null);
 

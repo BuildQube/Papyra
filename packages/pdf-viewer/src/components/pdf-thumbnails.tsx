@@ -5,9 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { pageLabel, usePageLabels } from '@/hooks/use-pdf-page-labels';
 
-interface Props {
+/** Props for {@link Thumbnails}. */
+export interface ThumbnailsProps {
+  /** The open document. */
   doc: Document;
+  /** The page on screen, 0-based. Its row is marked selected. */
   current: number;
+  /** Called with a 0-based page index when the reader picks a page. */
   onSelect: (index: number) => void;
 }
 
@@ -25,7 +29,7 @@ const THUMB_WIDTH = 160;
  * Streams thumbnails in, yielding each as it finishes rather than waiting for the
  * whole document. Rendering is abandoned if the document changes mid-stream.
  */
-export function Thumbnails({ doc, current, onSelect }: Props) {
+export function Thumbnails({ doc, current, onSelect }: ThumbnailsProps) {
   const [thumbs, setThumbs] = useState<Map<number, RenderedPage>>(new Map());
   const [elapsed, setElapsed] = useState<number | null>(null);
   const labels = usePageLabels(doc);

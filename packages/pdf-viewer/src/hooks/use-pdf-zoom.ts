@@ -49,10 +49,13 @@ const WHEEL_DIVISOR = 400;
  * expresses the point in terms that survive.
  */
 export interface ZoomAnchor {
+  /** Describe the point under these client coordinates, however this view must. */
   capture(clientX: number, clientY: number): unknown;
+  /** Put the point described by `token` back where it was, after a scale change. */
   restore(token: unknown): void;
 }
 
+/** Options for {@link useZoom}. */
 export interface ZoomOptions {
   /** The scrolling element gestures are bound to and scroll is corrected on. */
   viewport: RefObject<HTMLElement | null>;
@@ -60,6 +63,7 @@ export interface ZoomOptions {
   page: PageSize | null;
   /** Padding inside the viewport that content cannot use. */
   gutter?: number;
+  /** The zoom to start at. Defaults to `auto`. */
   initial?: ZoomSpec;
   /** Whichever view is mounted; used to keep a point under the cursor. */
   anchor?: RefObject<ZoomAnchor | null>;
@@ -67,6 +71,7 @@ export interface ZoomOptions {
   onCommit?: (spec: ZoomSpec) => void;
 }
 
+/** What {@link useZoom} returns: the current zoom, and the ways to change it. */
 export interface ZoomController {
   /** What the user asked for: a percentage or a fit mode. */
   spec: ZoomSpec;
@@ -76,8 +81,14 @@ export interface ZoomController {
   renderScale: number;
   /** True while the two disagree — i.e. what is on screen is a stretched bitmap. */
   settling: boolean;
+  /**
+   * Set the zoom. The optional client coordinates are the point to keep still —
+   * a cursor or the midpoint of a pinch.
+   */
   setSpec: (spec: ZoomSpec, clientX?: number, clientY?: number) => void;
+  /** One rung up the ladder, anchored on the viewport centre. */
   stepIn: () => void;
+  /** One rung down. */
   stepOut: () => void;
   /** Usable viewport size, so a view can size fit modes the same way. */
   viewport: Viewport;
@@ -90,6 +101,12 @@ interface SafariGestureEvent extends Event {
   readonly clientY: number;
 }
 
+/**
+ * Zoom for a scrolling viewport: wheel, pinch, keyboard, and the fit modes.
+ *
+ * The scale the layout follows and the scale renders are requested at are separate,
+ * so a gesture stays smooth while the queue only ever sees settled values.
+ */
 export function useZoom(options: ZoomOptions): ZoomController {
   const {
     viewport: viewportRef,

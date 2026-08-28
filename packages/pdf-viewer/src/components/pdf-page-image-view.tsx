@@ -1,31 +1,46 @@
 import { useEffect, useImperativeHandle, useRef } from 'react';
 
+/** What showing an encoded page cost, once it was actually on screen. */
+export interface DecodeTiming {
+  /** Time the browser spent decoding the encoded bytes. */
+  decodeMs: number;
+  /** Decode done until the compositor showed the frame. */
+  presentMs: number;
+}
+
+/**
+ * The imperative side of {@link PageImageView}.
+ *
+ * Same reason as `PageViewHandle`: the encoded bytes never pass through React
+ * state, and the decode is the browser's to schedule.
+ */
 export interface PageImageHandle {
   /**
    * Point the `<img>` at freshly encoded bytes and report when the browser has
    * actually decoded and presented them.
    */
-  show(
-    bytes: Uint8Array,
-    mime: string,
-  ): Promise<{ decodeMs: number; presentMs: number }>;
+  show(bytes: Uint8Array, mime: string): Promise<DecodeTiming>;
 }
 
-interface Props {
+/** Props for {@link PageImageView}. */
+export interface PageImageViewProps {
+  /** Handed the imperative handle used to show an encoded page. */
   ref: React.Ref<PageImageHandle>;
+  /** Classes for the element itself. Layout only — the caller owns the box. */
   className?: string;
+  /** Alternative text for the page image. */
   alt: string;
 }
 
 /**
- * The `<img>` counterpart to {@link PageView}, imperative for the same reason: the
+ * The `<img>` counterpart to `PageView`, imperative for the same reason: the
  * encoded bytes and the blob URL stay out of React state.
  *
  * A blob URL is used rather than a data URL because for `<img src>` base64 inflates by
  * a third and puts a multi-megabyte string on the heap. The previous URL is revoked on
  * every swap and on unmount — without that the tab leaks an encoded page per click.
  */
-export function PageImageView({ ref, className, alt }: Props) {
+export function PageImageView({ ref, className, alt }: PageImageViewProps) {
   const img = useRef<HTMLImageElement>(null);
   const placeholder = useRef<HTMLDivElement>(null);
   const url = useRef<string | null>(null);

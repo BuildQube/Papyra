@@ -48,18 +48,29 @@ interface Anchor {
   dy: number;
 }
 
-interface Props {
+/** Props for {@link ContinuousPages}. */
+export interface ContinuousPagesProps {
+  /** The open document. */
   doc: Document;
   /** The scrolling element. Owned by the layout, shared with the zoom gestures. */
   viewport: RefObject<HTMLElement | null>;
+  /**
+   * Filled in with this view's own anchor, so zoom can keep the point under the
+   * cursor where it is. The gaps between pages do not scale with the pages, so this
+   * cannot be derived from the DOM.
+   */
   anchor: RefObject<ZoomAnchor | null>;
   /** Layout scale — tracks a pinch frame by frame. */
   scale: number;
   /** Render scale — settles behind it, so a pinch does not flood the queue. */
   renderScale: number;
+  /** The current page, 0-based. Scrolled to when it changes from outside. */
   page: number;
+  /** Called with the page that occupies most of the viewport as it is scrolled. */
   onPage: (index: number) => void;
+  /** Search results across the whole document; each page draws its own. */
   matches: readonly SearchMatch[];
+  /** The match drawn in the active colour, if it is on a visible page. */
   active: SearchMatch | null;
 }
 
@@ -99,7 +110,7 @@ export function ContinuousPages({
   onPage,
   matches,
   active,
-}: Props) {
+}: ContinuousPagesProps) {
   const content = useRef<HTMLDivElement>(null);
 
   const layout = useMemo<Layout>(() => {

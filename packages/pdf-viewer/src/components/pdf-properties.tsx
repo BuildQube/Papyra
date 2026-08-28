@@ -8,13 +8,17 @@ import {
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
-interface Props {
+/** Props for {@link Properties}. */
+export interface PropertiesProps {
+  /** The open document. */
   doc: Document;
+  /** The file name, which the document itself does not carry. */
   name: string;
   /** The file's own length, which no amount of parsing recovers. */
   byteLength: number;
   /** Which page to describe the dimensions of — they vary within a document. */
   page: number;
+  /** Called when the dialog is dismissed, by any route. */
   onClose: () => void;
 }
 
@@ -29,7 +33,13 @@ interface Props {
  * `doc.metadata` is synchronous — the engine reads the information dictionary while
  * loading — so there is no pending state to design around.
  */
-export function Properties({ doc, name, byteLength, page, onClose }: Props) {
+export function Properties({
+  doc,
+  name,
+  byteLength,
+  page,
+  onClose,
+}: PropertiesProps) {
   const { metadata } = doc;
   const size = doc.pageSize(page);
 

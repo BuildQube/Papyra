@@ -11,11 +11,15 @@ import {
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 
-interface Props {
+/** Props for {@link PasswordPrompt}. */
+export interface PasswordPromptProps {
+  /** The file name, shown so the reader knows which document is asking. */
   name: string;
   /** A password was already tried and rejected — `PasswordError.retry`. */
   retry: boolean;
+  /** Called with the typed password when the form is submitted. */
   onSubmit: (password: string) => void;
+  /** Called when the reader gives up rather than answering. */
   onCancel: () => void;
 }
 
@@ -31,7 +35,12 @@ interface Props {
  * A card in the page rather than a `Dialog`: there is no document behind it to be
  * modal over, and a modal with nothing underneath is a card with extra machinery.
  */
-export function PasswordPrompt({ name, retry, onSubmit, onCancel }: Props) {
+export function PasswordPrompt({
+  name,
+  retry,
+  onSubmit,
+  onCancel,
+}: PasswordPromptProps) {
   const [password, setPassword] = useState('');
   const input = useRef<HTMLInputElement>(null);
   const titleId = useId();

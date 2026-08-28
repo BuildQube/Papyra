@@ -2,13 +2,31 @@ import { paintToCanvas, type RenderedPage } from '@build-qube/papyra';
 import type { CSSProperties } from 'react';
 import { useImperativeHandle, useRef } from 'react';
 
-export interface PageViewHandle {
-  /** Paint immediately and report when the frame is actually on screen. */
-  paint(page: RenderedPage): Promise<{ paintMs: number; presentMs: number }>;
+/** What a paint cost, once the pixels were actually on screen. */
+export interface PaintTiming {
+  /** Time inside `putImageData`. */
+  paintMs: number;
+  /** `putImageData` done until the compositor showed the frame. */
+  presentMs: number;
 }
 
-interface Props {
+/**
+ * The imperative side of {@link PageView}.
+ *
+ * Painting goes through a handle rather than a prop because a rendered page is
+ * megabytes of RGBA: holding it in React state costs hundreds of milliseconds per
+ * page change for a value nothing else reads.
+ */
+export interface PageViewHandle {
+  /** Paint immediately and report when the frame is actually on screen. */
+  paint(page: RenderedPage): Promise<PaintTiming>;
+}
+
+/** Props for {@link PageView}. */
+export interface PageViewProps {
+  /** Handed the imperative handle used to paint into this canvas. */
   ref: React.Ref<PageViewHandle>;
+  /** Classes for the element itself. Layout only — the caller owns the box. */
   className?: string;
   /**
    * The CSS box the page occupies, which zoom sets and the bitmap does not.
@@ -29,7 +47,7 @@ interface Props {
  * as hundreds of milliseconds between the render resolving and the paint effect
  * running. Painting straight to the canvas lets the buffer die immediately.
  */
-export function PageView({ ref, className, style }: Props) {
+export function PageView({ ref, className, style }: PageViewProps) {
   const canvas = useRef<HTMLCanvasElement>(null);
 
   useImperativeHandle(ref, () => ({

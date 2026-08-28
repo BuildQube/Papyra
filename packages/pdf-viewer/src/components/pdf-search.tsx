@@ -22,14 +22,21 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-interface Props {
+/** Props for {@link Search}. */
+export interface SearchProps {
+  /** The open document. */
   doc: Document;
+  /** The page on screen, 0-based. Its row is marked selected. */
   current: number;
+  /** Called with a 0-based page index when the reader picks a page. */
   onSelect: (index: number) => void;
   /** Every match found so far, lifted so the page overlay can draw them. */
   matches: SearchMatch[];
+  /** Called as results stream in, and once more when the search settles. */
   onMatches: (matches: SearchMatch[]) => void;
+  /** The result shown as current. */
   active: SearchMatch | null;
+  /** Called when the highlighted match changes. */
   onActive: (match: SearchMatch | null) => void;
 }
 
@@ -52,6 +59,12 @@ function outward(from: number, count: number): number[] {
   return order;
 }
 
+/**
+ * Full-text search across a document, with the results as a list of hits.
+ *
+ * Results are lifted through `onMatches` rather than held here, so the page overlay
+ * and this list cannot disagree about what was found.
+ */
 export function Search({
   doc,
   current,
@@ -60,7 +73,7 @@ export function Search({
   onMatches,
   active,
   onActive,
-}: Props) {
+}: SearchProps) {
   const [query, setQuery] = useState('');
   const [running, setRunning] = useState(false);
   const [indexed, setIndexed] = useState<number | null>(null);

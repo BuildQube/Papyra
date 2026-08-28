@@ -9,13 +9,19 @@ import { Highlights } from '@/components/pdf-highlights';
 import { Links } from '@/components/pdf-links';
 import { cn } from '@/lib/utils';
 
-interface Props {
+/** Props for {@link PageSurface}. */
+export interface PageSurfaceProps {
+  /** The open document. */
   doc: Document;
+  /** The 0-based page this surface renders. */
   index: number;
   /** Where this page sits in the scrolled column, in CSS pixels. */
   top: number;
+  /** Distance from the column's left edge, in CSS pixels. */
   left: number;
+  /** Rendered width, in CSS pixels. */
   width: number;
+  /** Rendered height, in CSS pixels. */
   height: number;
   /** Page width in PDF points, for placing highlights. */
   pageWidth: number;
@@ -23,8 +29,11 @@ interface Props {
   renderWidth: number;
   /** Lower runs first. Reassigned as the page moves through the viewport. */
   priority: number;
+  /** Every match in the document; the ones on this page are drawn. */
   matches: readonly SearchMatch[];
+  /** The match drawn in the active colour, if it is on this page. */
   active: SearchMatch | null;
+  /** True when this is the page the viewer considers current, which outlines it. */
   current: boolean;
   /** Where an internal link goes. */
   onSelect: (index: number) => void;
@@ -56,7 +65,7 @@ export const PageSurface = memo(function PageSurface({
   active,
   current,
   onSelect,
-}: Props) {
+}: PageSurfaceProps) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const job = useRef<RenderHandle | null>(null);
   const [painted, setPainted] = useState(false);

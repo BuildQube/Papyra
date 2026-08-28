@@ -36,26 +36,37 @@ import {
 } from '@/lib/pdf-zoom';
 import { cn } from '@/lib/utils';
 
+/** Whether pages are shown one at a time or in a scrolling column. */
 export type ViewMode = 'page' | 'scroll';
 
-interface Props {
+/** Props for {@link ZoomBar}. */
+export interface ZoomBarProps {
+  /** What the reader asked for: a fixed percentage, or a fit mode. */
   spec: ZoomSpec;
   /** The resolved scale, which is what a fit mode actually came out as. */
   scale: number;
+  /** The current page, 0-based. */
   page: number;
+  /** How many pages the document has. */
   pageCount: number;
   /**
    * The label printed on this page, when the document numbers its pages as something
    * other than their index. Empty when it does not, so nothing is shown.
    */
   label: string;
+  /** Which view is mounted. */
   mode: ViewMode;
   /** True while the pages on screen are a stretched bitmap awaiting a re-render. */
   settling: boolean;
+  /** Called when a zoom level or fit mode is chosen. */
   onSpec: (spec: ZoomSpec) => void;
+  /** Called to step one rung up the zoom ladder. */
   onStepIn: () => void;
+  /** Called to step one rung down. */
   onStepOut: () => void;
+  /** Called with a 0-based page index when the pager moves. */
   onPage: (index: number) => void;
+  /** Called when the single/continuous toggle changes. */
   onMode: (mode: ViewMode) => void;
 }
 
@@ -65,6 +76,12 @@ const FIT_LABELS: Record<string, string> = {
   'page-width': 'Page width',
 };
 
+/**
+ * A viewer toolbar: pager, zoom steppers, fit-mode select and the view toggle.
+ *
+ * Entirely controlled — it holds no zoom state of its own, so the same bar drives a
+ * single-page view and a continuous one.
+ */
 export function ZoomBar({
   spec,
   scale,
@@ -78,7 +95,7 @@ export function ZoomBar({
   onStepOut,
   onPage,
   onMode,
-}: Props) {
+}: ZoomBarProps) {
   const custom =
     typeof spec === 'number' && !ZOOM_STEPS.includes(spec) ? spec : null;
 

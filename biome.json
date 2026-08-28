@@ -64,6 +64,14 @@
           }
         }
       }
+    },
+    {
+      "includes": ["packages/docs-gen/typedoc.registry.json"],
+      "json": {
+        "parser": {
+          "allowComments": true
+        }
+      }
     }
   ],
   "assist": {

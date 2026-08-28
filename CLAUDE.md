@@ -118,6 +118,14 @@ real CLI rather than guessed — see `packages/pdf-viewer/README.md`:
   used only here is otherwise never generated — silently, with a plausible
   stylesheet.
 
+Its props are documented under the same gate the wrapper's reference has:
+`packages/docs-gen` runs a second TypeDoc pass over the package into
+`papyra-registry-api.json`, with `treatValidationWarningsAsErrors`, so an
+undocumented prop fails the build. Each file is its own entry point
+(`entryPointStrategy: "expand"`) since registry items install one at a time — which
+means a `{@link}` across files has no target and cross-item references are code
+spans.
+
 `packages/ui` (`@workspace/ui`) sits outside that stack: it is the private home of
 every shadcn component, consumed as **source** rather than as a build artifact, so
 Tailwind v4's scanner can follow the import graph into it. `apps/demo` is built

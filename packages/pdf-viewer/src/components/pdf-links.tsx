@@ -2,11 +2,15 @@ import type { Document, PageLink } from '@build-qube/papyra';
 import { scaleRect } from '@build-qube/papyra';
 import { useEffect, useState } from 'react';
 
-interface Props {
+/** Props for {@link Links}. */
+export interface LinksProps {
+  /** The open document. */
   doc: Document;
+  /** The 0-based page whose annotations to read. */
   index: number;
   /** Page-space (72 DPI) to CSS-pixel scale — the same one highlights use. */
   scale: number;
+  /** Called with a 0-based page index when the reader picks a page. */
   onSelect: (index: number) => void;
 }
 
@@ -25,7 +29,7 @@ interface Props {
  * can then tab through a table of contents, and a URI link gets the browser's own
  * status bar and context menu for free.
  */
-export function Links({ doc, index, scale, onSelect }: Props) {
+export function Links({ doc, index, scale, onSelect }: LinksProps) {
   const [links, setLinks] = useState<readonly PageLink[]>([]);
 
   useEffect(() => {

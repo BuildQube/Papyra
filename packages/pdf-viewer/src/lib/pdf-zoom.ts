@@ -9,13 +9,17 @@ import type { PageSize } from '@build-qube/papyra';
  */
 export const CSS_UNITS = 96 / 72;
 
+/** A rule that tracks the viewport rather than a fixed percentage. */
 export type FitMode = 'auto' | 'page-fit' | 'page-width';
 /** What the user asked for: a fixed percentage, or a rule that tracks the viewport. */
 export type ZoomSpec = number | FitMode;
 
+/** The floor the ladder and the gestures clamp to. */
 export const MIN_ZOOM = 0.1;
+/** The ceiling. Past this a page costs more pixels than it can show. */
 export const MAX_ZOOM = 10;
 
+/** Every fit mode, in the order a zoom menu should list them. */
 export const FIT_MODES: readonly FitMode[] = ['auto', 'page-fit', 'page-width'];
 
 /** The ladder −/+ and Cmd+/− walk, so repeated clicks land on round numbers. */
@@ -38,24 +42,31 @@ const MAX_RENDER_PIXELS = 24e6;
 /** Above 2 the extra pixels cost real milliseconds and are invisible. */
 const MAX_DPR = 2;
 
+/** Narrows an unknown search-param value to a {@link FitMode}. */
 export function isFitMode(value: unknown): value is FitMode {
   return value === 'auto' || value === 'page-fit' || value === 'page-width';
 }
 
+/** Holds a scale inside {@link MIN_ZOOM}..{@link MAX_ZOOM}. */
 export function clampZoom(zoom: number): number {
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
 }
 
+/** The next rung up the ladder, so repeated clicks land on round numbers. */
 export function zoomIn(zoom: number): number {
   return ZOOM_STEPS.find((step) => step > zoom + 1e-4) ?? MAX_ZOOM;
 }
 
+/** The next rung down. */
 export function zoomOut(zoom: number): number {
   return ZOOM_STEPS.findLast((step) => step < zoom - 1e-4) ?? MIN_ZOOM;
 }
 
+/** The box a fit mode measures itself against, in CSS pixels. */
 export interface Viewport {
+  /** Usable width, gutters already removed. */
   width: number;
+  /** Usable height. */
   height: number;
 }
 
@@ -109,6 +120,7 @@ export function renderWidth(page: PageSize, zoom: number): number {
   return Math.min(want, cap);
 }
 
+/** A scale as a percentage a reader would recognise: `125%`. */
 export function formatZoom(zoom: number): string {
   return `${Math.round(zoom * 100)}%`;
 }
