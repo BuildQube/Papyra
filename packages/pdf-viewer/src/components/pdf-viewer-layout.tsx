@@ -55,7 +55,7 @@ export function ViewerLayout({
   if (!doc) return null;
 
   return (
-    <main className={cn('flex min-h-0 flex-1', className)}>
+    <main className={cn('flex min-h-0 min-w-0 flex-1', className)}>
       {/* The store feeds the props; `Sidebar` stays controlled, so it is still
           usable — and documentable — without any of this. */}
       {showThumbs && (

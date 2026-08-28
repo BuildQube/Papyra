@@ -233,7 +233,7 @@ export function ZoomBar({
         </ToggleGroup>
       )}
 
-      <span className="ml-auto flex items-center gap-1 text-xs whitespace-nowrap text-muted-foreground">
+      <span className="ml-auto flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
         <Kbd>⌘/ctrl</Kbd> + scroll, pinch, or <Kbd>⌘/ctrl</Kbd>
         <Kbd>+</Kbd>/<Kbd>−</Kbd> to zoom
       </span>

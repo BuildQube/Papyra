@@ -41,7 +41,7 @@ export function BlockPreview({
 
   return (
     <div
-      className={`mt-3 flex ${height} overflow-hidden rounded-md border bg-background`}
+      className={`mt-3 flex ${height} min-w-0 overflow-hidden rounded-md border bg-background`}
       ref={ref}
     >
       {seen ? children : <Skeleton className="m-3 flex-1" />}
