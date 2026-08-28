@@ -41,6 +41,7 @@ interface Search {
   format?: EncodedFormat;
   quality?: number;
   width?: number;
+  transparent?: boolean;
 }
 
 /**
@@ -62,6 +63,7 @@ export function ExportRoute() {
   const rasterFormat: RasterFormat = format === 'svg' ? 'webp' : format;
   const quality = search.quality ?? 80;
   const width = search.width ?? defaultViewWidth();
+  const transparent = search.transparent ?? false;
 
   const view = useRef<PageImageHandle>(null);
   // Held for the download button. A ref, not state: re-rendering on every encode would
@@ -112,7 +114,10 @@ export function ExportRoute() {
     // no width to render at, no quality to trade, and no raw buffer to compare with.
     const job =
       format === 'svg'
-        ? doc.svgHandle(page, { priority: 0 })
+        ? doc.svgHandle(page, {
+            priority: 0,
+            background: transparent ? 'transparent' : 'white',
+          })
         : doc.imageHandle(page, { fitWidth: width, priority: 0 });
 
     const settle = async () => {
@@ -137,7 +142,7 @@ export function ExportRoute() {
       cancelled = true;
       job.cancel('left the page');
     };
-  }, [doc, page, width, format, rasterFormat, quality, setError]);
+  }, [doc, page, width, format, rasterFormat, quality, transparent, setError]);
 
   const patch = useCallback(
     (next: Partial<Search>) => {
@@ -187,17 +192,19 @@ export function ExportRoute() {
           format={format}
           quality={quality}
           width={width}
+          transparent={transparent}
           busy={busy}
           onFormat={(f) => patch({ format: f })}
           onQuality={(q) => patch({ quality: q })}
           onWidth={(w) => patch({ width: w })}
+          onTransparent={(t) => patch({ transparent: t })}
           onDownload={download}
         />
       }
     >
       <PageImageView
         ref={view}
-        className="page"
+        className={transparent && format === 'svg' ? 'page checkered' : 'page'}
         alt={`Page ${page + 1} encoded as ${format}`}
       />
     </ViewerLayout>

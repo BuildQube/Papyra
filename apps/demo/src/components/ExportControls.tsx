@@ -19,10 +19,12 @@ interface Props {
   format: EncodedFormat;
   quality: number;
   width: number;
+  transparent: boolean;
   busy: boolean;
   onFormat: (format: EncodedFormat) => void;
   onQuality: (quality: number) => void;
   onWidth: (width: number) => void;
+  onTransparent: (transparent: boolean) => void;
   onDownload: () => void;
 }
 
@@ -30,10 +32,12 @@ export function ExportControls({
   format,
   quality,
   width,
+  transparent,
   busy,
   onFormat,
   onQuality,
   onWidth,
+  onTransparent,
   onDownload,
 }: Props) {
   return (
@@ -69,6 +73,32 @@ export function ExportControls({
             value={quality}
             onChange={(e) => onQuality(Number(e.target.value))}
           />
+        </fieldset>
+      )}
+
+      {format === 'svg' && (
+        <fieldset>
+          <legend>background</legend>
+          <div className="segmented">
+            <button
+              type="button"
+              className={transparent ? undefined : 'selected'}
+              onClick={() => onTransparent(false)}
+            >
+              white
+            </button>
+            <button
+              type="button"
+              className={transparent ? 'selected' : undefined}
+              onClick={() => onTransparent(true)}
+            >
+              transparent
+            </button>
+          </div>
+          <p className="muted">
+            White matches how pages rasterise. Drop it when the SVG goes on top
+            of something else — the checkerboard is the viewer, not the file.
+          </p>
         </fieldset>
       )}
 

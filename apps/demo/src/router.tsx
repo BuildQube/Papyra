@@ -45,6 +45,7 @@ interface ExportSearch {
   format?: EncodedFormat;
   quality?: number;
   width?: number;
+  transparent?: boolean;
 }
 
 const rootRoute = createRootRoute({
@@ -80,6 +81,10 @@ const exportRoute = createRoute({
       : undefined,
     quality: bounded(search.quality, 1, 100),
     width: positive(search.width),
+    transparent:
+      search.transparent === undefined
+        ? undefined
+        : search.transparent !== false,
   }),
 });
 

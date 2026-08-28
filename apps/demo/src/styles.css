@@ -239,6 +239,16 @@ body {
   max-width: none;
 }
 
+/*
+ * Transparency needs something behind it to be visible at all: `.page` paints white,
+ * so a transparent SVG over it is pixel-identical to an opaque one. The checkerboard
+ * is the usual convention, and it belongs to the viewer rather than the file.
+ */
+.page.checkered {
+  background:
+    repeating-conic-gradient(#d8d8d8 0% 25%, #fff 0% 50%) 50% / 20px 20px;
+}
+
 .bench {
   flex: 0 0 320px;
   border-left: 1px solid var(--line);
@@ -352,6 +362,9 @@ body {
   padding: 12px;
   background: var(--panel);
   overflow-y: auto;
+  /* Fixed basis, as `.bench` has. Sized by content, a single long sentence in a
+     blurb widens the panel until the page area is squeezed to nothing. */
+  flex: 0 0 320px;
   min-width: 220px;
   display: flex;
   flex-direction: column;
