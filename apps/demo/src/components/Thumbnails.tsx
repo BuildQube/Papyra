@@ -1,4 +1,6 @@
 import type { Document, RenderedPage } from '@build-qube/papyra';
+import { Button } from '@workspace/ui/components/button';
+import { Skeleton } from '@workspace/ui/components/skeleton';
 import { useEffect, useState } from 'react';
 import { pageLabel, usePageLabels } from '../lib/usePageLabels.js';
 import { PageCanvas } from './PageCanvas.js';
@@ -51,32 +53,38 @@ export function Thumbnails({ doc, current, onSelect }: Props) {
   }, [doc]);
 
   return (
-    // Rendered inside the sidebar's tab panel, which owns the scrolling.
-    <div className="thumbs">
-      <header>
+    <div>
+      <header className="sticky top-0 z-10 flex justify-between border-b bg-card px-2.5 py-2 text-xs">
         <span>{doc.pageCount} pages</span>
         {elapsed !== null && (
-          <span className="muted">{elapsed.toFixed(0)}ms</span>
+          <span className="text-muted-foreground">{elapsed.toFixed(0)}ms</span>
         )}
       </header>
-      <ol>
+      <ol className="grid gap-2 p-2">
         {Array.from({ length: doc.pageCount }, (_, i) => (
-          // The index is the page number: this list is never reordered, filtered, or
-          // inserted into, so the index is the stable identity.
-          // biome-ignore lint/suspicious/noArrayIndexKey: index is the page identity
+          // The list is `Array.from({ length: pageCount })` and never reorders,
+          // so page 7 is the seventh item for the life of the document.
+          // biome-ignore lint/suspicious/noArrayIndexKey: the index is the identity
           <li key={i}>
-            <button
-              type="button"
-              className={i === current ? 'thumb selected' : 'thumb'}
+            <Button
+              variant="ghost"
+              data-active={i === current}
+              className="h-auto w-full flex-col gap-1 p-1 text-xs text-muted-foreground data-[active=true]:text-foreground data-[active=true]:ring-2 data-[active=true]:ring-primary"
               onClick={() => onSelect(i)}
             >
               {thumbs.has(i) ? (
-                <PageCanvas page={thumbs.get(i) ?? null} />
+                <PageCanvas
+                  page={thumbs.get(i) ?? null}
+                  className="block h-auto w-full rounded-xs bg-white"
+                />
               ) : (
-                <div className="placeholder" />
+                // The aspect ratio is A4's, not this page's: it stands in only until
+                // the render arrives with the real one, and guessing per page would
+                // mean a `pageSize()` call per thumbnail to save one reflow.
+                <Skeleton className="aspect-[1/1.414] w-full" />
               )}
               <span>{pageLabel(labels, i)}</span>
-            </button>
+            </Button>
           </li>
         ))}
       </ol>

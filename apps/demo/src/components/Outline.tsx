@@ -1,4 +1,29 @@
 import type { Document, OutlineNode } from '@build-qube/papyra';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from '@workspace/ui/components/alert';
+import { Button } from '@workspace/ui/components/button';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@workspace/ui/components/collapsible';
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@workspace/ui/components/empty';
+import { Spinner } from '@workspace/ui/components/spinner';
+import { cn } from '@workspace/ui/lib/utils';
+import {
+  ChevronRightIcon,
+  ListTreeIcon,
+  TriangleAlertIcon,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 interface Props {
@@ -6,6 +31,9 @@ interface Props {
   current: number;
   onSelect: (index: number) => void;
 }
+
+/** The bordered one-liner every sidebar panel opens with. */
+const NOTE = 'border-b px-2.5 py-2 text-xs text-muted-foreground';
 
 /**
  * The document outline, as a collapsible tree.
@@ -37,19 +65,48 @@ export function Outline({ doc, current, onSelect }: Props) {
     };
   }, [doc]);
 
-  if (error) return <p className="panel-note error">{error}</p>;
-  if (!tree) return <p className="panel-note muted">reading outline…</p>;
+  if (error) {
+    return (
+      <Alert variant="destructive" className="m-2 w-auto">
+        <TriangleAlertIcon />
+        <AlertTitle>The outline could not be read</AlertTitle>
+        <AlertDescription className="font-mono text-xs">
+          {error}
+        </AlertDescription>
+      </Alert>
+    );
+  }
+  if (!tree) {
+    return (
+      <p className={cn(NOTE, 'flex items-center gap-2')}>
+        <Spinner className="size-3" />
+        reading outline…
+      </p>
+    );
+  }
   if (tree.length === 0) {
-    return <p className="panel-note muted">This document has no outline.</p>;
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <ListTreeIcon />
+          </EmptyMedia>
+          <EmptyTitle>No outline</EmptyTitle>
+          <EmptyDescription>
+            This document carries no bookmarks.
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    );
   }
 
   const count = countNodes(tree);
   return (
     <>
-      <p className="panel-note muted">
+      <p className={NOTE}>
         {count} {count === 1 ? 'entry' : 'entries'} · {elapsed.toFixed(1)}ms
       </p>
-      <ul className="outline">
+      <ul className="py-1 pb-3">
         {tree.map((node, i) => (
           <OutlineRow
             key={`${node.title}:${i}`}
@@ -78,63 +135,71 @@ function OutlineRow({
   const [open, setOpen] = useState(node.open);
   const hasChildren = node.children.length > 0;
 
-  return (
-    <li>
-      <div
-        className={
-          node.page === current ? 'outline-row selected' : 'outline-row'
-        }
-        style={{ paddingLeft: `${6 + depth * 14}px` }}
-      >
-        {hasChildren ? (
-          <button
-            type="button"
-            className="twisty"
-            aria-expanded={open}
-            aria-label={open ? 'Collapse' : 'Expand'}
-            onClick={() => setOpen(!open)}
-          >
-            {open ? '▾' : '▸'}
-          </button>
-        ) : (
-          <span className="twisty" />
-        )}
-        <button
-          type="button"
-          className="outline-title"
-          // A container that points nowhere still toggles, which is what a viewer
-          // does — the row is not dead, it just has no page of its own.
-          disabled={node.page === null && !hasChildren}
-          title={describe(node)}
-          style={{
-            fontWeight: node.bold ? 600 : 400,
-            fontStyle: node.italic ? 'italic' : 'normal',
-          }}
-          onClick={() => {
-            if (node.page !== null) onSelect(node.page);
-            else if (hasChildren) setOpen(!open);
-          }}
-        >
-          <span className="outline-label">{node.title}</span>
-          {node.page !== null && (
-            <span className="outline-page">{node.page + 1}</span>
-          )}
-        </button>
-      </div>
-      {hasChildren && open && (
-        <ul>
-          {node.children.map((child, i) => (
-            <OutlineRow
-              key={`${child.title}:${i}`}
-              node={child}
-              depth={depth + 1}
-              current={current}
-              onSelect={onSelect}
+  const row = (
+    <div
+      data-active={node.page === current}
+      className="flex items-baseline gap-0.5 border-l-2 border-transparent data-[active=true]:border-primary data-[active=true]:bg-primary/10"
+      style={{ paddingLeft: `${6 + depth * 14}px` }}
+    >
+      {hasChildren ? (
+        <CollapsibleTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label={open ? 'Collapse' : 'Expand'}
+              className="size-4 text-muted-foreground"
             />
-          ))}
-        </ul>
+          }
+        >
+          <ChevronRightIcon
+            className={cn('transition-transform', open && 'rotate-90')}
+          />
+        </CollapsibleTrigger>
+      ) : (
+        <span className="size-4 flex-none" />
       )}
-    </li>
+      <Button
+        variant="ghost"
+        disabled={node.page === null && !hasChildren}
+        title={describe(node)}
+        className="h-auto min-w-0 flex-1 justify-start gap-1.5 px-1 py-1 text-left text-xs font-normal"
+        style={{
+          fontWeight: node.bold ? 600 : 400,
+          fontStyle: node.italic ? 'italic' : 'normal',
+        }}
+        onClick={() => {
+          if (node.page !== null) onSelect(node.page);
+          else if (hasChildren) setOpen(!open);
+        }}
+      >
+        <span className="min-w-0 flex-1 truncate">{node.title}</span>
+        {node.page !== null && (
+          <span className="flex-none text-muted-foreground tabular-nums">
+            {node.page + 1}
+          </span>
+        )}
+      </Button>
+    </div>
+  );
+
+  if (!hasChildren) return <li>{row}</li>;
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} render={<li />}>
+      {row}
+      <CollapsibleContent render={<ul />}>
+        {node.children.map((child, i) => (
+          <OutlineRow
+            key={`${child.title}:${i}`}
+            node={child}
+            depth={depth + 1}
+            current={current}
+            onSelect={onSelect}
+          />
+        ))}
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 

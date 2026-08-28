@@ -1,4 +1,11 @@
 import type { Document, SearchMatch } from '@build-qube/papyra';
+import { Badge } from '@workspace/ui/components/badge';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@workspace/ui/components/tabs';
 import { useEffect, useState } from 'react';
 import { Outline } from './Outline.js';
 import { Search } from './Search.js';
@@ -21,6 +28,9 @@ interface Props {
  *
  * Every panel stays mounted: the thumbnail strip streams its renders in and the
  * search holds its results, and unmounting would throw both away on a tab change.
+ * That is what `keepMounted` buys — a `Tabs.Panel` unmounts its children by default,
+ * which would restart a 400-page thumbnail stream every time you looked at the
+ * outline.
  */
 export function Sidebar({
   doc,
@@ -34,8 +44,6 @@ export function Sidebar({
   const [tab, setTab] = useState<Tab>('pages');
   const [hasOutline, setHasOutline] = useState<boolean | null>(null);
 
-  // Open on the outline when there is one — on a document with a table of contents
-  // that is what you came for, and it saves a click to discover the feature at all.
   useEffect(() => {
     let cancelled = false;
     setHasOutline(null);
@@ -54,42 +62,50 @@ export function Sidebar({
   }, [doc]);
 
   return (
-    <aside className="sidebar">
-      <nav className="tabs">
-        <button
-          type="button"
-          className={tab === 'pages' ? 'tab selected' : 'tab'}
-          onClick={() => setTab('pages')}
-        >
-          Pages
-        </button>
-        <button
-          type="button"
-          className={tab === 'outline' ? 'tab selected' : 'tab'}
-          onClick={() => setTab('outline')}
-        >
+    <Tabs
+      value={tab}
+      onValueChange={(value) => setTab(value as Tab)}
+      render={<aside />}
+      className="w-60 flex-none gap-0 overflow-hidden border-r bg-card"
+    >
+      <TabsList
+        variant="line"
+        className="w-full flex-none rounded-none border-b px-0"
+      >
+        <TabsTrigger value="pages">Pages</TabsTrigger>
+        <TabsTrigger value="outline">
           Outline
-          {hasOutline === false && <span className="tab-badge">—</span>}
-        </button>
-        <button
-          type="button"
-          className={tab === 'search' ? 'tab selected' : 'tab'}
-          onClick={() => setTab('search')}
-        >
+          {hasOutline === false && (
+            <span className="text-muted-foreground/50">—</span>
+          )}
+        </TabsTrigger>
+        <TabsTrigger value="search">
           Search
           {matches.length > 0 && (
-            <span className="tab-badge">{matches.length}</span>
+            <Badge variant="secondary">{matches.length}</Badge>
           )}
-        </button>
-      </nav>
+        </TabsTrigger>
+      </TabsList>
 
-      <div className="panel" hidden={tab !== 'pages'}>
+      <TabsContent
+        value="pages"
+        keepMounted
+        className="min-h-0 overflow-y-auto"
+      >
         <Thumbnails doc={doc} current={current} onSelect={onSelect} />
-      </div>
-      <div className="panel" hidden={tab !== 'outline'}>
+      </TabsContent>
+      <TabsContent
+        value="outline"
+        keepMounted
+        className="min-h-0 overflow-y-auto"
+      >
         <Outline doc={doc} current={current} onSelect={onSelect} />
-      </div>
-      <div className="panel" hidden={tab !== 'search'}>
+      </TabsContent>
+      <TabsContent
+        value="search"
+        keepMounted
+        className="flex min-h-0 flex-col overflow-y-auto"
+      >
         <Search
           doc={doc}
           current={current}
@@ -99,7 +115,7 @@ export function Sidebar({
           active={active}
           onActive={onActive}
         />
-      </div>
-    </aside>
+      </TabsContent>
+    </Tabs>
   );
 }

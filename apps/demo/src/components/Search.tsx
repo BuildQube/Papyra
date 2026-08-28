@@ -1,4 +1,25 @@
 import type { Document, SearchMatch } from '@build-qube/papyra';
+import { Badge } from '@workspace/ui/components/badge';
+import { Button } from '@workspace/ui/components/button';
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from '@workspace/ui/components/input-group';
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemMedia,
+} from '@workspace/ui/components/item';
+import { Spinner } from '@workspace/ui/components/spinner';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@workspace/ui/components/tooltip';
+import { SearchIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 interface Props {
@@ -45,8 +66,6 @@ export function Search({
   const [indexed, setIndexed] = useState<number | null>(null);
   const [elapsed, setElapsed] = useState<number | null>(null);
   const [unsearchable, setUnsearchable] = useState(0);
-  // The page the search started from, so typing another letter does not re-order
-  // results under the reader.
   const origin = useRef(current);
 
   useEffect(() => {
@@ -70,8 +89,6 @@ export function Search({
           signal: abort.signal,
         })) {
           found.push(match);
-          // Publish as they arrive: on a long document the first hit should be
-          // usable long before the last page has been read.
           if (found.length % 8 === 1) onMatches([...found]);
         }
         if (abort.signal.aborted) return;
@@ -85,22 +102,25 @@ export function Search({
     })();
 
     return () => abort.abort();
-    // `current` is deliberately not a dependency: re-ordering results because the
-    // reader turned a page would move the list out from under them.
   }, [doc, query]);
 
   return (
     <>
-      <div className="search-box">
-        <input
-          type="search"
-          value={query}
-          placeholder="Search this document"
-          onChange={(e) => setQuery(e.target.value)}
-        />
-        <button
-          type="button"
-          className="index"
+      <div className="flex flex-none flex-col gap-1.5 border-b p-2">
+        <InputGroup>
+          <InputGroupAddon>
+            <SearchIcon />
+          </InputGroupAddon>
+          <InputGroupInput
+            type="search"
+            value={query}
+            placeholder="Search this document"
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </InputGroup>
+        <Button
+          variant="outline"
+          size="sm"
           disabled={indexed !== null}
           onClick={() => {
             const started = performance.now();
@@ -110,10 +130,11 @@ export function Search({
           }}
         >
           {indexed === null ? 'Index all pages' : 'Indexed'}
-        </button>
+        </Button>
       </div>
 
-      <p className="panel-note muted">
+      <p className="flex flex-none flex-wrap items-center gap-1.5 border-b px-2.5 py-2 text-xs text-muted-foreground">
+        {running && <Spinner className="size-3" />}
         {query.trim() === ''
           ? indexed === null
             ? 'Matches are found page by page, nearest first.'
@@ -124,42 +145,47 @@ export function Search({
               `match${matches.length === 1 ? '' : 'es'}` +
               (elapsed !== null ? ` · ${elapsed.toFixed(0)}ms` : '')}
         {unsearchable > 0 && (
-          <>
-            {' · '}
-            <span
-              className="warn"
-              title="These pages draw text with no ToUnicode mapping. Some or all of it cannot be searched, by papyra or anything else without OCR."
-            >
+          <Tooltip>
+            <TooltipTrigger render={<Badge variant="outline" />}>
               {unsearchable} page{unsearchable === 1 ? '' : 's'} partly
               unreadable
-            </span>
-          </>
+            </TooltipTrigger>
+            <TooltipContent>
+              These pages draw text with no ToUnicode mapping. Some or all of it
+              cannot be searched, by papyra or anything else without OCR.
+            </TooltipContent>
+          </Tooltip>
         )}
       </p>
 
-      <ol className="results">
+      <ItemGroup className="gap-0 p-1 pb-3">
         {matches.map((match, i) => (
-          <li key={`${match.page}:${i}`}>
-            <button
-              type="button"
-              className={match === active ? 'result selected' : 'result'}
-              onClick={() => {
-                onActive(match);
-                if (match.page !== current) onSelect(match.page);
-              }}
-            >
-              <span className="result-page">{match.page + 1}</span>
-              <span className="result-text">
+          <Item
+            key={`${match.page}:${i}`}
+            size="xs"
+            data-active={match === active}
+            className="cursor-pointer text-left hover:bg-muted data-[active=true]:bg-primary/10"
+            render={<button type="button" />}
+            onClick={() => {
+              onActive(match);
+              if (match.page !== current) onSelect(match.page);
+            }}
+          >
+            <ItemMedia className="w-6 justify-end self-start text-xs text-muted-foreground tabular-nums">
+              {match.page + 1}
+            </ItemMedia>
+            <ItemContent>
+              <ItemDescription className="text-xs">
                 {match.context.slice(0, match.contextStart)}
-                <mark>
+                <mark className="rounded-xs bg-primary/30 text-foreground">
                   {match.context.slice(match.contextStart, match.contextEnd)}
                 </mark>
                 {match.context.slice(match.contextEnd)}
-              </span>
-            </button>
-          </li>
+              </ItemDescription>
+            </ItemContent>
+          </Item>
         ))}
-      </ol>
+      </ItemGroup>
     </>
   );
 }
