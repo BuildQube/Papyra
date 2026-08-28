@@ -21,6 +21,7 @@ papyra-hayro = { path = "crates/papyra-hayro" }
 
 hayro = "0.7.1"
 hayro-interpret = "0.7.0"
+hayro-svg = "0.7.0"
 hayro-syntax = "0.7.2"
 
 base64 = "0.22"

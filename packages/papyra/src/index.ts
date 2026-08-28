@@ -16,14 +16,28 @@
 
 export type { CacheStats } from './cache.js';
 export { paintToCanvas, toImageData } from './canvas.js';
-export type { ImageHandle, RenderHandle } from './document.js';
+export type { ImageHandle, RenderHandle, SvgHandle } from './document.js';
 export { Document, open } from './document.js';
 export type {
   EncodedFormat,
   EncodedImage,
   EncodeOptions,
+  RasterFormat,
+  SvgPage,
 } from './encode.js';
-export { encode, encodedImage, mimeType, PageImage } from './encode.js';
+export {
+  encode,
+  encodedImage,
+  mimeType,
+  PageImage,
+  svgPage,
+} from './encode.js';
+export {
+  IncorrectPasswordError,
+  PasswordError,
+  PasswordRequiredError,
+} from './errors.js';
+export type { LinkTarget, PageLink } from './links.js';
 export type {
   DestinationKind,
   OutlineDestination,
@@ -47,8 +61,10 @@ export {
   pageString,
   quadBounds,
   scaleQuad,
+  scaleRect,
 } from './text.js';
 export type {
+  DocumentMetadata,
   OpenOptions,
   PageSize,
   PdfSource,
@@ -57,4 +73,5 @@ export type {
   SearchOptions,
   StreamedPage,
   StreamOptions,
+  SvgOptions,
 } from './types.js';

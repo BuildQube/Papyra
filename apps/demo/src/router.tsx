@@ -26,7 +26,7 @@ const bounded = (v: unknown, lo: number, hi: number): number | undefined => {
   return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : undefined;
 };
 
-const FORMATS = new Set<EncodedFormat>(['webp', 'png', 'jpeg']);
+const FORMATS = new Set<EncodedFormat>(['webp', 'png', 'jpeg', 'svg']);
 
 // Declared with optional keys, not `key: T | undefined`. A required-but-undefined key
 // would force every `<Link search={prev => prev}>` to restate the whole shape.
@@ -45,6 +45,7 @@ interface ExportSearch {
   format?: EncodedFormat;
   quality?: number;
   width?: number;
+  transparent?: boolean;
 }
 
 const rootRoute = createRootRoute({
@@ -80,6 +81,10 @@ const exportRoute = createRoute({
       : undefined,
     quality: bounded(search.quality, 1, 100),
     width: positive(search.width),
+    transparent:
+      search.transparent === undefined
+        ? undefined
+        : search.transparent !== false,
   }),
 });
 

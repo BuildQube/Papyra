@@ -1,5 +1,6 @@
 import type { Document, RenderedPage } from '@build-qube/papyra';
 import { useEffect, useState } from 'react';
+import { pageLabel, usePageLabels } from '../lib/usePageLabels.js';
 import { PageCanvas } from './PageCanvas.js';
 
 interface Props {
@@ -25,6 +26,7 @@ const THUMB_WIDTH = 160;
 export function Thumbnails({ doc, current, onSelect }: Props) {
   const [thumbs, setThumbs] = useState<Map<number, RenderedPage>>(new Map());
   const [elapsed, setElapsed] = useState<number | null>(null);
+  const labels = usePageLabels(doc);
 
   useEffect(() => {
     let cancelled = false;
@@ -73,7 +75,7 @@ export function Thumbnails({ doc, current, onSelect }: Props) {
               ) : (
                 <div className="placeholder" />
               )}
-              <span>{i + 1}</span>
+              <span>{pageLabel(labels, i)}</span>
             </button>
           </li>
         ))}

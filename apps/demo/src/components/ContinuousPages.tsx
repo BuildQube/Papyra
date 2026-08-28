@@ -346,6 +346,7 @@ export function ContinuousPages({
           matches={matches}
           active={active}
           current={slot.index === page}
+          onSelect={onPage}
         />
       ))}
     </div>

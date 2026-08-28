@@ -1,6 +1,10 @@
 import { backend, currentRuntime } from '@build-qube/papyra';
 import { Link, Outlet, useMatchRoute, useSearch } from '@tanstack/react-router';
+import { useState } from 'react';
+import { PasswordPrompt } from '../components/PasswordPrompt.js';
+import { Properties } from '../components/Properties.js';
 import { useDocument, useFileParam } from '../lib/documentContext.js';
+import { usePage } from '../lib/usePage.js';
 
 /**
  * Shell for every route: identity, the file picker, and the nav.
@@ -9,7 +13,9 @@ import { useDocument, useFileParam } from '../lib/documentContext.js';
  * renders its own status line in the same place, so the two read as a comparison.
  */
 export function RootShell() {
-  const { loaded, error, load } = useDocument();
+  const { loaded, error, load, password, cancelPassword } = useDocument();
+  const [showProperties, setShowProperties] = useState(false);
+  const [page] = usePage();
   // Loose search access: typing it against the root route would import the router,
   // which imports this file.
   const { file } = useSearch({ strict: false }) as { file?: string };
@@ -55,12 +61,42 @@ export function RootShell() {
           />
         </label>
 
-        {loaded && <span className="muted">{loaded.name}</span>}
+        {loaded && (
+          <button
+            type="button"
+            className="ghost file-name"
+            title="Document properties"
+            onClick={() => setShowProperties(true)}
+          >
+            {loaded.name}
+          </button>
+        )}
       </header>
 
       {error && <p className="error">{error}</p>}
 
-      {loaded || standalone ? <Outlet /> : <Dropzone onFile={load} />}
+      {password ? (
+        <PasswordPrompt
+          name={password.file.name}
+          retry={password.retry}
+          onSubmit={(secret) => void load(password.file, secret)}
+          onCancel={cancelPassword}
+        />
+      ) : loaded || standalone ? (
+        <Outlet />
+      ) : (
+        <Dropzone onFile={load} />
+      )}
+
+      {loaded && showProperties && (
+        <Properties
+          doc={loaded.doc}
+          name={loaded.name}
+          byteLength={loaded.bytes.byteLength}
+          page={Math.min(page, loaded.doc.pageCount - 1)}
+          onClose={() => setShowProperties(false)}
+        />
+      )}
     </div>
   );
 }

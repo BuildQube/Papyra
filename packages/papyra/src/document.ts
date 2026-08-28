@@ -1,9 +1,13 @@
 import {
   PdfDocument as NativeDocument,
+  type DocumentInfo as NativeDocumentInfo,
   type PageImage as NativePageImage,
 } from '@build-qube/papyra-native';
 import { type CacheStats, RenderCache } from './cache.js';
-import { PageImage } from './encode.js';
+import { PageImage, type SvgPage, svgPage } from './encode.js';
+import { rethrowLoadError } from './errors.js';
+import { fingerprint } from './fingerprint.js';
+import { type PageLink, toPageLink } from './links.js';
 import { buildOutlineTree, type OutlineNode } from './outline.js';
 import {
   currentRuntime,
@@ -16,6 +20,7 @@ import { type SearchMatch, searchPageText } from './search.js';
 import { toBytes } from './source.js';
 import { type PageText, pageTextBytes, toPageText } from './text.js';
 import type {
+  DocumentMetadata,
   OpenOptions,
   PageSize,
   PdfSource,
@@ -24,6 +29,7 @@ import type {
   SearchOptions,
   StreamedPage,
   StreamOptions,
+  SvgOptions,
 } from './types.js';
 
 const DEFAULT_DPI = 72;
@@ -46,6 +52,18 @@ const DEFAULT_CACHE_BYTES = 128 * 1024 * 1024;
  * and a repeated search never re-extracts.
  */
 const DEFAULT_TEXT_CACHE_BYTES = 32 * 1024 * 1024;
+
+/**
+ * Bytes of page links to keep.
+ *
+ * Not an option, unlike the render and text budgets: links are two orders of
+ * magnitude smaller again — a page of a linked table of contents is a few hundred
+ * bytes — so 4 MB holds tens of thousands of them and there is nothing to tune.
+ */
+const LINK_CACHE_BYTES = 4 * 1024 * 1024;
+
+/** Rough bytes per cached link: two objects, a rect, and a short string. */
+const LINK_BYTES = 96;
 
 /**
  * Where text extraction sits in the queue by default.
@@ -72,6 +90,26 @@ export interface RenderHandle extends JobHandle<RenderedPage> {
  */
 export type ImageHandle = JobHandle<PageImage>;
 
+/**
+ * A queued SVG conversion. Uncached for the same reason as {@link ImageHandle}, and
+ * unsized: an SVG has no DPI to key on.
+ */
+export type SvgHandle = JobHandle<SvgPage>;
+
+/** napi omits absent strings rather than nulling them; normalise to one shape. */
+function toMetadata(info: NativeDocumentInfo): DocumentMetadata {
+  return {
+    title: info.title ?? null,
+    author: info.author ?? null,
+    subject: info.subject ?? null,
+    keywords: info.keywords ?? null,
+    creator: info.creator ?? null,
+    producer: info.producer ?? null,
+    created: info.created ?? null,
+    modified: info.modified ?? null,
+  };
+}
+
 /** Wire an `AbortSignal` to a queued job. Cancelling only drops work not yet started. */
 function attachSignal(
   handle: JobHandle<unknown>,
@@ -87,18 +125,29 @@ function attachSignal(
   });
 }
 
-/** Open a PDF from bytes, an `ArrayBuffer`, a `Blob`, or a `File`. */
+/**
+ * Open a PDF from bytes, an `ArrayBuffer`, a `Blob`, or a `File`.
+ *
+ * Throws {@link PasswordRequiredError} when the document is encrypted and no
+ * {@link OpenOptions.password} was given, and {@link IncorrectPasswordError} when one
+ * was given and rejected. Both extend {@link PasswordError}, so a viewer that shows
+ * one dialog for both can catch the base.
+ */
 export async function open(
   source: PdfSource,
   options: OpenOptions = {},
 ): Promise<Document> {
   init();
   const bytes = await toBytes(source);
-  const inner =
-    options.password === undefined
-      ? NativeDocument.load(bytes)
-      : NativeDocument.loadWithPassword(bytes, options.password);
-  return new Document(inner, options);
+  try {
+    const inner =
+      options.password === undefined
+        ? NativeDocument.load(bytes)
+        : NativeDocument.loadWithPassword(bytes, options.password);
+    return new Document(inner, fingerprint(bytes), options);
+  } catch (e) {
+    rethrowLoadError(e);
+  }
 }
 
 /**
@@ -116,14 +165,39 @@ export class Document {
   readonly #limit: number;
   readonly #cache: RenderCache<RenderedPage>;
   readonly #text: RenderCache<PageText>;
+  readonly #links: RenderCache<readonly PageLink[]>;
+  /** In-flight link reads, so two callers on one page share a single task. */
+  readonly #linksPending = new Map<number, Promise<readonly PageLink[]>>();
   /** Memoised by {@link outline}; the outline cannot change under us. */
   #outline: Promise<OutlineNode[]> | undefined;
+  /** Memoised by {@link pageLabels}. */
+  #labels: Promise<readonly string[]> | undefined;
+  /** Memoised by {@link metadata}. */
+  #metadata: DocumentMetadata | undefined;
   /** Memoised by {@link indexText}. */
   #indexed: Promise<void> | undefined;
 
+  /**
+   * A stable identifier for this document's bytes.
+   *
+   * Sixteen hex characters, for keying whatever you remember per document — the page
+   * it was left on, a zoom level, a set of highlights. Two `open` calls on the same
+   * file always agree.
+   *
+   * It is a hash of the file, **not** the PDF's own `/ID`: the engine exposes no
+   * trailer accessor, so that identifier is out of reach. The practical difference is
+   * that saving an incremental update changes this while `/ID` would have survived.
+   */
+  readonly fingerprint: string;
+
   /** @internal — construct via {@link open}. */
-  constructor(inner: NativeDocument, options: OpenOptions = {}) {
+  constructor(
+    inner: NativeDocument,
+    fingerprintOfBytes: string,
+    options: OpenOptions = {},
+  ) {
     this.#inner = inner;
+    this.fingerprint = fingerprintOfBytes;
     this.#limit = Math.max(1, options.concurrency ?? defaultConcurrency());
     this.#scheduler = new Scheduler(this.#limit, {
       yieldToUrgent: options.yieldToUrgent,
@@ -135,6 +209,10 @@ export class Document {
     this.#text = new RenderCache<PageText>(
       options.textCacheBytes ?? DEFAULT_TEXT_CACHE_BYTES,
       pageTextBytes,
+    );
+    this.#links = new RenderCache<readonly PageLink[]>(
+      LINK_CACHE_BYTES,
+      (links) => links.length * LINK_BYTES,
     );
   }
 
@@ -175,6 +253,21 @@ export class Document {
   }
 
   /**
+   * The PDF specification version the file declares, e.g. `'1.7'`.
+   *
+   * Deliberately not part of {@link Document.metadata}: that is what the producer
+   * chose to say about the document, while this is a structural property read from
+   * the file's header — and from the catalog, which overrides it for 1.4 and later,
+   * so an incrementally saved file reports the version it was last written as.
+   *
+   * `'1.0'` is worth treating with suspicion. Genuine PDF 1.0 files are close to
+   * extinct, and it is also what a file with an unreadable header reports.
+   */
+  get pdfVersion(): string | null {
+    return this.#inner.pdfVersion ?? null;
+  }
+
+  /**
    * The document outline — bookmarks, the table of contents — as a tree.
    *
    * Resolves to an empty array when the document has no outline, which is the common
@@ -202,6 +295,97 @@ export class Document {
         throw e;
       });
     return this.#outline;
+  }
+
+  /**
+   * What the document says about itself: title, author, dates, the tool that wrote it.
+   *
+   * Synchronous — the engine reads the information dictionary while loading, so this
+   * only decodes strings. Every field is independently `null`, and none of it is
+   * verified; `title` in particular is often a filename or missing entirely.
+   */
+  get metadata(): DocumentMetadata {
+    this.#metadata ??= toMetadata(this.#inner.info());
+    return this.#metadata;
+  }
+
+  /**
+   * The label printed on each page, one entry per page.
+   *
+   * Resolves to an **empty array** when the document defines no page labels, which is
+   * the common case — that is the signal to number pages by index yourself. A
+   * document that defines labels but says nothing about a particular page gives that
+   * page an empty string, which is a different answer.
+   *
+   * Worth honouring wherever a page number is shown: a document with front matter
+   * numbers its first pages i, ii, iii, and a viewer that says "page 4 of 300" when
+   * the sheet reads "A101" is describing a document nobody else can see.
+   *
+   * The walk runs off the event loop and the result is memoised.
+   *
+   * @example
+   * ```ts
+   * const labels = await doc.pageLabels();
+   * const shown = labels[index] || String(index + 1);
+   * ```
+   */
+  async pageLabels(): Promise<readonly string[]> {
+    this.#labels ??= this.#inner.pageLabels().catch((e: unknown) => {
+      // A failed walk must not be cached as a permanent absence of labels.
+      this.#labels = undefined;
+      throw e;
+    });
+    return this.#labels;
+  }
+
+  /**
+   * The links on one page — where they are, and where they go.
+   *
+   * Rectangles are in the same 72-DPI top-left space as {@link Document.pageText} and
+   * {@link Document.pageSize}, so placing them over a render is one multiply; see
+   * {@link scaleRect}. Only links that resolve to something actionable are reported.
+   *
+   * Unlike text extraction this never interprets a content stream — it is an
+   * object-graph read, roughly a thousandth the cost of rendering the page — so it
+   * does **not** go through the priority queue. Making a link layer wait behind
+   * renders would add latency a viewer can feel, for work that costs nothing.
+   * Results are cached, and two calls for the same page share one read.
+   *
+   * @example
+   * ```ts
+   * const scale = rendered.width / doc.pageSize(index).width;
+   * for (const link of await doc.links(index)) {
+   *   const { x, y, width, height } = scaleRect(link.rect, scale);
+   *   // ...position an anchor over the canvas
+   * }
+   * ```
+   */
+  async links(index: number): Promise<readonly PageLink[]> {
+    const key = `links:${index}`;
+    const hit = this.#links.get(key);
+    if (hit) return hit;
+
+    const pending = this.#linksPending.get(index);
+    if (pending) return pending;
+
+    const read = this.#inner
+      .pageLinks(index)
+      .then((native) => {
+        // `toPageLink` only returns null for a link with no resolvable target, which
+        // the bindings do not emit — the filter is here so a future one cannot leak
+        // a null into the array.
+        const links = native
+          .map(toPageLink)
+          .filter((link): link is PageLink => link !== null);
+        this.#links.set(key, links);
+        return links as readonly PageLink[];
+      })
+      .finally(() => {
+        this.#linksPending.delete(index);
+      });
+
+    this.#linksPending.set(index, read);
+    return read;
   }
 
   /** Page dimensions in PDF points (1/72 inch). */
@@ -268,6 +452,61 @@ export class Document {
             options.signal,
           ) as Promise<NativePageImage>
         ).then((img) => new PageImage(img)),
+    });
+
+    attachSignal(handle, options.signal);
+    return handle;
+  }
+
+  /**
+   * Convert a page to SVG — vector output, not pixels.
+   *
+   * Paths stay paths and text stays glyph outlines, so the result scales to any size
+   * and can be edited downstream. That is the trade: an SVG of a dense drawing is
+   * larger than a WebP of the same page at screen size and slower for a browser to
+   * paint, but it is the only output that survives being scaled up.
+   *
+   * Conversion is content-stream interpretation without rasterisation — roughly the
+   * non-preemptible portion of a render — so it shares the scheduler with everything
+   * else and honours {@link SvgOptions.priority}. **Not cached**, for the same reason
+   * {@link renderImage} is not.
+   *
+   * @example
+   * ```ts
+   * const page = await doc.renderSvg(0, { background: 'transparent' });
+   * await writeFile('page-0.svg', page.markup);
+   * ```
+   */
+  async renderSvg(index: number, options: SvgOptions = {}): Promise<SvgPage> {
+    return this.svgHandle(index, options).promise;
+  }
+
+  /**
+   * As {@link renderSvg}, but returns the handle so the job can be reprioritised,
+   * cancelled, or timed — the same relationship `imageHandle` has to `renderImage`.
+   */
+  svgHandle(index: number, options: SvgOptions = {}): SvgHandle {
+    if (index < 0 || index >= this.pageCount) {
+      throw new RangeError(
+        `papyra: page ${index} is out of range (0..${this.pageCount - 1})`,
+      );
+    }
+
+    const opaque = options.background !== 'transparent';
+
+    const handle = this.#scheduler.submit<SvgPage>({
+      // The background is part of the key: the scheduler coalesces same-key requests,
+      // and an opaque and a transparent conversion of one page are different output.
+      key: `svg:${index}${opaque ? '' : ':transparent'}`,
+      priority: options.priority ?? DEFAULT_PRIORITY,
+      run: () =>
+        (
+          this.#inner.renderPageSvgAsync(
+            index,
+            opaque,
+            options.signal,
+          ) as Promise<string>
+        ).then(svgPage),
     });
 
     attachSignal(handle, options.signal);

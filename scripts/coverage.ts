@@ -8,9 +8,9 @@
  * The reason this is a script and not two commands in a workflow file is the Rust
  * side. Most of papyra's Rust is never reached by `cargo test`: `packages/bindings`
  * has no `#[test]` at all, and the render path is only ever driven across the napi
- * boundary. Measured on this repo, `cargo test` alone reports 69.52% region coverage
+ * boundary. Measured on this repo, `cargo test` alone reports 71.24% line coverage
  * with `packages/bindings/src/lib.rs` at a flat 0%; including the JS-driven runs
- * takes it to 91.82% with bindings at 83.38%. A number that calls the most-exercised
+ * takes it to 93.44% with bindings at 89.46%. A number that calls the most-exercised
  * file in the crate dead is worse than no number.
  *
  * So the addon is built with LLVM instrumentation, the JS suites run against it, and

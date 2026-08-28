@@ -91,20 +91,43 @@ Four layers, each with a deliberate boundary:
 4. **`packages/papyra`** (`@build-qube/papyra`) — the public API and where the real logic
    is: the priority scheduler, the byte-bounded LRU render cache, `fitWidth`→DPI
    resolution, source normalisation (`Uint8Array`/`ArrayBuffer`/`Blob`/`File`), outline
-   tree assembly, and canvas painting. Deliberately in TS so it works identically on both
-   runtimes without doubling the Rust surface.
+   tree assembly, link and metadata normalisation, typed password errors, and canvas
+   painting. Deliberately in TS so it works identically on both runtimes without
+   doubling the Rust surface.
 
-Three features beyond rendering follow the same split:
+Five features beyond rendering follow the same split:
 
 - **Outlines.** `crates/papyra-hayro/src/outline.rs` walks the PDF object graph directly
   — hayro's object layer is public but it exposes no outline API — and returns a **flat,
   pre-order** `Vec<OutlineItem>` whose `level` carries the tree. The tree is rebuilt in
   `packages/papyra/src/outline.ts`, so nothing recursive crosses the napi boundary.
+  Destination resolution itself lives in `dest.rs`, not here, because links resolve
+  theirs identically; `strings.rs` holds the text-string decoding all three readers need.
+- **Links.** `crates/papyra-hayro/src/links.rs` reads `/Annots`, keeps the `/Link`
+  subtypes, and resolves each target through the same `dest.rs` resolver the outline
+  uses. hayro already *draws* annotations (`InterpreterSettings.render_annotations`) but
+  exposes nothing about where they are, which is the difference between showing a link
+  and having one. Rects are mapped through `page.initial_transform(true)` — the same
+  transform text extraction uses — so a hit region and a highlight share one space.
+  Unlike text, links do not go through the priority queue: an object-graph read is
+  ~1/1000th of a render, and queueing it behind renders adds latency for nothing.
+- **Metadata and page labels.** `crates/papyra-hayro/src/info.rs`. hayro parses the
+  information dictionary (`Pdf::metadata`) but returns raw bytes and its own date type;
+  page labels it does not touch, so the `/PageLabels` number tree is walked here and
+  resolved to one label per page. Labels come back **empty** when the document defines
+  none, which is what lets a caller distinguish that from a document that asked for
+  plain numbering.
 - **Encoding.** `crates/papyra-encode` turns a `Bitmap` into WebP, PNG or JPEG bytes and
   knows nothing about hayro. Every codec is pure Rust — that is the whole constraint,
   since a C codec would put a toolchain in the middle of the wasm build — so WebP is
   lossless VP8L only and there is no AVIF. `image` is already in the tree via hayro, so
   `jpeg` costs no new crates and `webp` costs three tiny ones.
+- **SVG.** Deliberately *not* in `papyra-encode`: it is not an encoding of a bitmap but a
+  second interpretation of the page, so it lives on the `Document` trait as `page_svg`
+  and is implemented in `papyra-hayro` over `hayro-svg`. That is why `EncodeOptions.format`
+  takes `RasterFormat` (`webp`/`png`/`jpeg`) while `EncodedFormat` also includes `'svg'` —
+  `PageImage` holds pixels and can never produce one. `hayro-svg` needs the same
+  `embed-fonts` default feature as `hayro`, for the same reason.
 - **Text and search.** `crates/papyra-hayro/src/text.rs` implements
   `hayro_interpret::Device` and collects glyphs, which is how encodings, `ToUnicode`
   cmaps, CID and Type3 fonts, and the graphics-state transform all arrive already
@@ -182,10 +205,11 @@ gate; CI needed no new job.
 - **Anything walking the PDF object graph needs a cycle guard, not a depth cap.** Real
   files contain cyclic `/Next` and `/Kids` chains. A depth limit does not save a name
   tree whose two `/Kids` point back at it — that branches rather than repeats, so 32
-  levels is four billion visits. `outline.rs` uses a visited set for exactly this.
+  levels is four billion visits. `outline.rs` (siblings), `dest.rs` (the name tree) and
+  `info.rs` (the page-label number tree) all use a visited set for exactly this.
 - **PDF text strings are not Latin-1.** They are UTF-16 or UTF-8 with a BOM, else
   PDFDocEncoding, which differs from Latin-1 precisely in `0x80..=0x9F` — where the em
-  and en dashes live. `decode_text_string` in `outline.rs` is the one place this is
+  and en dashes live. `decode_text_string` in `strings.rs` is the one place this is
   handled; reuse it rather than reaching for `from_utf8_lossy`.
 - **Text extraction coordinates come from `page.initial_transform(true)`**, the same
   transform the renderer uses. That is what makes text land in the same space as the
@@ -212,12 +236,27 @@ gate; CI needed no new job.
   `packages/docs-gen` pins its own `typescript@5.9.3`; bun nests it and the root stays
   on 7. Do not "unify" those versions, and do not add `typedoc` to a package that
   resolves TypeScript 7 — it fails at `createProgram` with nothing useful in the error.
+- **A typed error crosses the napi boundary as a message tag.** napi-rs gives every
+  error it throws the same `code`, so `map_err` in the bindings prefixes password
+  failures with `papyra/password-required` or `papyra/incorrect-password` and
+  `errors.ts` strips the tag before rethrowing a typed error. The two ends have to
+  move together; a caller never sees the tag. hayro itself cannot tell a missing
+  password from a wrong one — both are `DecryptionError::PasswordProtected` — so the
+  distinction comes from whether *we* passed one.
+- **`Document.fingerprint` is a content hash, not `/ID`.** hayro exposes `root_id()`
+  and `get()` on `XRef` but no trailer accessor, so the identifier the spec defines is
+  unreachable. `fingerprint.ts` samples the head, the tail and the length instead —
+  the tail matters, because it is where the trailer and therefore `/ID` live. The
+  consequence to know: an incremental save changes this where `/ID` would have
+  survived.
+- **`indexText()` must stay native-only on the rayon path.** It has the same wasm hazard
+  as `renderPages`, and falls back to per-page extraction through the scheduler on wasm.
 - **Rust coverage comes mostly from the TypeScript tests, not `cargo test`.**
   `packages/bindings` has no `#[test]` in it and the render path is only reachable
   across the napi boundary, so `cargo test --workspace` reports that crate at a flat
-  0% and the workspace at 69.52%. `bun run coverage` instead builds the addon with
-  LLVM instrumentation, runs every suite against it, and unions the counters — 91.61%,
-  with bindings at 83.38%. `scripts/coverage.ts` carries the details. Two things there
+  0% and the workspace at 71.24%. `bun run coverage` instead builds the addon with
+  LLVM instrumentation, runs every suite against it, and unions the counters — 93.44%,
+  with bindings at 89.46%. `scripts/coverage.ts` carries the details. Two things there
   are load-bearing and both fail *silently*, producing a lower but entirely plausible
   number: the addon must be passed to `llvm-cov` as an extra `--object` (which is why
   `cargo llvm-cov report` cannot finish the job — it has no flag for a cdylib), and
@@ -233,9 +272,13 @@ gate; CI needed no new job.
   (continuous mode) is the documented fix and needs `-runtime-counter-relocation` on
   Linux plus a `__llvm_prf_cnts` alignment flag at link time on macOS; tried without
   both it silently profiles nothing, which is how it presents. So
-  `write_coverage_profile` in `packages/bindings/src/lib.rs`, behind `#[cfg(coverage)]`
-  and absent from every shipped build, is called from `test/coverage-entry.ts`'s
-  `afterAll`. `bun run coverage` fails if any stage contributes zero, because this
+  `write_coverage_profile` in `packages/bindings/src/lib.rs`, behind
+  `#[cfg(papyra_coverage)]` and absent from every shipped build, is called from
+  `test/coverage-entry.ts`'s `afterAll`. That cfg is one `bun run coverage` sets
+  itself: keyed on cargo-llvm-cov's own `--cfg=coverage` the hook compiled in locally
+  and not in CI, which installs a different version of the tool, and a hook the
+  preload cannot find is the same zero all over again — so it throws rather than
+  skipping. `bun run coverage` fails if any stage contributes zero, because this
   cost seven points of the Rust total behind a green build.
 - **Each coverage stage needs its own `LLVM_PROFILE_FILE`.** cargo-llvm-cov's
   default pattern ends in `%18m` — online merging, where writers share a pool of 18
@@ -259,8 +302,6 @@ gate; CI needed no new job.
   test/unit` covers 6 of the 13 files in the wrapper, silently omitting `document.ts`.
   `packages/papyra/test/coverage-entry.ts` is preloaded solely to import the package
   entrypoint and drag the rest into the denominator. There is no `--coverage.all`.
-- **`indexText()` must stay native-only on the rayon path.** It has the same wasm hazard
-  as `renderPages`, and falls back to per-page extraction through the scheduler on wasm.
 
 ## Conventions
 

@@ -1,7 +1,14 @@
 import { describe, expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { open } from '../../src/index.js';
+import {
+  IncorrectPasswordError,
+  lineQuad,
+  open,
+  PasswordError,
+  PasswordRequiredError,
+  quadBounds,
+} from '../../src/index.js';
 
 /**
  * These need the compiled addon and the corpus, which is why they live apart from
@@ -175,5 +182,219 @@ describeWithCorpus('text and search, against real documents', () => {
     const hits = [];
     for await (const hit of doc.search('   ')) hits.push(hit);
     expect(hits).toEqual([]);
+  });
+});
+
+describeWithCorpus('svg, against real documents', () => {
+  test('emits one svg element sized in the page own points', async () => {
+    const doc = await load('tracemonkey.pdf');
+    const { width, height } = doc.pageSize(0);
+    const page = await doc.renderSvg(0);
+
+    expect(page.format).toBe('svg');
+    expect(page.mime).toBe('image/svg+xml');
+    expect(page.markup).toStartWith('<svg ');
+    expect(page.markup.trimEnd()).toEndWith('</svg>');
+    expect(page.markup).toContain(
+      `viewBox="0 0 ${Math.round(width)} ${Math.round(height)}"`,
+    );
+  });
+
+  /**
+   * The point of the format. A page whose text arrives as glyph outlines still has to
+   * arrive as geometry, not as an embedded raster of itself.
+   */
+  test('text and line work stay vector', async () => {
+    const doc = await load('tracemonkey.pdf');
+    const { markup } = await doc.renderSvg(0);
+
+    expect(markup).toContain('<path ');
+    expect(markup).not.toContain('<image ');
+  });
+
+  test('background is white by default and droppable', async () => {
+    const doc = await load('tracemonkey.pdf');
+    expect((await doc.renderSvg(0)).markup).toContain('background-color');
+    expect(
+      (await doc.renderSvg(0, { background: 'transparent' })).markup,
+    ).not.toContain('background-color');
+  });
+
+  /**
+   * Same page, two backgrounds, in flight together: the scheduler coalesces by key, so
+   * a key that ignored the background would hand one caller the other's output.
+   */
+  test('the two backgrounds do not coalesce into one job', async () => {
+    const doc = await load('tracemonkey.pdf');
+    const [opaque, clear] = await Promise.all([
+      doc.renderSvg(1),
+      doc.renderSvg(1, { background: 'transparent' }),
+    ]);
+    expect(opaque.markup).toContain('background-color');
+    expect(clear.markup).not.toContain('background-color');
+  });
+
+  test('svgHandle reports queue and run time separately', async () => {
+    const doc = await load('tracemonkey.pdf');
+    const job = doc.svgHandle(0);
+    await job.promise;
+    expect(job.timing?.runMs).toBeGreaterThan(0);
+  });
+
+  test('an out-of-range page is rejected before anything is queued', async () => {
+    const doc = await load('tracemonkey.pdf');
+    expect(() => doc.svgHandle(doc.pageCount)).toThrow(RangeError);
+  });
+});
+
+describeWithCorpus('metadata, labels and links, against real documents', () => {
+  test('reads the information dictionary', async () => {
+    const doc = await load('basicapi.pdf');
+    expect(doc.metadata.title).toBe('Basic API Test');
+    expect(doc.metadata.author).toBe('Brendan Dahl');
+    expect(doc.metadata.creator).toBe('pdf.js');
+    expect(doc.metadata.producer).toContain('TCPDF');
+  });
+
+  test('dates come back parseable', async () => {
+    const doc = await load('basicapi.pdf');
+    // The point of converting to ISO 8601 at all: `new Date` has to accept it.
+    expect(Number.isNaN(Date.parse(doc.metadata.created ?? ''))).toBe(false);
+    expect(doc.metadata.created).toMatch(
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})$/,
+    );
+  });
+
+  test('reads the version from the header', async () => {
+    // tracemonkey.pdf is `%PDF-1.4` with no catalog override.
+    expect((await load('tracemonkey.pdf')).pdfVersion).toBe('1.4');
+  });
+
+  test('the catalog version wins over the header', async () => {
+    // basicapi.pdf has a `%PDF-1.6` header and `/Version /1.7` in its catalog, which
+    // is how a file saved by a later tool reports what it was last written as rather
+    // than what it was created as. Reading the header alone would say 1.6.
+    expect((await load('basicapi.pdf')).pdfVersion).toBe('1.7');
+  });
+
+  test('a field the document never wrote is null, not an empty string', async () => {
+    const doc = await load('tracemonkey.pdf');
+    expect(doc.metadata.title).toBeNull();
+    expect(doc.metadata.creator).toBe('TeX');
+  });
+
+  test('reads page labels when the document defines them', async () => {
+    const doc = await load('TAMReview.pdf');
+    const labels = await doc.pageLabels();
+    expect(labels).toHaveLength(doc.pageCount);
+    expect(labels.slice(0, 3)).toEqual(['1', '2', '3']);
+  });
+
+  test('a document with no page labels resolves to an empty array', async () => {
+    // Empty rather than a synthesised 1..n, so a caller can tell the document said
+    // nothing and fall back to the index itself.
+    expect(await (await load('tracemonkey.pdf')).pageLabels()).toEqual([]);
+  });
+
+  test('reads internal links with their destinations', async () => {
+    const doc = await load('basicapi.pdf');
+    const links = await doc.links(0);
+    expect(links.length).toBeGreaterThan(0);
+
+    const internal = links.filter((l) => l.target.kind === 'internal');
+    expect(internal.length).toBeGreaterThan(0);
+    for (const link of internal) {
+      if (link.target.kind !== 'internal') continue;
+      expect(link.target.dest.page).toBeLessThan(doc.pageCount);
+    }
+  });
+
+  test('reads a uri link', async () => {
+    const doc = await load('basicapi.pdf');
+    const uris = (await doc.links(2)).flatMap((l) =>
+      l.target.kind === 'uri' ? [l.target.uri] : [],
+    );
+    expect(uris).toContain('http://www.tcpdf.org');
+  });
+
+  test('link rects land on the text they belong to', async () => {
+    // The whole point of mapping through the render transform. A link over a table
+    // of contents entry has to overlap that entry's own glyphs, in one shared space.
+    const doc = await load('basicapi.pdf');
+    const [links, text] = [await doc.links(0), await doc.pageText(0)];
+    const link = links.find((l) => l.target.kind === 'internal');
+    expect(link).toBeDefined();
+    if (!link) return;
+
+    const { rect } = link;
+    const overlapping = text.lines.filter((line) => {
+      const bounds = quadBounds(lineQuad(line, 0, line.text.length));
+      return (
+        bounds.x < rect.x + rect.width &&
+        bounds.x + bounds.width > rect.x &&
+        bounds.y < rect.y + rect.height &&
+        bounds.y + bounds.height > rect.y
+      );
+    });
+    expect(overlapping.length).toBeGreaterThan(0);
+    expect(overlapping[0]?.text).toContain('Chapter 1');
+  });
+
+  test('a page with no links resolves to an empty array', async () => {
+    expect(await (await load('tracemonkey.pdf')).links(1)).toEqual([]);
+  });
+
+  test('links are cached, so a second read is the same array', async () => {
+    const doc = await load('basicapi.pdf');
+    expect(await doc.links(0)).toBe(await doc.links(0));
+  });
+
+  test('two reads in flight at once share one task', async () => {
+    const doc = await load('basicapi.pdf');
+    const [a, b] = await Promise.all([doc.links(0), doc.links(0)]);
+    expect(a).toBe(b);
+  });
+
+  test('the same bytes always fingerprint the same, different bytes do not', async () => {
+    const [a, b, other] = await Promise.all([
+      load('basicapi.pdf'),
+      load('basicapi.pdf'),
+      load('tracemonkey.pdf'),
+    ]);
+    expect(a.fingerprint).toBe(b.fingerprint);
+    expect(a.fingerprint).not.toBe(other.fingerprint);
+    expect(a.fingerprint).toMatch(/^[0-9a-f]{16}$/);
+  });
+});
+
+describeWithCorpus('encrypted documents', () => {
+  const encrypted = () => readFileSync(join(CORPUS, 'pr6531_1.pdf'));
+
+  test('asks for a password when none was given', async () => {
+    const failure = await open(encrypted()).catch((e: unknown) => e);
+    expect(failure).toBeInstanceOf(PasswordRequiredError);
+    expect(failure).toBeInstanceOf(PasswordError);
+    expect((failure as PasswordError).retry).toBe(false);
+  });
+
+  test('says the password was wrong when one was', async () => {
+    // The distinction a viewer needs: the same dialog, opened cold or with an error.
+    const failure = await open(encrypted(), { password: 'nope' }).catch(
+      (e: unknown) => e,
+    );
+    expect(failure).toBeInstanceOf(IncorrectPasswordError);
+    expect((failure as PasswordError).retry).toBe(true);
+  });
+
+  test('the message never leaks the tag the bindings travel through', async () => {
+    const failure = (await open(encrypted()).catch(
+      (e: unknown) => e,
+    )) as PasswordError;
+    expect(failure.message).not.toContain('papyra/');
+  });
+
+  test('opens with the right password', async () => {
+    const doc = await open(encrypted(), { password: 'asdfasdf' });
+    expect(doc.pageCount).toBeGreaterThan(0);
   });
 });

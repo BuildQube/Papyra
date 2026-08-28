@@ -46,6 +46,25 @@ export interface StreamOptions extends RenderOptions {
   order?: readonly number[];
 }
 
+/**
+ * Options for {@link Document.renderSvg}. No `dpi` and no `fitWidth`: an SVG carries
+ * the page's own point dimensions and rasterises at whatever size it is drawn.
+ */
+export interface SvgOptions {
+  /** Scheduling order, exactly as in {@link RenderOptions.priority}. */
+  priority?: number;
+  /** Abort a request that has not started yet. */
+  signal?: AbortSignal;
+  /**
+   * Defaults to `'white'`, matching how pages rasterise.
+   *
+   * Choose `'transparent'` when the SVG is going to be placed onto something else —
+   * an opaque rectangle behind vector artwork is the one thing a consumer cannot
+   * undo.
+   */
+  background?: 'white' | 'transparent';
+}
+
 /** A rendered page. `data` is tightly packed RGBA8, `height * stride` bytes. */
 export interface RenderedPage {
   /** Output width in pixels, after `dpi` or `fitWidth` was applied. */
@@ -83,6 +102,39 @@ export interface PageSize {
   readonly width: number;
   /** Height in points, with rotation and the crop box already applied. */
   readonly height: number;
+}
+
+/**
+ * The document information dictionary — what the file says about itself.
+ *
+ * Every field is independently optional, and a field the document left blank reads as
+ * `null` rather than an empty string. None of it is verified: a producer writes what
+ * it likes, and `title` in particular is frequently a filename or absent entirely, so
+ * a viewer showing a document name should fall back to its own.
+ */
+export interface DocumentMetadata {
+  /** The document's own title, which is frequently a filename or absent. */
+  readonly title: string | null;
+  /** Who the document claims to be by. */
+  readonly author: string | null;
+  /** A one-line description. Rare outside of published documents. */
+  readonly subject: string | null;
+  /** Free text, and not reliably a delimited list — producers use commas or spaces. */
+  readonly keywords: string | null;
+  /** The application the document was authored in, e.g. `AutoCAD`. */
+  readonly creator: string | null;
+  /** The application that wrote the PDF, e.g. `Ghostscript`. */
+  readonly producer: string | null;
+  /**
+   * When the document was created, as an ISO 8601 string — `new Date(created)` parses
+   * it directly.
+   *
+   * A PDF date may be as short as a year, in which case the missing components read
+   * as January 1st. It is also self-reported, and clocks lie.
+   */
+  readonly created: string | null;
+  /** When the document was last modified, ISO 8601. */
+  readonly modified: string | null;
 }
 
 /** Everything fixed for the lifetime of a {@link Document}: its queue and its caches. */
