@@ -1,26 +1,32 @@
-import { Sidebar } from '@workspace/pdf-viewer/components/pdf-sidebar';
+import type { ReactNode, RefObject } from 'react';
+import { Sidebar } from '@/components/pdf-sidebar';
 import {
   usePdfDocument,
   usePdfPage,
   usePdfSearch,
   usePdfViewerActions,
-} from '@workspace/pdf-viewer/hooks/use-pdf-viewer';
-import type { ReactNode, RefObject } from 'react';
+} from '@/hooks/use-pdf-viewer';
+import { cn } from '@/lib/utils';
 
-interface Props {
+/** Props for {@link ViewerLayout}. */
+export interface ViewerLayoutProps {
   /** Page and zoom controls. Pinned above the scroll area, as in any viewer. */
   toolbar?: ReactNode;
   /** Timings for whichever pipeline this route measures. */
   status?: ReactNode;
   /** Controls panel down the right-hand side. */
   aside?: ReactNode;
+  /** Whether the sidebar is shown at all. */
   showThumbs?: boolean;
   /**
    * The scrolling element, handed back so a route can drive it. The viewer binds its
    * zoom gestures here and corrects the scroll offset after every zoom.
    */
   viewport?: RefObject<HTMLDivElement | null>;
+  /** The page area: whichever view is mounted. */
   children: ReactNode;
+  /** Classes for the outermost element. */
+  className?: string;
 }
 
 /**
@@ -40,7 +46,8 @@ export function ViewerLayout({
   showThumbs = true,
   viewport,
   children,
-}: Props) {
+  className,
+}: ViewerLayoutProps) {
   const doc = usePdfDocument();
   const [page, setPage] = usePdfPage();
   const { matches, active } = usePdfSearch();
@@ -48,7 +55,7 @@ export function ViewerLayout({
   if (!doc) return null;
 
   return (
-    <main className="flex min-h-0 flex-1">
+    <main className={cn('flex min-h-0 flex-1', className)}>
       {/* The store feeds the props; `Sidebar` stays controlled, so it is still
           usable — and documentable — without any of this. */}
       {showThumbs && (

@@ -52,8 +52,8 @@ export interface ZoomBarProps {
    * other than their index. Empty when it does not, so nothing is shown.
    */
   label: string;
-  /** Which view is mounted. */
-  mode: ViewMode;
+  /** Which view is mounted. Only meaningful alongside `onMode`. */
+  mode?: ViewMode;
   /** True while the pages on screen are a stretched bitmap awaiting a re-render. */
   settling: boolean;
   /** Called when a zoom level or fit mode is chosen. */
@@ -64,8 +64,13 @@ export interface ZoomBarProps {
   onStepOut: () => void;
   /** Called with a 0-based page index when the pager moves. */
   onPage: (index: number) => void;
-  /** Called when the single/continuous toggle changes. */
-  onMode: (mode: ViewMode) => void;
+  /**
+   * Called when the single/continuous toggle changes.
+   *
+   * Omit it and the toggle is not rendered — a viewer fixed to one view should not
+   * show a control that does nothing.
+   */
+  onMode?: (mode: ViewMode) => void;
 }
 
 const FIT_LABELS: Record<string, string> = {
@@ -209,21 +214,24 @@ export function ZoomBar({
         </SelectContent>
       </Select>
 
-      <ToggleGroup
-        variant="outline"
-        size="sm"
-        spacing={0}
-        value={[mode]}
-        onValueChange={(value) => {
-          // A toggle group can be emptied by clicking the active item; this one is a
-          // segmented control, so the current mode stands rather than falling to none.
-          const next = value[0];
-          if (next) onMode(next as ViewMode);
-        }}
-      >
-        <ToggleGroupItem value="page">Single</ToggleGroupItem>
-        <ToggleGroupItem value="scroll">Continuous</ToggleGroupItem>
-      </ToggleGroup>
+      {onMode && (
+        <ToggleGroup
+          variant="outline"
+          size="sm"
+          spacing={0}
+          value={[mode ?? 'scroll']}
+          onValueChange={(value) => {
+            // A toggle group can be emptied by clicking the active item; this one is
+            // a segmented control, so the current mode stands rather than falling to
+            // none.
+            const next = value[0];
+            if (next) onMode(next as ViewMode);
+          }}
+        >
+          <ToggleGroupItem value="page">Single</ToggleGroupItem>
+          <ToggleGroupItem value="scroll">Continuous</ToggleGroupItem>
+        </ToggleGroup>
+      )}
 
       <span className="ml-auto flex items-center gap-1 text-xs whitespace-nowrap text-muted-foreground">
         <Kbd>⌘/ctrl</Kbd> + scroll, pinch, or <Kbd>⌘/ctrl</Kbd>

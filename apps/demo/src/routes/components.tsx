@@ -1,3 +1,4 @@
+import { PdfViewer } from '@workspace/pdf-viewer/components/pdf-viewer';
 import {
   Alert,
   AlertDescription,
@@ -21,9 +22,11 @@ import {
 } from '@workspace/ui/components/table';
 import { SearchIcon, TriangleAlertIcon } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { BlockPreview } from '../components/BlockPreview.js';
 import { CommentBody } from '../components/docs/CommentBody.js';
 import { TypeSignature } from '../components/docs/TypeSignature.js';
 import { sourceUrl } from '../lib/apiModel.js';
+import { usePreviewDocument } from '../lib/previewDocument.js';
 import {
   installCommand,
   loadRegistry,
@@ -33,6 +36,7 @@ import {
 
 /** The order the groups read in: what a page is made of, then what drives it. */
 const GROUPS: { title: string; type: string }[] = [
+  { title: 'Blocks', type: 'registry:block' },
   { title: 'Components', type: 'registry:component' },
   { title: 'Hooks', type: 'registry:hook' },
   { title: 'Libraries', type: 'registry:lib' },
@@ -192,6 +196,23 @@ export function ComponentsRoute() {
  */
 const noLinks = () => undefined;
 
+/**
+ * A block, running.
+ *
+ * Only blocks get one: they are the items that stand alone, and a `PageSurface` or a
+ * `Highlights` overlay outside a page is a rectangle, not a demonstration.
+ */
+function Preview({ name }: { name: string }) {
+  const doc = usePreviewDocument();
+  if (!doc) return null;
+  if (name !== 'pdf-viewer') return null;
+  return (
+    <BlockPreview>
+      <PdfViewer doc={doc} />
+    </BlockPreview>
+  );
+}
+
 function Item({ entry }: { entry: RegistryEntry }) {
   const { item, symbol, props } = entry;
   const source = symbol?.sources?.[0];
@@ -224,6 +245,8 @@ function Item({ entry }: { entry: RegistryEntry }) {
           {item.description}
         </p>
       )}
+
+      {item.type === 'registry:block' && <Preview name={item.name} />}
 
       <div className="mt-3 flex max-w-[74ch] items-center gap-2 rounded-md border bg-muted/40 py-1 pr-1 pl-3">
         <code className="min-w-0 flex-1 overflow-x-auto font-mono text-xs whitespace-nowrap">

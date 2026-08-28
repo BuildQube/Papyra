@@ -10,6 +10,7 @@ import {
   type PageImageHandle,
   PageImageView,
 } from '@workspace/pdf-viewer/components/pdf-page-image-view';
+import { ViewerLayout } from '@workspace/pdf-viewer/components/pdf-viewer-layout';
 import {
   usePdfDocument,
   usePdfPage,
@@ -19,7 +20,6 @@ import { PAGE } from '@workspace/pdf-viewer/lib/pdf-page-class';
 import { cn } from '@workspace/ui/lib/utils';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ExportControls } from '../components/ExportControls.js';
-import { ViewerLayout } from '../components/ViewerLayout.js';
 import { defaultViewWidth } from '../lib/width.js';
 
 interface Timing {

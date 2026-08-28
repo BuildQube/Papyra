@@ -26,6 +26,8 @@ packages/bindings/npm
 # third-party test PDFs are fetched, never vendored (mixed provenance)
 /corpus
 apps/demo/public/*.pdf
+# ...except the one the /components previews render, which must work on a cold visit.
+!apps/demo/public/sample.pdf
 
 # The API model papyra-docs-gen extracts from the wrapper's TSDoc. Generated at
 # build time like the napi output above, and stale the moment a comment changes.

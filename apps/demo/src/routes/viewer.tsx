@@ -7,6 +7,7 @@ import {
   PageView,
   type PageViewHandle,
 } from '@workspace/pdf-viewer/components/pdf-page-view';
+import { ViewerLayout } from '@workspace/pdf-viewer/components/pdf-viewer-layout';
 import { ZoomBar } from '@workspace/pdf-viewer/components/pdf-zoom-bar';
 import {
   labelsDiffer,
@@ -41,7 +42,6 @@ import {
   useRef,
   useState,
 } from 'react';
-import { ViewerLayout } from '../components/ViewerLayout.js';
 import { useViewUrlSync } from '../lib/urlSync.js';
 
 interface Timing {
