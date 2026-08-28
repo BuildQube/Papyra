@@ -20,3 +20,9 @@ rayon = { workspace = true }
 
 [build-dependencies]
 napi-build = { workspace = true }
+
+# cargo-llvm-cov's wrapper compiles coverage builds with `--cfg=coverage`, which is
+# how `write_coverage_profile` is kept out of everything else. Declaring it here stops
+# rustc's unexpected_cfgs lint from failing `clippy -D warnings` on a normal build.
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }

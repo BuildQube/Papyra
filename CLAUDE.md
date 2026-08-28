@@ -225,6 +225,18 @@ gate; CI needed no new job.
   there and `cargo llvm-cov clean` does not look. The script asserts a non-zero
   `packages/bindings/src/lib.rs` at the end for exactly this reason; if that assertion
   fires, the pipeline broke, the tests did not.
+- **Bun does not flush the addon's coverage counters on exit.** The instrumentation
+  dumps them from an `atexit` handler registered when the addon is dlopened, and Bun
+  on Linux leaves the process without running it — the wrapper test stage contributed
+  532 covered lines on macOS and 0 in CI, reporting `outline()` and the text paths as
+  dead code while their own integration tests passed in that same job. `%c`
+  (continuous mode) is the documented fix and needs `-runtime-counter-relocation` on
+  Linux plus a `__llvm_prf_cnts` alignment flag at link time on macOS; tried without
+  both it silently profiles nothing, which is how it presents. So
+  `write_coverage_profile` in `packages/bindings/src/lib.rs`, behind `#[cfg(coverage)]`
+  and absent from every shipped build, is called from `test/coverage-entry.ts`'s
+  `afterAll`. `bun run coverage` fails if any stage contributes zero, because this
+  cost seven points of the Rust total behind a green build.
 - **Each coverage stage needs its own `LLVM_PROFILE_FILE`.** cargo-llvm-cov's
   default pattern ends in `%18m` — online merging, where writers share a pool of 18
   files. That is only valid between processes running the same coverage map, and

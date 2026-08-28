@@ -142,6 +142,7 @@ const env = {
   ...process.env,
   ...parseShellExports(await $`cargo llvm-cov show-env`.text()),
 };
+
 const profileDir = join(env.CARGO_LLVM_COV_TARGET_DIR ?? 'target', 'coverage');
 
 console.log('coverage: clearing previous profile data');
@@ -194,9 +195,11 @@ const stageEnv = (stage: string) => ({
   // between processes sharing a coverage map, and here the writers are a cargo test
   // binary, node loading the addon and bun loading the addon.
   //
-  // `%c` (continuous mode) would be the principled answer to a process that exits
-  // without flushing, but on Linux it additionally needs runtime counter relocation
-  // and here it produced unusable profiles on every stage, macOS included.
+  // Not `%c` (continuous mode) either, which is the textbook answer to a process
+  // that never flushes: it needs `-runtime-counter-relocation` on Linux and a
+  // `__llvm_prf_cnts` section alignment flag at link time on macOS, and without both
+  // it silently profiles nothing. Tried here, it zeroed every stage on macOS. The
+  // flush is done explicitly from JS instead — see writeCoverageProfile below.
   LLVM_PROFILE_FILE: join(targetDir, `${stage}-%p.profraw`),
 });
 
