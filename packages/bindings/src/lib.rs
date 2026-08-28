@@ -787,7 +787,7 @@ fn ensure_heap_reserved() {}
 /// (`%c`) is the documented fix and needs a different build flag on each platform to
 /// work at all, so the flush is triggered explicitly from the test preload instead —
 /// while the process is unambiguously still alive.
-#[cfg(coverage)]
+#[cfg(papyra_coverage)]
 #[napi(js_name = "__writeCoverageProfile")]
 pub fn write_coverage_profile() {
   unsafe extern "C" {

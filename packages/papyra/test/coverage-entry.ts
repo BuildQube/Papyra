@@ -20,11 +20,21 @@ import { afterAll } from 'bun:test';
 import './../src/index.js';
 
 afterAll(async () => {
-  // Present only in a coverage build, and typed nowhere, since the napi .d.ts is
-  // generated from whichever build ran last. Absent is the normal case, not an error.
   const native: Record<string, unknown> = await import(
     '@build-qube/papyra-native'
   );
   const flush = native.__writeCoverageProfile;
-  if (typeof flush === 'function') flush();
+  if (typeof flush === 'function') {
+    flush();
+  } else if (process.env.PAPYRA_COVERAGE) {
+    // Only `bun run coverage` sets that variable, and it builds the addon with
+    // `--cfg=papyra_coverage`, so the hook is missing here only if the addon this
+    // process loaded is not the one that was just built. Skipping quietly is what
+    // made the same fault read as "these paths are untested" for two CI runs.
+    throw new Error(
+      'papyra: the addon has no __writeCoverageProfile, so this run would report ' +
+        'no Rust coverage for anything only the wrapper tests reach. The loaded ' +
+        'addon is not the instrumented build.',
+    );
+  }
 });

@@ -143,6 +143,26 @@ const env = {
   ...parseShellExports(await $`cargo llvm-cov show-env`.text()),
 };
 
+/**
+ * Compile the coverage-only flush hook in, under a cfg of our own.
+ *
+ * cargo-llvm-cov happens to set `--cfg=coverage` today, but that is its business and
+ * not a contract — keying on it made the hook present locally and absent in CI, which
+ * showed up as the wrapper stage contributing nothing at all rather than as an error.
+ * Setting our own leaves nothing to differ between machines.
+ *
+ * The elements of the wrapper's flags are separated by 0x1F, not spaces.
+ */
+const wrapperFlags = env.__CARGO_LLVM_COV_RUSTC_WRAPPER_RUSTFLAGS;
+if (wrapperFlags === undefined) {
+  console.error(
+    'coverage: cargo llvm-cov show-env set no wrapper flags — nothing would be\n' +
+      'instrumented. Check that `cargo llvm-cov` is on PATH and current.',
+  );
+  process.exit(1);
+}
+env.__CARGO_LLVM_COV_RUSTC_WRAPPER_RUSTFLAGS = `${wrapperFlags}\x1f--cfg=papyra_coverage`;
+
 const profileDir = join(env.CARGO_LLVM_COV_TARGET_DIR ?? 'target', 'coverage');
 
 console.log('coverage: clearing previous profile data');
@@ -191,6 +211,8 @@ const countProfraw = async () =>
  */
 const stageEnv = (stage: string) => ({
   ...env,
+  // Lets the test preload insist on the flush hook rather than skip it silently.
+  PAPYRA_COVERAGE: '1',
   // Plain `%p`, not cargo-llvm-cov's `%18m` pool: that is online merging, valid only
   // between processes sharing a coverage map, and here the writers are a cargo test
   // binary, node loading the addon and bun loading the addon.
