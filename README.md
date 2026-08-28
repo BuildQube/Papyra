@@ -66,6 +66,93 @@ destinations, name trees, the legacy `/Dests` dictionary, and `GoTo` actions all
 resolve; `GoToR` and `URI` deliberately do not, and surface as `dest: null`. Malformed
 outlines with cyclic `/Next` or `/Kids` chains terminate rather than hang.
 
+## Links
+
+```ts
+const scale = rendered.width / doc.pageSize(index).width;
+
+for (const link of await doc.links(index)) {
+  const { x, y, width, height } = scaleRect(link.rect, scale);
+  if (link.target.kind === 'uri') openExternally(link.target.uri);
+  else goTo(link.target.dest.page);
+}
+```
+
+hayro *draws* annotations, so a link's border already lands in the bitmap — but nothing
+told you where it was or where it went, which is the difference between showing a link
+and having one. `doc.links(index)` closes that: a rectangle, a target, and the
+annotation's tooltip as `alt`.
+
+Rectangles are in the **same space as the extracted text** — pixels from the top-left at
+72 DPI, rotation and crop box applied — because both go through the transform the
+renderer uses. That is what makes a hit region land on its own glyphs on a rotated
+sheet. `scaleRect` takes it to any render.
+
+Targets are a discriminated union, so `kind` narrows to the payload with no non-null
+assertion. Only links that resolve to something actionable are reported: a `/Link`
+pointing at a page the document does not contain, or carrying `GoToR`, `Launch` or
+`JavaScript`, is dropped rather than handed over as a region that swallows clicks.
+Hidden annotations are skipped too.
+
+Reading links never interprets a content stream — it is an object-graph walk, roughly a
+thousandth the cost of rendering the page — so unlike text extraction it does **not**
+go through the priority queue. Making a link layer wait behind renders would add
+latency you can feel, for work that costs nothing. Results are cached and concurrent
+reads of one page share a single task.
+
+## Metadata, page labels and identity
+
+```ts
+doc.metadata.title;              // null when the document never said
+doc.metadata.created;            // ISO 8601 — `new Date(...)` parses it
+doc.pdfVersion;                  // '1.7'
+doc.fingerprint;                 // stable key for what you remember per document
+
+const labels = await doc.pageLabels();
+const shown = labels[index] || String(index + 1);
+```
+
+`metadata` is synchronous, because the engine reads the information dictionary while
+loading. Every field is independently `null`, and none of it is verified — `title` is
+frequently a filename or missing, so fall back to your own.
+
+`pdfVersion` is deliberately not one of `metadata`'s fields: those are what the
+producer chose to say about the document, while the version is a structural property of
+the file. It comes from the header, or from the catalog where that overrides it — so an
+incrementally saved file reports the version it was last written as. Treat `'1.0'` with
+suspicion: genuine PDF 1.0 files are close to extinct, and it is also what a file with
+an unreadable header reports.
+
+`pageLabels()` is the number *printed on the page*, which is not the index: a document
+with front matter numbers its first pages i, ii, iii, and a viewer that says "page 4 of
+300" when the sheet reads "A101" is describing a document nobody else can see. It
+resolves to an **empty array** when the document defines no labels, which is the signal
+to number by index yourself — a document that defines labels but says nothing about one
+page gives that page an empty string, which is a different answer.
+
+`fingerprint` is sixteen hex characters for keying per-document state — the page it was
+left on, a zoom, a set of highlights. It is a hash of the file rather than the PDF's own
+`/ID`, which hayro exposes no way to reach; the practical difference is that an
+incremental save changes it. It samples the tail as well as the head, so a file that
+does carry an `/ID` still feeds it in, since `/ID` lives in the trailer.
+
+## Encrypted documents
+
+```ts
+try {
+  doc = await open(file, { password });
+} catch (e) {
+  if (e instanceof PasswordError) showDialog({ retry: e.retry });
+  else throw e;
+}
+```
+
+`PasswordRequiredError` and `IncorrectPasswordError` are separate because a viewer
+responds differently — one asks, the other says the last answer was wrong — and both
+extend `PasswordError` because the dialog is the same one either way. The underlying
+engine reports a single "password-protected" for both; papyra can tell them apart
+because it knows whether a password was passed.
+
 ## Text and search
 
 ```ts

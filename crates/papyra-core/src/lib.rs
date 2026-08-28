@@ -10,6 +10,16 @@ use std::fmt::Debug;
 pub enum PapyraError {
   #[error("failed to parse PDF: {0}")]
   Parse(String),
+  /// The document is encrypted and no password was supplied.
+  ///
+  /// Separate from [`Self::IncorrectPassword`] because a viewer's response differs:
+  /// this one asks, that one says the answer was wrong. The underlying engine need
+  /// not tell them apart — knowing whether *we* passed a password is enough.
+  #[error("this PDF is password-protected")]
+  PasswordRequired,
+  /// A password was supplied and it did not open the document.
+  #[error("the supplied password is incorrect")]
+  IncorrectPassword,
   #[error("page {0} out of range")]
   PageOutOfRange(usize),
   #[error("unsupported: {0}")]
@@ -94,6 +104,43 @@ pub trait Document: Debug {
     let _ = index;
     Err(PapyraError::Unsupported("text extraction".to_string()))
   }
+
+  /// The document information dictionary. Every field is independently optional.
+  ///
+  /// Defaulted for the same reason as [`Self::outline`].
+  fn metadata(&self) -> Metadata {
+    Metadata::default()
+  }
+
+  /// The PDF specification version the file declares, e.g. `"1.7"`.
+  ///
+  /// Not part of [`Self::metadata`]: the information dictionary is what the producer
+  /// chose to say about the document, while this is a structural property of the file
+  /// read from its header and catalog.
+  fn pdf_version(&self) -> Option<String> {
+    None
+  }
+
+  /// The links on one page, in the order the document lists them.
+  ///
+  /// Empty is the common and correct answer for most pages, so this is defaulted
+  /// rather than an `Unsupported` error: a backend without link support behaves like
+  /// a document without links, which every caller already handles.
+  fn page_links(&self, index: usize) -> Result<Vec<Link>> {
+    let _ = index;
+    Ok(Vec::new())
+  }
+
+  /// The document's page labels — the numbering printed on the page, which is not
+  /// the index.
+  ///
+  /// One entry per page when the document defines `/PageLabels`, and **empty** when
+  /// it does not. Empty rather than `["1", "2", ...]` so a caller can tell a document
+  /// that asked for plain numbering from one that said nothing, and fall back to the
+  /// index only in the second case.
+  fn page_labels(&self) -> Vec<String> {
+    Vec::new()
+  }
 }
 
 /// A PDF backend.
@@ -172,6 +219,62 @@ pub struct OutlineItem {
   pub italic: bool,
   /// `/Count` was positive, meaning the entry should start expanded.
   pub open: bool,
+}
+
+/// An axis-aligned rectangle in the page-as-rendered space described on [`PageText`].
+///
+/// Pixels from the top-left at 72 DPI, y increasing downwards, with page rotation and
+/// the crop box already applied — the same space as [`PageSize`] and [`TextLine`], so
+/// a hit region and a text highlight scale by the same single multiply.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Rect {
+  pub x0: f32,
+  pub y0: f32,
+  pub x1: f32,
+  pub y1: f32,
+}
+
+/// Where a link goes.
+#[derive(Debug, Clone, PartialEq)]
+pub enum LinkTarget {
+  /// Somewhere in this document.
+  Internal(Destination),
+  /// A URI. Not validated, and not necessarily `http` — `mailto:` and `file:` are
+  /// both common, and a viewer should decide for itself what it is willing to follow.
+  Uri(String),
+}
+
+/// One link annotation: a rectangle on the page, and what activating it does.
+///
+/// Only links that resolve to something actionable are reported. A `/Link` whose
+/// destination points at a page this document does not contain is dropped rather than
+/// surfaced as a target that goes nowhere.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Link {
+  /// The clickable region.
+  pub rect: Rect,
+  pub target: LinkTarget,
+  /// The annotation's `/Contents`, which for a link is its tooltip. Usually absent.
+  pub alt: Option<String>,
+}
+
+/// The document information dictionary, decoded.
+///
+/// Every field is independently optional, and an empty string is reported as `None` —
+/// producers write `/Author ()` often enough that the distinction is noise.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Metadata {
+  pub title: Option<String>,
+  pub author: Option<String>,
+  pub subject: Option<String>,
+  pub keywords: Option<String>,
+  /// The application that authored the original document, e.g. `AutoCAD`.
+  pub creator: Option<String>,
+  /// The application that wrote the PDF itself, e.g. `Ghostscript`.
+  pub producer: Option<String>,
+  /// ISO 8601, converted from the PDF's own `D:YYYYMMDDHHmmSSOHH'mm` form.
+  pub created: Option<String>,
+  pub modified: Option<String>,
 }
 
 /// A run of glyphs sharing one baseline.

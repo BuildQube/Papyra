@@ -77,6 +77,31 @@ for (const node of await doc.outline()) {
 `renderImage` keeps the pixels in Rust and encodes on demand, so nothing but the
 finished file crosses into JS.
 
+## Links, labels, and what the file says about itself
+
+```ts
+const scale = rendered.width / doc.pageSize(index).width;
+for (const link of await doc.links(index)) {
+  const box = scaleRect(link.rect, scale);
+  if (link.target.kind === 'uri') openExternally(link.target.uri);
+  else goTo(link.target.dest.page);
+}
+
+const labels = await doc.pageLabels();
+const shown = labels[index] || String(index + 1);   // "iv", not "4"
+
+doc.metadata.title;   // null when the document never said
+doc.fingerprint;      // stable key for per-document state
+```
+
+Link rectangles are in the same space as extracted text — 72 DPI from the top-left,
+rotation applied — so one multiply places them over any render. `pageLabels()` is empty
+when the document defines no labels, which is your signal to number by index.
+
+Encrypted files throw `PasswordRequiredError` or `IncorrectPasswordError`, both
+extending `PasswordError` with a `retry` flag, so one dialog handles the cold ask and
+the wrong answer.
+
 ## Two things that will bite you
 
 **Size with `fitWidth`, not `dpi`.** Page areas vary by two orders of magnitude. At a

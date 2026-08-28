@@ -10,11 +10,17 @@ import {
 } from 'react';
 import { ContinuousPages } from '../components/ContinuousPages.js';
 import { Highlights } from '../components/Highlights.js';
+import { Links } from '../components/Links.js';
 import { PageView, type PageViewHandle } from '../components/PageView.js';
 import { ViewerLayout } from '../components/ViewerLayout.js';
 import { type ViewMode, ZoomBar } from '../components/ZoomBar.js';
 import { useDocument } from '../lib/documentContext.js';
 import { usePage } from '../lib/usePage.js';
+import {
+  labelsDiffer,
+  pageLabel,
+  usePageLabels,
+} from '../lib/usePageLabels.js';
 import { useZoom, type ZoomAnchor } from '../lib/useZoom.js';
 import {
   formatZoom,
@@ -90,6 +96,10 @@ export function ViewerRoute() {
   const probe = useRef<((t: Timing) => void) | null>(null);
 
   const index = doc ? Math.min(page, doc.pageCount - 1) : 0;
+  const labels = usePageLabels(doc);
+  // Only worth the space when the document disagrees with the index — showing "3"
+  // next to "3" is noise.
+  const label = labelsDiffer(labels) ? pageLabel(labels, index) : '';
   const pageSize = useMemo(
     () => (doc ? doc.pageSize(index) : null),
     [doc, index],
@@ -229,6 +239,7 @@ export function ViewerRoute() {
             scale={zoom.scale}
             page={index}
             pageCount={doc.pageCount}
+            label={label}
             mode={mode}
             settling={zoom.settling}
             onSpec={(spec) => zoom.setSpec(spec)}
@@ -277,13 +288,25 @@ export function ViewerRoute() {
             style={box ?? undefined}
           />
           {size && loaded && (
-            <Highlights
-              matches={matches.filter((m) => m.page === index)}
-              active={active?.page === index ? active : null}
-              scale={(box?.width ?? size.w) / loaded.doc.pageSize(index).width}
-              width={box?.width ?? size.w}
-              height={box?.height ?? size.h}
-            />
+            <>
+              <Links
+                doc={loaded.doc}
+                index={index}
+                scale={
+                  (box?.width ?? size.w) / loaded.doc.pageSize(index).width
+                }
+                onSelect={setPage}
+              />
+              <Highlights
+                matches={matches.filter((m) => m.page === index)}
+                active={active?.page === index ? active : null}
+                scale={
+                  (box?.width ?? size.w) / loaded.doc.pageSize(index).width
+                }
+                width={box?.width ?? size.w}
+                height={box?.height ?? size.h}
+              />
+            </>
           )}
         </div>
       )}

@@ -16,6 +16,11 @@ interface Props {
   scale: number;
   page: number;
   pageCount: number;
+  /**
+   * The label printed on this page, when the document numbers its pages as something
+   * other than their index. Empty when it does not, so nothing is shown.
+   */
+  label: string;
   mode: ViewMode;
   /** True while the pages on screen are a stretched bitmap awaiting a re-render. */
   settling: boolean;
@@ -37,6 +42,7 @@ export function ZoomBar({
   scale,
   page,
   pageCount,
+  label,
   mode,
   settling,
   onSpec,
@@ -75,6 +81,11 @@ export function ZoomBar({
           }}
         />
         <span className="muted">of {pageCount}</span>
+        {label && (
+          <span className="page-label" title="The number printed on this page">
+            {label}
+          </span>
+        )}
         <button
           type="button"
           aria-label="Next page"

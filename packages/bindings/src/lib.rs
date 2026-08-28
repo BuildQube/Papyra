@@ -77,8 +77,22 @@ fn to_rendered(bmp: papyra_core::Bitmap) -> RenderedPage {
   }
 }
 
+/// Tags a load failure so the TypeScript wrapper can rethrow it as a typed error.
+///
+/// napi-rs gives every error it throws the same `code`, so the message is the only
+/// channel there is. The wrapper strips the tag and never shows it to a caller —
+/// keep these two constants in step with `PASSWORD_TAGS` in `document.ts`.
+const TAG_PASSWORD_REQUIRED: &str = "papyra/password-required";
+const TAG_INCORRECT_PASSWORD: &str = "papyra/incorrect-password";
+
 fn map_err(e: papyra_core::PapyraError) -> Error {
-  Error::new(Status::GenericFailure, e.to_string())
+  use papyra_core::PapyraError as E;
+  let message = match &e {
+    E::PasswordRequired => format!("{TAG_PASSWORD_REQUIRED} {e}"),
+    E::IncorrectPassword => format!("{TAG_INCORRECT_PASSWORD} {e}"),
+    _ => e.to_string(),
+  };
+  Error::new(Status::GenericFailure, message)
 }
 
 // ---------------------------------------------------------------- async tasks
@@ -388,67 +402,162 @@ pub struct OutlineEntry {
   pub open: bool,
 }
 
-fn to_outline_entry(item: papyra_core::OutlineItem) -> OutlineEntry {
+/// Flatten a destination into the object shape the wrapper reads.
+///
+/// Shared by outline entries and links, which resolve to exactly the same thing.
+fn to_destination(d: papyra_core::Destination) -> OutlineDestination {
   use papyra_core::DestinationView as V;
 
-  let dest = item.dest.map(|d| {
-    let mut out = OutlineDestination {
-      page: d.page_index as u32,
-      kind: String::new(),
-      left: None,
-      top: None,
-      right: None,
-      bottom: None,
-      zoom: None,
-    };
-    match d.view {
-      V::XyZ { left, top, zoom } => {
-        out.kind = "XYZ".to_string();
-        out.left = left.map(f64::from);
-        out.top = top.map(f64::from);
-        out.zoom = zoom.map(f64::from);
-      }
-      V::Fit => out.kind = "Fit".to_string(),
-      V::FitH { top } => {
-        out.kind = "FitH".to_string();
-        out.top = top.map(f64::from);
-      }
-      V::FitV { left } => {
-        out.kind = "FitV".to_string();
-        out.left = left.map(f64::from);
-      }
-      V::FitR {
-        left,
-        bottom,
-        right,
-        top,
-      } => {
-        out.kind = "FitR".to_string();
-        out.left = Some(left.into());
-        out.bottom = Some(bottom.into());
-        out.right = Some(right.into());
-        out.top = Some(top.into());
-      }
-      V::FitB => out.kind = "FitB".to_string(),
-      V::FitBH { top } => {
-        out.kind = "FitBH".to_string();
-        out.top = top.map(f64::from);
-      }
-      V::FitBV { left } => {
-        out.kind = "FitBV".to_string();
-        out.left = left.map(f64::from);
-      }
+  let mut out = OutlineDestination {
+    page: d.page_index as u32,
+    kind: String::new(),
+    left: None,
+    top: None,
+    right: None,
+    bottom: None,
+    zoom: None,
+  };
+  match d.view {
+    V::XyZ { left, top, zoom } => {
+      out.kind = "XYZ".to_string();
+      out.left = left.map(f64::from);
+      out.top = top.map(f64::from);
+      out.zoom = zoom.map(f64::from);
     }
-    out
-  });
+    V::Fit => out.kind = "Fit".to_string(),
+    V::FitH { top } => {
+      out.kind = "FitH".to_string();
+      out.top = top.map(f64::from);
+    }
+    V::FitV { left } => {
+      out.kind = "FitV".to_string();
+      out.left = left.map(f64::from);
+    }
+    V::FitR {
+      left,
+      bottom,
+      right,
+      top,
+    } => {
+      out.kind = "FitR".to_string();
+      out.left = Some(left.into());
+      out.bottom = Some(bottom.into());
+      out.right = Some(right.into());
+      out.top = Some(top.into());
+    }
+    V::FitB => out.kind = "FitB".to_string(),
+    V::FitBH { top } => {
+      out.kind = "FitBH".to_string();
+      out.top = top.map(f64::from);
+    }
+    V::FitBV { left } => {
+      out.kind = "FitBV".to_string();
+      out.left = left.map(f64::from);
+    }
+  }
+  out
+}
 
+fn to_outline_entry(item: papyra_core::OutlineItem) -> OutlineEntry {
   OutlineEntry {
     title: item.title,
     level: item.level as u32,
-    dest,
+    dest: item.dest.map(to_destination),
     bold: item.bold,
     italic: item.italic,
     open: item.open,
+  }
+}
+
+/// The document information dictionary. Every field is independently optional.
+#[napi(object)]
+pub struct DocumentInfo {
+  pub title: Option<String>,
+  pub author: Option<String>,
+  pub subject: Option<String>,
+  pub keywords: Option<String>,
+  /// The application that authored the original document, e.g. `AutoCAD`.
+  pub creator: Option<String>,
+  /// The application that wrote the PDF itself, e.g. `Ghostscript`.
+  pub producer: Option<String>,
+  /// ISO 8601, converted from the PDF's own date form.
+  pub created: Option<String>,
+  pub modified: Option<String>,
+}
+
+/// One link annotation.
+///
+/// The rectangle is in the page-as-rendered space — pixels from the top-left at
+/// 72 DPI, rotation and crop box applied — so it is the same space as `PageText` and
+/// scales to any render with one multiply.
+#[napi(object)]
+pub struct PageLink {
+  pub x0: f64,
+  pub y0: f64,
+  pub x1: f64,
+  pub y1: f64,
+  /// Set when the link points into this document; `uri` is then absent.
+  pub dest: Option<OutlineDestination>,
+  /// Set when the link points at a URI; `dest` is then absent.
+  pub uri: Option<String>,
+  /// The annotation's `/Contents` — its tooltip. Usually absent.
+  pub alt: Option<String>,
+}
+
+fn to_page_link(link: papyra_core::Link) -> PageLink {
+  let (dest, uri) = match link.target {
+    papyra_core::LinkTarget::Internal(dest) => (Some(to_destination(dest)), None),
+    papyra_core::LinkTarget::Uri(uri) => (None, Some(uri)),
+  };
+  PageLink {
+    x0: link.rect.x0.into(),
+    y0: link.rect.y0.into(),
+    x1: link.rect.x1.into(),
+    y1: link.rect.y1.into(),
+    dest,
+    uri,
+    alt: link.alt,
+  }
+}
+
+/// One page's links, off the JS thread.
+///
+/// Async for the same reason as the outline walk: no content stream is interpreted,
+/// but a name-tree lookup per annotation on a page carrying hundreds of them is not
+/// work to do on the event loop.
+pub struct LinkTask {
+  doc: Arc<HayroDocument>,
+  index: usize,
+}
+
+impl Task for LinkTask {
+  type Output = Vec<papyra_core::Link>;
+  type JsValue = Vec<PageLink>;
+
+  fn compute(&mut self) -> Result<Self::Output> {
+    self.doc.page_links(self.index).map_err(map_err)
+  }
+
+  fn resolve(&mut self, _env: Env, out: Self::Output) -> Result<Self::JsValue> {
+    Ok(out.into_iter().map(to_page_link).collect())
+  }
+}
+
+/// The page-label walk, off the JS thread.
+pub struct PageLabelTask {
+  doc: Arc<HayroDocument>,
+}
+
+impl Task for PageLabelTask {
+  type Output = Vec<String>;
+  type JsValue = Vec<String>;
+
+  fn compute(&mut self) -> Result<Self::Output> {
+    Ok(self.doc.page_labels())
+  }
+
+  fn resolve(&mut self, _env: Env, out: Self::Output) -> Result<Self::JsValue> {
+    Ok(out)
   }
 }
 
@@ -603,6 +712,12 @@ impl PdfDocument {
     self.inner.page_count() as u32
   }
 
+  /// The PDF specification version the file declares, e.g. `"1.7"`.
+  #[napi(getter)]
+  pub fn pdf_version(&self) -> Option<String> {
+    self.inner.pdf_version()
+  }
+
   #[napi]
   pub fn page_size(&self, index: u32) -> Result<PageDimensions> {
     let s = self.inner.page_size(index as usize).map_err(map_err)?;
@@ -676,6 +791,45 @@ impl PdfDocument {
   #[napi(ts_return_type = "Promise<Array<OutlineEntry>>")]
   pub fn outline(&self) -> AsyncTask<OutlineTask> {
     AsyncTask::new(OutlineTask {
+      doc: self.inner.clone(),
+    })
+  }
+
+  /// Read the document information dictionary.
+  ///
+  /// Synchronous: hayro parses it while loading, so this only decodes eight strings.
+  #[napi]
+  pub fn info(&self) -> DocumentInfo {
+    let info = self.inner.metadata();
+    DocumentInfo {
+      title: info.title,
+      author: info.author,
+      subject: info.subject,
+      keywords: info.keywords,
+      creator: info.creator,
+      producer: info.producer,
+      created: info.created,
+      modified: info.modified,
+    }
+  }
+
+  /// Read the links on one page.
+  ///
+  /// Resolves to an empty array for a page with no links, which is most pages.
+  #[napi(ts_return_type = "Promise<Array<PageLink>>")]
+  pub fn page_links(&self, index: u32) -> AsyncTask<LinkTask> {
+    AsyncTask::new(LinkTask {
+      doc: self.inner.clone(),
+      index: index as usize,
+    })
+  }
+
+  /// Read the label printed on each page, one entry per page.
+  ///
+  /// Resolves to an empty array when the document defines no `/PageLabels`.
+  #[napi(ts_return_type = "Promise<Array<string>>")]
+  pub fn page_labels(&self) -> AsyncTask<PageLabelTask> {
+    AsyncTask::new(PageLabelTask {
       doc: self.inner.clone(),
     })
   }
