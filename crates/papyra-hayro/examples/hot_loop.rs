@@ -26,6 +26,7 @@ fn main() {
   let opts = RenderOptions {
     scale: 0.2,
     white_background: true,
+    ..Default::default()
   };
 
   println!(

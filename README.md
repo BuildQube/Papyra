@@ -105,6 +105,59 @@ go through the priority queue. Making a link layer wait behind renders would add
 latency you can feel, for work that costs nothing. Results are cached and concurrent
 reads of one page share a single task.
 
+## Rotation
+
+papyra renders pages unrotated — hayro has no transform knob, and turning a bitmap is a
+copy nobody needs when a canvas can do it in the draw call. A rotate button is therefore
+a viewer-side construction, and `viewport()` is where that construction is written down:
+
+```ts
+const vp = viewport(doc.pageSize(index), { fitWidth: 1600, rotation: 90 });
+
+const page = await doc.renderPage(index, { dpi: vp.dpi });
+paintToCanvas(page, canvas, { rotation: vp.rotation });
+
+for (const link of await doc.links(index)) {
+  place(hitbox, viewportRect(link.rect, vp));
+}
+```
+
+`fitWidth` is the reason to size through a viewport rather than passing it to `render`
+directly: at 90° the width on screen is the page's *height*, so the two mean different
+things the moment the page is turned. The viewport resolves that and hands back the
+`dpi` the unrotated render needs — and floors its dimensions the way the renderer floors
+its pixmap, so `vp.width` is the bitmap's width and not a pixel more.
+
+`viewportRect` and `viewportQuad` supersede `scaleRect` and `scaleQuad` for anything
+drawn over a rotated view — the same scale, plus the turn — so a link region and a text
+highlight cannot disagree with the pixels about which way is up. Quarter turns keep a
+rect axis-aligned and keep a quad's corner order, since rotating the page rotates the
+text with it.
+
+Outside a browser there is `rotatePage`, which shuffles the buffer. Prefer the canvas
+where you have one: `paintToCanvas` rotates in the draw call, while `rotatePage` copies
+7 MB for a 1600px ARCH-E sheet.
+
+## Annotations
+
+Renders draw annotations — links, highlights, stamps, filled form fields — because that
+is what a viewer is expected to show. Turn them off when you are drawing them yourself:
+
+```ts
+const page = await doc.renderPage(index, { fitWidth: 1600, annotations: false });
+```
+
+A viewer painting its own link or highlight layer over the bitmap otherwise shows every
+annotation twice, once from the document's appearance stream and once from its own. The
+switch reaches every raster path — `render`, `renderPage`, `renderPages`, `stream`,
+`renderImage` — and `renderSvg`, where it matters more, since a baked-in link border is
+not removable from vector output afterwards. It is part of the cache key, so flipping it
+re-renders rather than handing back the page you already had.
+
+A boolean rather than pdf.js's four-way `annotationMode`: that is the whole of what the
+engine offers, and the two modes it has no answer for are about writing form values
+back, which papyra does not do.
+
 ## Metadata, page labels and identity
 
 ```ts

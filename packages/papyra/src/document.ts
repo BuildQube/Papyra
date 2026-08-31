@@ -96,6 +96,18 @@ export type ImageHandle = JobHandle<PageImage>;
  */
 export type SvgHandle = JobHandle<SvgPage>;
 
+/**
+ * Cache- and coalescing-key suffix for the annotation switch.
+ *
+ * Empty in the default case, so the ordinary key keeps the shape it has always had.
+ * The suffix has to exist at all because the scheduler coalesces on this string and
+ * the cache is looked up by it: without it, asking for a page with annotations off
+ * would be served the bitmap that still has them drawn on.
+ */
+function annotationKey(options: { annotations?: boolean | undefined }): string {
+  return options.annotations === false ? ':noannots' : '';
+}
+
 /** napi omits absent strings rather than nulling them; normalise to one shape. */
 function toMetadata(info: NativeDocumentInfo): DocumentMetadata {
   return {
@@ -442,13 +454,14 @@ export class Document {
     // A distinct key space from `render`, so an image request never coalesces onto a
     // pending raw render (different return type) or vice versa.
     const handle = this.#scheduler.submit({
-      key: `image:${index}@${dpi.toFixed(4)}`,
+      key: `image:${index}@${dpi.toFixed(4)}${annotationKey(options)}`,
       priority: options.priority ?? DEFAULT_PRIORITY,
       run: () =>
         (
           this.#inner.renderPageImageAsync(
             index,
             dpi,
+            options.annotations,
             options.signal,
           ) as Promise<NativePageImage>
         ).then((img) => new PageImage(img)),
@@ -497,13 +510,14 @@ export class Document {
     const handle = this.#scheduler.submit<SvgPage>({
       // The background is part of the key: the scheduler coalesces same-key requests,
       // and an opaque and a transparent conversion of one page are different output.
-      key: `svg:${index}${opaque ? '' : ':transparent'}`,
+      key: `svg:${index}${opaque ? '' : ':transparent'}${annotationKey(options)}`,
       priority: options.priority ?? DEFAULT_PRIORITY,
       run: () =>
         (
           this.#inner.renderPageSvgAsync(
             index,
             opaque,
+            options.annotations,
             options.signal,
           ) as Promise<string>
         ).then(svgPage),
@@ -531,7 +545,7 @@ export class Document {
    */
   render(index: number, options: RenderOptions = {}): RenderHandle {
     const dpi = this.#resolveDpi(index, options);
-    const key = `${index}@${dpi.toFixed(4)}`;
+    const key = `${index}@${dpi.toFixed(4)}${annotationKey(options)}`;
 
     const hit = this.#cache.get(key);
     if (hit) return cachedHandle(key, hit);
@@ -540,12 +554,16 @@ export class Document {
       key,
       priority: options.priority ?? DEFAULT_PRIORITY,
       run: () =>
-        (this.#inner.renderPageAsync(index, dpi) as Promise<RenderedPage>).then(
-          (page) => {
-            this.#cache.set(key, page);
-            return page;
-          },
-        ),
+        (
+          this.#inner.renderPageAsync(
+            index,
+            dpi,
+            options.annotations,
+          ) as Promise<RenderedPage>
+        ).then((page) => {
+          this.#cache.set(key, page);
+          return page;
+        }),
     });
 
     attachSignal(handle, options.signal);
@@ -604,6 +622,7 @@ export class Document {
         start,
         end,
         dpi,
+        options.annotations,
       )) as RenderedPage[];
     }
     const out: RenderedPage[] = [];

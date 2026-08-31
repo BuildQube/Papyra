@@ -72,6 +72,7 @@ fn main() {
     let opts = RenderOptions {
       scale,
       white_background: true,
+      ..Default::default()
     };
     let full = best(3, || {
       doc.render_page(0, &opts).expect("render");

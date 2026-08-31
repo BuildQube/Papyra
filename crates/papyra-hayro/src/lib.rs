@@ -84,7 +84,7 @@ impl HayroDocument {
   pub fn render_pages(&self, indices: &[usize], opts: &RenderOptions) -> Result<Vec<Bitmap>> {
     let pages = self.pdf.pages();
     let cache = RenderCache::new();
-    let interp = InterpreterSettings::default();
+    let interp = interpreter_settings(opts);
     let settings = render_settings(opts);
 
     indices
@@ -108,7 +108,7 @@ impl HayroDocument {
     opts: &RenderOptions,
   ) -> Result<Vec<Bitmap>> {
     let pages = self.pdf.pages();
-    let interp = InterpreterSettings::default();
+    let interp = interpreter_settings(opts);
     let settings = render_settings(opts);
 
     indices
@@ -140,6 +140,18 @@ impl HayroDocument {
   }
 }
 
+/// Interpreter settings for a render.
+///
+/// `InterpreterSettings::default()` is not cheap enough to be free — it allocates the
+/// embedded font and cmap resolvers into `Arc`s — so batch paths build one and share
+/// it across the batch rather than one per page.
+fn interpreter_settings(opts: &RenderOptions) -> InterpreterSettings {
+  InterpreterSettings {
+    render_annotations: opts.annotations,
+    ..InterpreterSettings::default()
+  }
+}
+
 fn render_settings(opts: &RenderOptions) -> RenderSettings {
   RenderSettings {
     x_scale: opts.scale,
@@ -154,9 +166,9 @@ fn render_settings(opts: &RenderOptions) -> RenderSettings {
   }
 }
 
-/// hayro-svg takes a straight RGBA quadruple rather than a colour type; the only knob
-/// that carries over from [`RenderOptions`] is the background, since an SVG has no
-/// resolution to scale.
+/// hayro-svg takes a straight RGBA quadruple rather than a colour type. The background
+/// is the only knob it carries from [`RenderOptions`] — an SVG has no resolution to
+/// scale, and annotations are an interpreter setting rather than a render one.
 fn svg_settings(opts: &RenderOptions) -> hayro_svg::SvgRenderSettings {
   hayro_svg::SvgRenderSettings {
     bg_color: if opts.white_background {
@@ -210,7 +222,7 @@ impl Document for HayroDocument {
     Ok(hayro_svg::convert(
       page,
       &cache,
-      &InterpreterSettings::default(),
+      &interpreter_settings(opts),
       &svg_settings(opts),
     ))
   }
@@ -238,7 +250,7 @@ impl Document for HayroDocument {
     Ok(to_bitmap(hayro::render(
       page,
       &cache,
-      &InterpreterSettings::default(),
+      &interpreter_settings(opts),
       &render_settings(opts),
     )))
   }
