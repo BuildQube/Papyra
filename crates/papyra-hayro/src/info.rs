@@ -29,12 +29,58 @@ pub fn read_metadata(pdf: &Pdf) -> Metadata {
   }
 }
 
+/// Convert a PDF date *string* to ISO 8601.
+///
+/// A second parser, reluctantly. hayro parses this format already, but
+/// `DateTime::from_bytes` is `pub(crate)` and the only `DateTime` it hands out is the
+/// information dictionary's — so a date anywhere else in the file, such as an embedded
+/// file's `/Params /ModDate`, is unreachable through it.
+///
+/// The format is `D:YYYYMMDDHHmmSSOHH'mm'`, truncatable after any field. Everything
+/// after the year is optional and defaulted the way [`to_iso8601`] defaults it: month
+/// and day to 1, the rest to zero, so a date the file wrote as `D:2024` comes back as
+/// the same approximation rather than as something no parser accepts.
+pub(crate) fn date_string_to_iso8601(bytes: &[u8]) -> Option<String> {
+  let digits = bytes.strip_prefix(b"D:").unwrap_or(bytes);
+  // Anything shorter than a year is not a date, and a non-numeric year means this is
+  // some other string that happened to be in a date slot.
+  let field = |at: usize, len: usize, default: u32| -> u32 {
+    digits
+      .get(at..at + len)
+      .and_then(|s| std::str::from_utf8(s).ok())
+      .and_then(|s| s.parse::<u32>().ok())
+      .unwrap_or(default)
+  };
+  if digits.len() < 4 || !digits[..4].iter().all(u8::is_ascii_digit) {
+    return None;
+  }
+
+  let year = field(0, 4, 0);
+  let month = field(4, 2, 1).clamp(1, 12);
+  let day = field(6, 2, 1).clamp(1, 31);
+  let (hour, minute, second) = (field(8, 2, 0), field(10, 2, 0), field(12, 2, 0));
+
+  // `O` is `+`, `-` or `Z`; absent means local time, which we report as UTC rather
+  // than inventing an offset the file did not state.
+  let zone = match digits.get(14) {
+    Some(b'+') | Some(b'-') => {
+      let sign = if digits[14] == b'-' { '-' } else { '+' };
+      format!("{sign}{:02}:{:02}", field(15, 2, 0), field(18, 2, 0))
+    }
+    _ => "Z".to_string(),
+  };
+
+  Some(format!(
+    "{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}{zone}"
+  ))
+}
+
 /// Convert a PDF date to ISO 8601, which is what `new Date(...)` parses.
 ///
 /// Month and day are clamped to 1. A PDF date is legally as short as `D:2024`, and
 /// hayro reports the missing components as zero — `2024-00-00` is not a date any
 /// parser accepts, whereas `2024-01-01` is the same approximation the file itself made.
-fn to_iso8601(date: &DateTime) -> String {
+pub(crate) fn to_iso8601(date: &DateTime) -> String {
   let zone = if date.utc_offset_hour == 0 && date.utc_offset_minute == 0 {
     "Z".to_string()
   } else {

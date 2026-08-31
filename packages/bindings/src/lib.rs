@@ -766,6 +766,84 @@ fn to_struct_entry(node: papyra_core::StructNode) -> StructEntry {
   }
 }
 
+/// One file embedded in the document. Metadata only; the bytes come from
+/// `attachmentData`.
+#[napi(object)]
+pub struct Attachment {
+  /// The name to save the file under — `/UF`, else `/F`, else its key in the tree.
+  pub name: String,
+  /// The document's own description of what the file is for.
+  pub description: Option<String>,
+  /// e.g. `"application/xml"`. Absent more often than not.
+  pub media_type: Option<String>,
+  /// Length in bytes, uncompressed, as the document claims it. A hint, not a promise.
+  pub size: Option<i64>,
+  /// ISO 8601.
+  pub created: Option<String>,
+  /// ISO 8601.
+  pub modified: Option<String>,
+  /// `Source`, `Data`, `Alternative`, `Supplement`, `EncryptedPayload` or
+  /// `Unspecified` — what the file is to the document. A ZUGFeRD invoice's XML is
+  /// `Alternative` or `Data`.
+  pub relationship: Option<String>,
+}
+
+fn to_attachment(a: papyra_core::Attachment) -> Attachment {
+  Attachment {
+    name: a.name,
+    description: a.description,
+    media_type: a.media_type,
+    // i64 rather than u32: a PDF may embed something larger than 4 GB, and JS has no
+    // unsigned 64-bit number to take it as anyway.
+    size: a.size.and_then(|size| i64::try_from(size).ok()),
+    created: a.created,
+    modified: a.modified,
+    relationship: a.relationship,
+  }
+}
+
+/// The embedded-file list, off the JS thread.
+pub struct AttachmentTask {
+  doc: Arc<HayroDocument>,
+}
+
+impl Task for AttachmentTask {
+  type Output = Vec<papyra_core::Attachment>;
+  type JsValue = Vec<Attachment>;
+
+  fn compute(&mut self) -> Result<Self::Output> {
+    Ok(self.doc.attachments())
+  }
+
+  fn resolve(&mut self, _env: Env, out: Self::Output) -> Result<Self::JsValue> {
+    Ok(out.into_iter().map(to_attachment).collect())
+  }
+}
+
+/// One embedded file's bytes, off the JS thread.
+///
+/// Decompression is real work — an embedded file is as large as it is — which is the
+/// reason this is a task rather than a getter.
+pub struct AttachmentDataTask {
+  doc: Arc<HayroDocument>,
+  index: usize,
+}
+
+impl Task for AttachmentDataTask {
+  type Output = Vec<u8>;
+  // `Uint8Array`, never napi's `Buffer`: `napi_create_external_buffer` needs
+  // `globalThis.Buffer`, which a browser does not have.
+  type JsValue = Uint8Array;
+
+  fn compute(&mut self) -> Result<Self::Output> {
+    self.doc.attachment_data(self.index).map_err(map_err)
+  }
+
+  fn resolve(&mut self, _env: Env, out: Self::Output) -> Result<Self::JsValue> {
+    Ok(Uint8Array::new(out))
+  }
+}
+
 /// The structure tree, off the JS thread. Same reasoning as `OutlineTask`: object-graph
 /// work, but a tagged document tags every paragraph, so the tree is far larger than an
 /// outline and is the one walk here that can reach tens of thousands of nodes.
@@ -965,6 +1043,26 @@ impl PdfDocument {
   pub fn struct_tree(&self) -> AsyncTask<StructTreeTask> {
     AsyncTask::new(StructTreeTask {
       doc: self.inner.clone(),
+    })
+  }
+
+  /// List the files embedded in the document, in the order it files them.
+  ///
+  /// Resolves to an empty array when there are none, which is the common case.
+  /// Metadata only — fetch the bytes with `attachmentData`.
+  #[napi(ts_return_type = "Promise<Array<Attachment>>")]
+  pub fn attachments(&self) -> AsyncTask<AttachmentTask> {
+    AsyncTask::new(AttachmentTask {
+      doc: self.inner.clone(),
+    })
+  }
+
+  /// Decompress one embedded file, by its index in `attachments`.
+  #[napi(ts_return_type = "Promise<Uint8Array>")]
+  pub fn attachment_data(&self, index: u32) -> AsyncTask<AttachmentDataTask> {
+    AsyncTask::new(AttachmentDataTask {
+      doc: self.inner.clone(),
+      index: index as usize,
     })
   }
 

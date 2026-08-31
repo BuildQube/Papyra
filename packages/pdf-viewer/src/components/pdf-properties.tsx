@@ -1,4 +1,5 @@
 import type { Document } from '@build-qube/papyra';
+import { Attachments } from '@/components/pdf-attachments';
 import {
   Dialog,
   DialogContent,
@@ -75,6 +76,10 @@ export function Properties({
           <Row label={`Page size (page ${page + 1})`} value={pageSize(size)} />
           <Row label="Fingerprint" value={doc.fingerprint} mono />
         </dl>
+
+        {/* Renders nothing unless the document carries files, so every other document
+            sees the dialog it saw before. */}
+        <Attachments doc={doc} className="border-t pt-4" />
 
         <DialogFooter showCloseButton />
       </DialogContent>

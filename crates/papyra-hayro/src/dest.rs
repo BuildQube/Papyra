@@ -181,7 +181,9 @@ impl<'a> NameTree<'a> {
       .get::<Dict<'a>>(keys::NAMES)
       .and_then(|names| names.get::<Dict<'a>>(keys::DESTS))
     {
-      tree.read_node(xref, &dests, 0, &mut HashSet::new());
+      walk_name_tree(xref, &dests, &mut |name, value| {
+        tree.entries.insert(name.to_vec(), value);
+      });
     }
     if let Some(legacy) = catalog.get::<Dict<'a>>(keys::DESTS) {
       for (name, value) in legacy.entries() {
@@ -191,58 +193,80 @@ impl<'a> NameTree<'a> {
     tree
   }
 
-  /// Walk one name-tree node, then its `/Kids`.
-  ///
-  /// `visited` is what actually bounds this. A depth cap alone does not: a node whose
-  /// `/Kids` points back at itself branches rather than repeats, so 32 levels of a
-  /// two-kid cycle is four billion visits, not 32.
-  fn read_node(
-    &mut self,
-    xref: &'a XRef,
-    node: &Dict<'a>,
-    depth: usize,
-    visited: &mut HashSet<ObjectIdentifier>,
-  ) {
-    if depth >= MAX_DEPTH || self.entries.len() >= MAX_ENTRIES {
-      return;
-    }
-
-    if let Some(names) = node.get::<Array<'a>>(keys::NAMES) {
-      // Flat `[ key1 value1 key2 value2 ... ]`.
-      let mut iter = names.raw_iter();
-      while let Some(key) = iter.next() {
-        let Some(value) = iter.next() else { break };
-        let MaybeRef::NotRef(Object::String(key)) = key else {
-          continue;
-        };
-        self.entries.insert(key.as_bytes().to_vec(), value);
-      }
-    }
-
-    let Some(kids) = node.get::<Array<'a>>(keys::KIDS) else {
-      return;
-    };
-    for kid in kids.raw_iter() {
-      match kid {
-        MaybeRef::Ref(kid_ref) => {
-          if !visited.insert(kid_ref.into()) {
-            continue;
-          }
-          if let Some(kid) = xref.get::<Dict<'a>>(kid_ref.into()) {
-            self.read_node(xref, &kid, depth + 1, visited);
-          }
-        }
-        // An inline kid is nested syntax, so it cannot point back at an ancestor.
-        MaybeRef::NotRef(Object::Dict(kid)) => self.read_node(xref, &kid, depth + 1, visited),
-        MaybeRef::NotRef(_) => {}
-      }
-    }
-  }
-
   fn get(&self, name: &[u8], xref: &'a XRef) -> Option<Object<'a>> {
     match self.entries.get(name)? {
       MaybeRef::Ref(id) => xref.get::<Object<'a>>((*id).into()),
       MaybeRef::NotRef(object) => Some(object.clone()),
+    }
+  }
+}
+
+/// Walk a name tree, calling `on_entry` for every `(name, value)` in it.
+///
+/// The shape is shared by every name tree a PDF defines — `/Dests` here,
+/// `/EmbeddedFiles` in [`crate::attachments`] — and so is the hazard: a node whose
+/// `/Kids` points back at an ancestor branches rather than repeats, so a depth cap
+/// alone is worth four billion visits at 32 levels. The visited set is what bounds
+/// this; `MAX_DEPTH` and `MAX_ENTRIES` are the second and third backstops.
+///
+/// Values arrive unresolved, because a name tree's value is equally legal written
+/// inline or behind a reference and only the caller knows which it wants.
+pub(crate) fn walk_name_tree<'a>(
+  xref: &'a XRef,
+  root: &Dict<'a>,
+  on_entry: &mut impl FnMut(&[u8], MaybeRef<Object<'a>>),
+) {
+  let mut visited = HashSet::new();
+  let mut seen = 0usize;
+  walk_name_tree_node(xref, root, 0, &mut visited, &mut seen, on_entry);
+}
+
+fn walk_name_tree_node<'a>(
+  xref: &'a XRef,
+  node: &Dict<'a>,
+  depth: usize,
+  visited: &mut HashSet<ObjectIdentifier>,
+  seen: &mut usize,
+  on_entry: &mut impl FnMut(&[u8], MaybeRef<Object<'a>>),
+) {
+  if depth >= MAX_DEPTH || *seen >= MAX_ENTRIES {
+    return;
+  }
+
+  if let Some(names) = node.get::<Array<'a>>(keys::NAMES) {
+    // Flat `[ key1 value1 key2 value2 ... ]`.
+    let mut iter = names.raw_iter();
+    while let Some(key) = iter.next() {
+      let Some(value) = iter.next() else { break };
+      let MaybeRef::NotRef(Object::String(key)) = key else {
+        continue;
+      };
+      *seen += 1;
+      on_entry(key.as_bytes(), value);
+      if *seen >= MAX_ENTRIES {
+        return;
+      }
+    }
+  }
+
+  let Some(kids) = node.get::<Array<'a>>(keys::KIDS) else {
+    return;
+  };
+  for kid in kids.raw_iter() {
+    match kid {
+      MaybeRef::Ref(kid_ref) => {
+        if !visited.insert(kid_ref.into()) {
+          continue;
+        }
+        if let Some(kid) = xref.get::<Dict<'a>>(kid_ref.into()) {
+          walk_name_tree_node(xref, &kid, depth + 1, visited, seen, on_entry);
+        }
+      }
+      // An inline kid is nested syntax, so it cannot point back at an ancestor.
+      MaybeRef::NotRef(Object::Dict(kid)) => {
+        walk_name_tree_node(xref, &kid, depth + 1, visited, seen, on_entry)
+      }
+      MaybeRef::NotRef(_) => {}
     }
   }
 }

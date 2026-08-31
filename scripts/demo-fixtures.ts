@@ -52,6 +52,7 @@ const generated: [string, Uint8Array][] = [
   ['rotated.pdf', rotatedTextPdf()],
   ['labelled.pdf', labelledPdf()],
   ['tagged-columns.pdf', taggedColumnsPdf()],
+  ['hybrid-invoice.pdf', hybridInvoicePdf()],
 ];
 for (const [name, bytes] of generated) {
   await writeFile(join(to, name), bytes);
@@ -218,6 +219,93 @@ function taggedColumnsPdf(): Uint8Array {
     '<< /Type /StructElem /S /Column /T (Right column) /K [13 0 R 14 0 R] >>',
     para([7, 8, 9]),
     para([10, 11, 12]),
+  ];
+
+  return assemble(objects);
+}
+
+/**
+ * A hybrid invoice: a page a person reads, wrapping an XML file a machine reads.
+ *
+ * Generated because nothing in the pdf.js corpus embeds a file at all, and this is the
+ * case that makes embedded files worth having rather than a curiosity. ZUGFeRD and
+ * Factur-X are the same document twice over — the PDF half exists so a human can check
+ * what the accounting system is about to process — and a reader that never mentions the
+ * XML leaves someone retyping figures the file is already carrying.
+ *
+ * The XML is a cut-down CII invoice, not a valid one: enough structure to be recognisably
+ * the real thing in a preview, without pretending to be a conformance fixture.
+ */
+function hybridInvoicePdf(): Uint8Array {
+  const xml = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<rsm:CrossIndustryInvoice',
+    '    xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100"',
+    '    xmlns:ram="urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100">',
+    '  <rsm:ExchangedDocument>',
+    '    <ram:ID>INV-2026-0042</ram:ID>',
+    '    <ram:IssueDateTime>20260831</ram:IssueDateTime>',
+    '  </rsm:ExchangedDocument>',
+    '  <rsm:SupplyChainTradeTransaction>',
+    '    <ram:IncludedSupplyChainTradeLineItem>',
+    '      <ram:SpecifiedTradeProduct>',
+    '        <ram:Name>Rendering engine licence</ram:Name>',
+    '      </ram:SpecifiedTradeProduct>',
+    '      <ram:SpecifiedLineTradeSettlement>',
+    '        <ram:LineTotalAmount>1200.00</ram:LineTotalAmount>',
+    '      </ram:SpecifiedLineTradeSettlement>',
+    '    </ram:IncludedSupplyChainTradeLineItem>',
+    '    <ram:ApplicableHeaderTradeSettlement>',
+    '      <ram:InvoiceCurrencyCode>EUR</ram:InvoiceCurrencyCode>',
+    '      <ram:SpecifiedTradeSettlementHeaderMonetarySummation>',
+    '        <ram:TaxBasisTotalAmount>1200.00</ram:TaxBasisTotalAmount>',
+    '        <ram:TaxTotalAmount currencyID="EUR">228.00</ram:TaxTotalAmount>',
+    '        <ram:GrandTotalAmount>1428.00</ram:GrandTotalAmount>',
+    '      </ram:SpecifiedTradeSettlementHeaderMonetarySummation>',
+    '    </ram:ApplicableHeaderTradeSettlement>',
+    '  </rsm:SupplyChainTradeTransaction>',
+    '</rsm:CrossIndustryInvoice>',
+  ].join('\n');
+
+  const notes = [
+    'Payment terms: 30 days net.',
+    'Bank details are on file; quote INV-2026-0042 as the reference.',
+  ].join('\n');
+
+  const content = [
+    'BT /F1 20 Tf 56 720 Td (Invoice INV-2026-0042) Tj ET',
+    'BT /F1 11 Tf 56 688 Td (Issued 31 August 2026) Tj ET',
+    'BT /F1 11 Tf 56 640 Td (Rendering engine licence) Tj ET',
+    'BT /F1 11 Tf 420 640 Td (EUR 1,200.00) Tj ET',
+    'BT /F1 11 Tf 56 616 Td (VAT at 19%) Tj ET',
+    'BT /F1 11 Tf 420 616 Td (EUR 228.00) Tj ET',
+    'BT /F1 13 Tf 56 584 Td (Total due) Tj ET',
+    'BT /F1 13 Tf 420 584 Td (EUR 1,428.00) Tj ET',
+    'BT /F1 9 Tf 56 540 Td (This document also carries factur-x.xml, the same invoice for a machine to read.) Tj ET',
+  ].join('\n');
+
+  /** An embedded-file stream. Uncompressed, so the bytes in the file are the bytes out. */
+  const embedded = (body: string, subtype: string) =>
+    `<< /Type /EmbeddedFile /Subtype ${subtype} /Length ${body.length + 1} ` +
+    `/Params << /Size ${body.length} /ModDate (D:20260831120000Z) >> >>\nstream\n${body}\nendstream`;
+
+  const objects = [
+    // `/AF` at the catalog is what PDF/A-3 requires of a hybrid invoice, and what a
+    // conforming reader looks for; the name tree is what makes the file listable.
+    '<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles 6 0 R >> /AF [7 0 R] >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R ' +
+      '/Resources << /Font << /F1 5 0 R >> >> >>',
+    `<< /Length ${content.length + 1} >>\nstream\n${content}\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    '<< /Names [(factur-x.xml) 7 0 R (notes.txt) 9 0 R] >>',
+    '<< /Type /Filespec /F (factur-x.xml) /UF (factur-x.xml) ' +
+      '/Desc (Factur-X invoice data) /AFRelationship /Alternative /EF << /F 8 0 R >> >>',
+    // `text#2Fxml` — a PDF name escapes the slash, and papyra unescapes it.
+    embedded(xml, '/text#2Fxml'),
+    '<< /Type /Filespec /F (notes.txt) /UF (notes.txt) /Desc (Payment terms) ' +
+      '/AFRelationship /Supplement /EF << /F 10 0 R >> >>',
+    embedded(notes, '/text#2Fplain'),
   ];
 
   return assemble(objects);

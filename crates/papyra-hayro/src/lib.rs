@@ -1,5 +1,6 @@
 //! hayro-backed implementation of the papyra engine traits.
 
+mod attachments;
 mod dest;
 #[cfg(test)]
 mod fixtures;
@@ -19,8 +20,8 @@ use hayro::{RenderCache, RenderSettings};
 use hayro_interpret::InterpreterSettings;
 use hayro_syntax::{DecryptionError, LoadPdfError, Pdf};
 use papyra_core::{
-  Bitmap, Document, Engine, Link, Metadata, OutlineItem, PageSize, PageText, PapyraError,
-  PixelFormat, RenderOptions, Result, StructNode,
+  Attachment, Bitmap, Document, Engine, Link, Metadata, OutlineItem, PageSize, PageText,
+  PapyraError, PixelFormat, RenderOptions, Result, StructNode,
 };
 use rayon::prelude::*;
 
@@ -246,6 +247,14 @@ impl Document for HayroDocument {
 
   fn struct_tree(&self) -> Vec<StructNode> {
     struct_tree::read_struct_tree(&self.pdf)
+  }
+
+  fn attachments(&self) -> Vec<Attachment> {
+    attachments::read_attachments(&self.pdf)
+  }
+
+  fn attachment_data(&self, index: usize) -> Result<Vec<u8>> {
+    attachments::read_attachment_data(&self.pdf, index)
   }
 
   fn render_page(&self, index: usize, opts: &RenderOptions) -> Result<Bitmap> {

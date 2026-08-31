@@ -14,6 +14,11 @@
  * ```
  */
 
+export type { Attachment } from './attachments.js';
+export {
+  attachmentMediaType,
+  isInvoiceAttachment,
+} from './attachments.js';
 export type { CacheStats } from './cache.js';
 export type { PaintOptions } from './canvas.js';
 export { paintToCanvas, toImageData } from './canvas.js';

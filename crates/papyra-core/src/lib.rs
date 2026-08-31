@@ -22,6 +22,11 @@ pub enum PapyraError {
   IncorrectPassword,
   #[error("page {0} out of range")]
   PageOutOfRange(usize),
+  /// No embedded file has this index. Separate from [`Self::PageOutOfRange`] because
+  /// reporting "page 9 out of range" for an attachment sends a caller looking in
+  /// entirely the wrong place.
+  #[error("attachment {0} out of range")]
+  AttachmentOutOfRange(usize),
   #[error("unsupported: {0}")]
   Unsupported(String),
   #[error("failed to encode image: {0}")]
@@ -177,6 +182,20 @@ pub trait Document: Debug {
   fn struct_tree(&self) -> Vec<StructNode> {
     Vec::new()
   }
+
+  /// The files embedded in the document, in the order the document files them.
+  ///
+  /// Empty when there are none, which is the common case. Metadata only — see
+  /// [`Attachment`] — with the bytes behind [`Self::attachment_data`].
+  fn attachments(&self) -> Vec<Attachment> {
+    Vec::new()
+  }
+
+  /// The bytes of one embedded file, by its index in [`Self::attachments`].
+  fn attachment_data(&self, index: usize) -> Result<Vec<u8>> {
+    let _ = index;
+    Err(PapyraError::Unsupported("attachments".to_string()))
+  }
 }
 
 /// A PDF backend.
@@ -255,6 +274,48 @@ pub struct OutlineItem {
   pub italic: bool,
   /// `/Count` was positive, meaning the entry should start expanded.
   pub open: bool,
+}
+
+/// One file embedded in the document.
+///
+/// Metadata only: the bytes are fetched separately through
+/// [`Document::attachment_data`], because a list of what a document carries is a
+/// different question from the contents of one of them, and an embedded file can be
+/// arbitrarily large.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Attachment {
+  /// The name to save the file under.
+  ///
+  /// `/UF` where the document provides it — it is the Unicode spelling and the one the
+  /// spec prefers — falling back to `/F`, then to the name the file was filed under in
+  /// the `/EmbeddedFiles` tree. Never empty: a file nothing names cannot be saved.
+  pub name: String,
+  /// `/Desc`, the document's own description of what the file is for.
+  pub description: Option<String>,
+  /// `/Subtype` of the embedded stream, e.g. `application/xml`.
+  ///
+  /// Written as a PDF name with slashes escaped (`text#2Fxml`), and unescaped here.
+  /// Absent more often than not, so a consumer that needs a type should fall back to
+  /// the extension on [`Self::name`].
+  pub media_type: Option<String>,
+  /// `/Params /Size`: the file's length in bytes, uncompressed.
+  ///
+  /// The document's own claim rather than a measurement — reading the real length
+  /// means decompressing the stream, which is the work this type exists to defer.
+  /// Treat it as a hint for a progress bar, not as a guarantee.
+  pub size: Option<u64>,
+  /// `/Params /CreationDate`, as ISO 8601.
+  pub created: Option<String>,
+  /// `/Params /ModDate`, as ISO 8601.
+  pub modified: Option<String>,
+  /// `/AFRelationship`: what the file is to the document — `Source`, `Data`,
+  /// `Alternative`, `Supplement`, `EncryptedPayload` or `Unspecified`.
+  ///
+  /// This is what identifies a hybrid invoice: a ZUGFeRD or Factur-X PDF carries its
+  /// XML with a relationship of `Alternative` or `Data`, and that is the difference
+  /// between a machine-readable invoice and a PDF that happens to have a file stapled
+  /// to it.
+  pub relationship: Option<String>,
 }
 
 /// One run of page content owned by a [`StructNode`].
