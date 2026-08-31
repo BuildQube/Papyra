@@ -53,7 +53,8 @@ export function ViewerLayout({
   const [page, setPage] = usePdfPage();
   const { matches, active } = usePdfSearch();
   const [rotation] = usePdfRotation();
-  const { setMatches, setActive } = usePdfViewerActions();
+  const { setMatches, setActive, setStructureSelection } =
+    usePdfViewerActions();
   if (!doc) return null;
 
   return (
@@ -70,6 +71,7 @@ export function ViewerLayout({
           active={active}
           onActive={setActive}
           rotation={rotation}
+          onHighlight={setStructureSelection}
         />
       )}
       <section className="flex min-h-0 min-w-0 flex-1 flex-col">

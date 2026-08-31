@@ -1,12 +1,26 @@
-import type { Document, Rotation, SearchMatch } from '@build-qube/papyra';
+import type { Document, Quad, Rotation, SearchMatch } from '@build-qube/papyra';
 import { useEffect, useState } from 'react';
 import { Outline } from '@/components/pdf-outline';
 import { Search } from '@/components/pdf-search';
+import { Structure } from '@/components/pdf-structure';
 import { Thumbnails } from '@/components/pdf-thumbnails';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-type Tab = 'pages' | 'outline' | 'search';
+type Tab = 'pages' | 'outline' | 'structure' | 'search';
+
+/**
+ * How a tab says its panel has nothing in it.
+ *
+ * Dimming the label rather than appending a marker: with four tabs the strip is 16px
+ * wider than the 240px column for every marker shown, and a document with neither an
+ * outline nor a structure tree shows two.
+ *
+ * On a child span rather than the trigger, because the trigger owns its own colour
+ * across three states and a utility on it loses the cascade to whichever of those
+ * applies. A span inherits nothing it has been given itself.
+ */
+const ABSENT = 'text-muted-foreground/50';
 
 /** Props for {@link Sidebar}. */
 export interface SidebarProps {
@@ -26,6 +40,8 @@ export interface SidebarProps {
   onActive: (match: SearchMatch | null) => void;
   /** Quarter turns the thumbnails are shown at, so the strip matches the page. */
   rotation?: Rotation;
+  /** Called with the picked structure element's content, for the page overlay. */
+  onHighlight: (page: number | null, quads: readonly Quad[]) => void;
 }
 
 /**
@@ -46,9 +62,11 @@ export function Sidebar({
   active,
   onActive,
   rotation = 0,
+  onHighlight,
 }: SidebarProps) {
   const [tab, setTab] = useState<Tab>('pages');
   const [hasOutline, setHasOutline] = useState<boolean | null>(null);
+  const [hasStructure, setHasStructure] = useState<boolean | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -61,6 +79,21 @@ export function Sidebar({
         if (tree.length > 0) setTab('outline');
       },
       () => !cancelled && setHasOutline(false),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [doc]);
+
+  // Only ever dims the tab label. Opening on Structure would be wrong even when the
+  // document has one: a reader looking for a table of contents wants the outline, and
+  // a tag tree is a developer's view of the same document.
+  useEffect(() => {
+    let cancelled = false;
+    setHasStructure(null);
+    doc.structTree().then(
+      (tree) => !cancelled && setHasStructure(tree.length > 0),
+      () => !cancelled && setHasStructure(false),
     );
     return () => {
       cancelled = true;
@@ -80,10 +113,14 @@ export function Sidebar({
       >
         <TabsTrigger value="pages">Pages</TabsTrigger>
         <TabsTrigger value="outline">
-          Outline
-          {hasOutline === false && (
-            <span className="text-muted-foreground/50">—</span>
-          )}
+          <span className={hasOutline === false ? ABSENT : undefined}>
+            Outline
+          </span>
+        </TabsTrigger>
+        <TabsTrigger value="structure">
+          <span className={hasStructure === false ? ABSENT : undefined}>
+            Tags
+          </span>
         </TabsTrigger>
         <TabsTrigger value="search">
           Search
@@ -111,6 +148,18 @@ export function Sidebar({
         className="min-h-0 overflow-y-auto"
       >
         <Outline doc={doc} current={current} onSelect={onSelect} />
+      </TabsContent>
+      <TabsContent
+        value="structure"
+        keepMounted
+        className="flex min-h-0 flex-col overflow-hidden"
+      >
+        <Structure
+          doc={doc}
+          current={current}
+          onSelect={onSelect}
+          onHighlight={onHighlight}
+        />
       </TabsContent>
       <TabsContent
         value="search"

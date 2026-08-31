@@ -2,6 +2,7 @@ import {
   type Document,
   open,
   PasswordError,
+  type Quad,
   type Rotation,
   type SearchMatch,
 } from '@build-qube/papyra';
@@ -30,6 +31,20 @@ export interface PdfSearchSlice {
   active: SearchMatch | null;
 }
 
+/** The structure element the reader picked, and where its content sits. */
+export interface PdfStructureSlice {
+  /** Page the selected element's content is on, or null when nothing is selected. */
+  page: number | null;
+  /**
+   * The selected element's content, one quadrilateral per line, in 72-DPI page space.
+   *
+   * Quads rather than rects for the reason the search overlay uses them: an element on
+   * rotated text gets a box at the text's own angle instead of a smear across
+   * everything near it.
+   */
+  quads: readonly Quad[];
+}
+
 /** A document that would not open without a password. */
 export interface PdfPasswordRequest {
   /** The file to retry once a password is in hand. */
@@ -53,6 +68,11 @@ export interface PdfViewerState {
   page: number;
   /** Search results, lifted so the page overlay and the result list agree. */
   search: PdfSearchSlice;
+  /**
+   * The structure element being shown, lifted for the same reason search is: the
+   * panel knows which element, and the page overlay is what draws it.
+   */
+  structure: PdfStructureSlice;
   /** The last load failure, if any. */
   error: string | null;
   /** Set while a document waits on a password, cleared when it opens. */
@@ -110,6 +130,8 @@ export interface PdfViewerActions {
   setMatches(matches: SearchMatch[]): void;
   /** Set the highlighted match, or clear it. */
   setActive(match: SearchMatch | null): void;
+  /** Show a structure element's content on the page, or clear the selection. */
+  setStructureSelection(page: number | null, quads: readonly Quad[]): void;
   /** Set or clear the load error. */
   setError(message: string | null): void;
   /** Give up on a password prompt. */
@@ -162,6 +184,9 @@ export interface PdfViewerStore {
 /** Shared so an empty result set does not churn the slice reference. */
 const EMPTY_SEARCH: PdfSearchSlice = { matches: [], active: null };
 
+/** Shared for the same reason as {@link EMPTY_SEARCH}. */
+const EMPTY_STRUCTURE: PdfStructureSlice = { page: null, quads: [] };
+
 /**
  * Create a viewer store.
  *
@@ -184,6 +209,7 @@ export function createPdfViewerStore(
     document: null,
     page: 0,
     search: EMPTY_SEARCH,
+    structure: EMPTY_STRUCTURE,
     error: null,
     password: null,
     view,
@@ -213,6 +239,7 @@ export function createPdfViewerStore(
           document: { doc, bytes, name: file.name },
           page: 0,
           search: EMPTY_SEARCH,
+          structure: EMPTY_STRUCTURE,
           password: null,
         });
       } catch (e) {
@@ -234,6 +261,7 @@ export function createPdfViewerStore(
         document,
         page: 0,
         search: EMPTY_SEARCH,
+        structure: EMPTY_STRUCTURE,
         password: null,
       });
     },
@@ -254,6 +282,17 @@ export function createPdfViewerStore(
     setActive(active) {
       if (active === state.search.active) return;
       commit({ ...state, search: { ...state.search, active } });
+    },
+
+    setStructureSelection(page, quads) {
+      // Collapse a clear onto the shared empty slice, so clearing twice — which
+      // switching tabs does — notifies nobody the second time.
+      if (page === null || quads.length === 0) {
+        if (state.structure === EMPTY_STRUCTURE) return;
+        commit({ ...state, structure: EMPTY_STRUCTURE });
+        return;
+      }
+      commit({ ...state, structure: { page, quads } });
     },
 
     setError(message) {

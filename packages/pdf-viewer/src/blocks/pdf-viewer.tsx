@@ -17,6 +17,7 @@ import {
   usePdfPage,
   usePdfRotation,
   usePdfSearch,
+  usePdfStructure,
   usePdfViewerActions,
 } from '@/hooks/use-pdf-viewer';
 import { useZoom, type ZoomAnchor } from '@/hooks/use-pdf-zoom';
@@ -98,6 +99,7 @@ function ViewerBody({
   const loaded = usePdfDocument();
   const [page, setPage] = usePdfPage();
   const { matches, active } = usePdfSearch();
+  const structure = usePdfStructure();
   const [rotation, rotateBy] = usePdfRotation();
   const [annotations, setAnnotations] = usePdfAnnotations();
   const { setDocument } = usePdfViewerActions();
@@ -166,6 +168,7 @@ function ViewerBody({
         anchor={anchor}
         doc={doc}
         matches={matches}
+        structure={structure}
         onPage={setPage}
         page={index}
         renderScale={zoom.renderScale}

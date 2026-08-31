@@ -12,6 +12,7 @@ import {
 } from 'react';
 import { PageSurface } from '@/components/pdf-page-surface';
 import type { ZoomAnchor } from '@/hooks/use-pdf-zoom';
+import type { PdfStructureSlice } from '@/lib/pdf-viewer-store';
 import { CSS_UNITS, renderWidth } from '@/lib/pdf-zoom';
 
 /** Gap between pages, in CSS pixels. Fixed, so it does not balloon at 800%. */
@@ -74,6 +75,14 @@ export interface ContinuousPagesProps {
   /** The match drawn in the active colour, if it is on a visible page. */
   active: SearchMatch | null;
   /**
+   * Content of the picked structure element, and the page it sits on.
+   *
+   * One page's worth rather than a map, because a structure element's content is on
+   * one page in every document that is not pathological, and the alternative is
+   * handing every surface a lookup it will miss.
+   */
+  structure?: PdfStructureSlice;
+  /**
    * Quarter turns clockwise applied to every page. Defaults to upright.
    *
    * Changes the column's geometry — a turned portrait page is a landscape box — but
@@ -120,6 +129,7 @@ export function ContinuousPages({
   onPage,
   matches,
   active,
+  structure,
   rotation = 0,
   annotations = true,
 }: ContinuousPagesProps) {
@@ -376,6 +386,7 @@ export function ContinuousPages({
           priority={slot.index >= first && slot.index <= last ? 0 : 1}
           matches={matches}
           active={active}
+          regions={structure?.page === slot.index ? structure.quads : undefined}
           current={slot.index === page}
           onSelect={onPage}
         />

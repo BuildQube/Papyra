@@ -14,6 +14,14 @@ export interface HighlightsProps {
   width: number;
   /** Height of the canvas the overlay sits on, in CSS pixels. */
   height: number;
+  /**
+   * Regions to outline rather than fill — the content of the structure element the
+   * reader picked, if it is on this page.
+   *
+   * Drawn in the accent colour and outlined instead of filled so it reads as a
+   * selection rather than a third kind of search hit, and stays legible over one.
+   */
+  regions?: readonly Quad[];
 }
 
 /**
@@ -31,8 +39,9 @@ export function Highlights({
   pageViewport,
   width,
   height,
+  regions = [],
 }: HighlightsProps) {
-  if (matches.length === 0) return null;
+  if (matches.length === 0 && regions.length === 0) return null;
 
   return (
     <svg
@@ -56,6 +65,13 @@ export function Highlights({
           />
         )),
       )}
+      {regions.map((quad) => (
+        <polygon
+          key={points(quad)}
+          className="fill-primary/15 stroke-primary [stroke-width:1.5]"
+          points={points(viewportQuad(quad, pageViewport))}
+        />
+      ))}
     </svg>
   );
 }

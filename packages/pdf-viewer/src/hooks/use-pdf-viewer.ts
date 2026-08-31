@@ -5,6 +5,7 @@ import type {
   PdfDocumentSlice,
   PdfPasswordRequest,
   PdfSearchSlice,
+  PdfStructureSlice,
   PdfViewerActions,
   PdfViewerState,
   PdfViewerStore,
@@ -67,6 +68,16 @@ export function usePdfPage(): [number, (index: number) => void] {
 /** Search results and the active match. Re-renders only when search changes. */
 export function usePdfSearch(): PdfSearchSlice {
   return useSlice((state) => state.search);
+}
+
+/**
+ * The structure element being shown on the page, if any.
+ *
+ * Separate from {@link usePdfSearch} so that picking an element does not re-render
+ * the search results, and vice versa.
+ */
+export function usePdfStructure(): PdfStructureSlice {
+  return useSlice((state) => state.structure);
 }
 
 /** The last load failure, or null. */
