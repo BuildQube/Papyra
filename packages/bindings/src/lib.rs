@@ -635,6 +635,9 @@ pub struct TextLine {
   pub ascent: f64,
   /// Extent below the baseline.
   pub descent: f64,
+  /// Marked-content id of the line's first glyph, joining to `StructNode.content` on
+  /// a tagged page. `null` on an untagged page, and for content outside any sequence.
+  pub mcid: Option<i32>,
 }
 
 /// The text of one page.
@@ -665,6 +668,7 @@ fn to_page_text(text: papyra_core::PageText) -> PageText {
         dy: line.dy.into(),
         ascent: line.ascent.into(),
         descent: line.descent.into(),
+        mcid: line.mcid,
       })
       .collect(),
     undecoded_glyphs: text.undecoded_glyphs,
@@ -712,6 +716,76 @@ impl Task for TextBatchTask {
 
 /// The outline walk, off the JS thread.
 ///
+/// One run of page content owned by a structure element.
+#[napi(object)]
+pub struct MarkedContent {
+  /// 0-based page index.
+  pub page: u32,
+  /// Matches `TextLine.mcid` on that page.
+  pub mcid: i32,
+}
+
+/// One structure-tree element. Flat and in pre-order; `level` carries the tree.
+#[napi(object)]
+pub struct StructEntry {
+  /// Standard structure type, after `/RoleMap`: `"H1"`, `"P"`, `"Table"`, `"TD"`, …
+  pub role: String,
+  /// The document's own tag, before `/RoleMap`. Equal to `role` unless remapped.
+  pub raw_role: String,
+  /// Nesting depth. Top-level elements are 0.
+  pub level: u32,
+  /// Content this element owns directly. Empty for a pure container.
+  pub content: Vec<MarkedContent>,
+  /// `/Alt` — replacement text for a figure.
+  pub alt: Option<String>,
+  /// `/ActualText` — text replacing the content rather than describing it.
+  pub actual_text: Option<String>,
+  /// `/Lang` — a BCP 47 tag for this subtree.
+  pub lang: Option<String>,
+  /// `/T` — a human-readable title, e.g. a table's caption.
+  pub title: Option<String>,
+}
+
+fn to_struct_entry(node: papyra_core::StructNode) -> StructEntry {
+  StructEntry {
+    role: node.role,
+    raw_role: node.raw_role,
+    level: node.level as u32,
+    content: node
+      .content
+      .into_iter()
+      .map(|c| MarkedContent {
+        page: c.page as u32,
+        mcid: c.mcid,
+      })
+      .collect(),
+    alt: node.alt,
+    actual_text: node.actual_text,
+    lang: node.lang,
+    title: node.title,
+  }
+}
+
+/// The structure tree, off the JS thread. Same reasoning as `OutlineTask`: object-graph
+/// work, but a tagged document tags every paragraph, so the tree is far larger than an
+/// outline and is the one walk here that can reach tens of thousands of nodes.
+pub struct StructTreeTask {
+  doc: Arc<HayroDocument>,
+}
+
+impl Task for StructTreeTask {
+  type Output = Vec<papyra_core::StructNode>;
+  type JsValue = Vec<StructEntry>;
+
+  fn compute(&mut self) -> Result<Self::Output> {
+    Ok(self.doc.struct_tree())
+  }
+
+  fn resolve(&mut self, _env: Env, out: Self::Output) -> Result<Self::JsValue> {
+    Ok(out.into_iter().map(to_struct_entry).collect())
+  }
+}
+
 /// Reading an outline is object-graph work rather than rendering, so it is fast — but
 /// a name tree can hold tens of thousands of entries, and this crate's contract is
 /// that nothing it exposes blocks the event loop.
@@ -879,6 +953,17 @@ impl PdfDocument {
   #[napi(ts_return_type = "Promise<Array<OutlineEntry>>")]
   pub fn outline(&self) -> AsyncTask<OutlineTask> {
     AsyncTask::new(OutlineTask {
+      doc: self.inner.clone(),
+    })
+  }
+
+  /// Read the document structure tree (tagged PDF), in pre-order.
+  ///
+  /// Resolves to an empty array when the document is untagged, which is the common
+  /// case. Join to text through `TextLine.mcid` and `StructEntry.content`.
+  #[napi(ts_return_type = "Promise<Array<StructEntry>>")]
+  pub fn struct_tree(&self) -> AsyncTask<StructTreeTask> {
+    AsyncTask::new(StructTreeTask {
       doc: self.inner.clone(),
     })
   }

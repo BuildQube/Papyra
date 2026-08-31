@@ -56,6 +56,17 @@ export type { JobHandle, JobTiming } from './scheduler.js';
 export { AbortError, DEFAULT_PRIORITY } from './scheduler.js';
 export type { MatchOptions, SearchMatch } from './search.js';
 export { findRanges, searchPageText } from './search.js';
+export type {
+  MarkedContent,
+  OrderedLine,
+  StructNode,
+} from './structure.js';
+export {
+  buildStructTree,
+  readingOrder,
+  structuredPageString,
+  walkStructTree,
+} from './structure.js';
 export type { PageText, Quad, Rect, TextLine } from './text.js';
 export {
   lineQuad,

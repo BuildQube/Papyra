@@ -83,6 +83,8 @@ struct Placed {
   /// The font's own advance for this glyph, used only for the last glyph of a line
   /// where there is no following origin to measure against.
   nominal_advance: f32,
+  /// Innermost enclosing marked-content id, or `None` outside any tagged sequence.
+  mcid: Option<i32>,
 }
 
 #[derive(Default)]
@@ -92,6 +94,13 @@ struct TextCollector {
   /// a page of them is unsearchable text, which is a different answer to a user than
   /// a page with no text.
   undecoded: u32,
+  /// Open marked-content sequences, innermost last.
+  ///
+  /// A stack rather than a single value because `BDC` nests, and the entries are
+  /// `Option` because a nested sequence need not carry an `/MCID` of its own — an
+  /// `/Artifact` or a bare `BMC` opens a level that must still be popped by its `EMC`.
+  /// Keeping the whole frame is what makes the pop unambiguous.
+  marked_content: Vec<Option<i32>>,
 }
 
 impl<'a> Device<'a> for TextCollector {
@@ -133,7 +142,22 @@ impl<'a> Device<'a> for TextCollector {
       dir: (ax / along, ay / along),
       size,
       nominal_advance: nominal_advance(glyph) * along * UNITS_PER_EM,
+      // Innermost first: a `/Span` inside a `/P` tags its glyphs with the span, which
+      // is the more specific and therefore more useful element of the two.
+      mcid: self.marked_content.iter().rev().find_map(|frame| *frame),
     });
+  }
+
+  fn begin_marked_content(&mut self, _tag: &[u8], mcid: Option<i32>) {
+    // Bounded so a stream of unmatched `BDC`s cannot grow this without limit; the
+    // depth is far past anything a real document nests.
+    if self.marked_content.len() < MAX_MARKED_CONTENT_DEPTH {
+      self.marked_content.push(mcid);
+    }
+  }
+
+  fn end_marked_content(&mut self) {
+    self.marked_content.pop();
   }
 
   // Text extraction ignores everything else the page draws.
@@ -149,6 +173,10 @@ impl<'a> Device<'a> for TextCollector {
 
 /// Glyph outlines use a 1000-unit em, matching PDF's text-space units.
 const UNITS_PER_EM: f32 = 1000.0;
+
+/// Ceiling on nested marked-content sequences. A content stream is untrusted input and
+/// its `BDC`/`EMC` need not balance, so the stack needs a bound that is not the file's.
+const MAX_MARKED_CONTENT_DEPTH: usize = 256;
 
 fn unicode_of(glyph: &Glyph<'_>) -> Option<String> {
   use hayro_interpret::hayro_cmap::BfString;
@@ -214,6 +242,9 @@ struct Builder {
   /// The glyph waiting to be committed. Held back because its width is the distance
   /// to the *next* glyph's origin, which has not arrived yet.
   pending: Placed,
+  /// Marked-content id of the line's first glyph. See [`TextLine::mcid`] for why the
+  /// first rather than all of them.
+  mcid: Option<i32>,
 }
 
 impl Builder {
@@ -225,6 +256,7 @@ impl Builder {
       dir: glyph.dir,
       size: glyph.size,
       pen: 0.0,
+      mcid: glyph.mcid,
       pending: glyph,
     }
   }
@@ -338,6 +370,7 @@ impl Builder {
       dy: self.dir.1,
       ascent: self.size * ASCENT_FRACTION,
       descent: self.size * (1.0 - ASCENT_FRACTION),
+      mcid: self.mcid,
     })
   }
 }
@@ -351,6 +384,85 @@ mod tests {
     let pdf = page_with_content(content);
     let pages = pdf.pages();
     extract(pages.first().expect("a page"))
+  }
+
+  /// `(text, mcid)` for each line — the shape the tagging tests care about.
+  fn tagged(content: &str) -> Vec<(String, Option<i32>)> {
+    extract_content(content)
+      .lines
+      .into_iter()
+      .map(|line| (line.text, line.mcid))
+      .collect()
+  }
+
+  // ---- marked content ----
+
+  #[test]
+  fn untagged_text_has_no_mcid() {
+    assert_eq!(
+      tagged("BT /F1 12 Tf 72 720 Td (Hello) Tj ET"),
+      [("Hello".to_string(), None)]
+    );
+  }
+
+  #[test]
+  fn text_carries_the_enclosing_mcid() {
+    assert_eq!(
+      tagged(
+        "/P << /MCID 0 >> BDC BT /F1 12 Tf 72 720 Td (First) Tj ET EMC \
+         /P << /MCID 1 >> BDC BT /F1 12 Tf 72 700 Td (Second) Tj ET EMC"
+      ),
+      [
+        ("First".to_string(), Some(0)),
+        ("Second".to_string(), Some(1)),
+      ]
+    );
+  }
+
+  #[test]
+  fn the_innermost_mcid_wins() {
+    // A `/Span` inside a `/P` is the more specific element, and the more useful one.
+    assert_eq!(
+      tagged(
+        "/P << /MCID 0 >> BDC /Span << /MCID 1 >> BDC \
+         BT /F1 12 Tf 72 720 Td (Nested) Tj ET EMC EMC"
+      ),
+      [("Nested".to_string(), Some(1))]
+    );
+  }
+
+  #[test]
+  fn a_sequence_without_an_mcid_does_not_hide_the_one_outside_it() {
+    // `BMC` opens a level carrying no id of its own. The `/P` around it still applies,
+    // which is what makes the stack `Option`-valued rather than skipped.
+    assert_eq!(
+      tagged(
+        "/P << /MCID 7 >> BDC /Artifact BMC \
+         BT /F1 12 Tf 72 720 Td (Inside) Tj ET EMC EMC"
+      ),
+      [("Inside".to_string(), Some(7))]
+    );
+  }
+
+  #[test]
+  fn text_after_a_closed_sequence_is_untagged_again() {
+    assert_eq!(
+      tagged(
+        "/P << /MCID 0 >> BDC BT /F1 12 Tf 72 720 Td (Tagged) Tj ET EMC \
+         BT /F1 12 Tf 72 700 Td (Loose) Tj ET"
+      ),
+      [("Tagged".to_string(), Some(0)), ("Loose".to_string(), None),]
+    );
+  }
+
+  #[test]
+  fn unbalanced_end_marked_content_does_not_underflow() {
+    // `EMC` with nothing open is malformed and does occur. Popping an empty stack must
+    // not panic, and the text after it is simply untagged.
+    assert_eq!(
+      tagged("EMC EMC BT /F1 12 Tf 72 720 Td (After) Tj ET"),
+      [("After".to_string(), None)]
+    );
   }
 
   fn texts(content: &str) -> Vec<String> {

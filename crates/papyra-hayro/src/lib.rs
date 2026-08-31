@@ -7,6 +7,7 @@ mod info;
 mod links;
 mod outline;
 mod strings;
+mod struct_tree;
 mod text;
 
 pub use info::{read_metadata, read_page_labels};
@@ -19,7 +20,7 @@ use hayro_interpret::InterpreterSettings;
 use hayro_syntax::{DecryptionError, LoadPdfError, Pdf};
 use papyra_core::{
   Bitmap, Document, Engine, Link, Metadata, OutlineItem, PageSize, PageText, PapyraError,
-  PixelFormat, RenderOptions, Result,
+  PixelFormat, RenderOptions, Result, StructNode,
 };
 use rayon::prelude::*;
 
@@ -241,6 +242,10 @@ impl Document for HayroDocument {
 
   fn page_labels(&self) -> Vec<String> {
     info::read_page_labels(&self.pdf)
+  }
+
+  fn struct_tree(&self) -> Vec<StructNode> {
+    struct_tree::read_struct_tree(&self.pdf)
   }
 
   fn render_page(&self, index: usize, opts: &RenderOptions) -> Result<Bitmap> {
