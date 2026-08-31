@@ -15,6 +15,7 @@
  */
 
 export type { CacheStats } from './cache.js';
+export type { PaintOptions } from './canvas.js';
 export { paintToCanvas, toImageData } from './canvas.js';
 export type { ImageHandle, RenderHandle, SvgHandle } from './document.js';
 export { Document, open } from './document.js';
@@ -75,3 +76,11 @@ export type {
   StreamOptions,
   SvgOptions,
 } from './types.js';
+export type { Rotation, Viewport, ViewportOptions } from './viewport.js';
+export {
+  rotatePage,
+  rotateSize,
+  viewport,
+  viewportQuad,
+  viewportRect,
+} from './viewport.js';

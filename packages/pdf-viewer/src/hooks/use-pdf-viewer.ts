@@ -1,3 +1,4 @@
+import type { Rotation } from '@build-qube/papyra';
 import { use, useSyncExternalStore } from 'react';
 import { PdfViewerContext } from '@/components/pdf-viewer-provider';
 import type {
@@ -82,6 +83,28 @@ export function usePdfError(): string | null {
 export function usePdfView(): [ViewMode, (view: ViewMode) => void] {
   const view = useSlice((state) => state.view);
   return [view, usePdfViewerActions().setView];
+}
+
+/**
+ * The rotation applied to every page, and a stepper.
+ *
+ * The stepper takes quarter turns rather than degrees, because that is what a button
+ * does; `setRotation` on the actions object handles a deep link.
+ */
+export function usePdfRotation(): [Rotation, (quarters: 1 | -1) => void] {
+  const rotation = useSlice((state) => state.rotation);
+  return [rotation, usePdfViewerActions().rotateBy];
+}
+
+/**
+ * Whether the document's own annotations are drawn, and a setter.
+ *
+ * Worth exposing rather than fixing on: a viewer with its own link layer draws every
+ * link twice while both are on.
+ */
+export function usePdfAnnotations(): [boolean, (on: boolean) => void] {
+  const annotations = useSlice((state) => state.annotations);
+  return [annotations, usePdfViewerActions().setAnnotations];
 }
 
 /** The pending password request, or null. */

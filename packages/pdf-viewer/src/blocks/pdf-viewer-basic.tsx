@@ -1,4 +1,5 @@
-import type { Document } from '@build-qube/papyra';
+import type { Document, Rotation } from '@build-qube/papyra';
+import { rotateSize } from '@build-qube/papyra';
 import {
   useEffect,
   useImperativeHandle,
@@ -60,6 +61,11 @@ export function PdfViewerBasic({
   const [own, setOwn] = useState(defaultPage);
   const index = Math.min(page ?? own, doc.pageCount - 1);
 
+  // Local rather than in a store, for the same reason the page is: this block exists
+  // to be embeddable, and a rotation nobody outside it reads does not need lifting.
+  const [rotation, setRotation] = useState<Rotation>(0);
+  const [annotations, setAnnotations] = useState(true);
+
   const viewport = useRef<HTMLDivElement>(null);
   const stack = useRef<HTMLDivElement>(null);
   const surface = useRef<PageViewHandle>(null);
@@ -68,16 +74,22 @@ export function PdfViewerBasic({
   const labels = usePageLabels(doc);
   const label = labelsDiffer(labels) ? pageLabel(labels, index) : '';
   const pageSize = useMemo(() => doc.pageSize(index), [doc, index]);
+  // The page as shown: what the fit modes and the CSS box measure. Rendering still
+  // uses `pageSize`, since the bitmap is always upright.
+  const shown = useMemo(
+    () => rotateSize(pageSize, rotation),
+    [pageSize, rotation],
+  );
 
   const zoom = useZoom({
     viewport,
-    page: pageSize,
+    page: shown,
     gutter: GUTTER,
     initial: initialZoom,
     anchor,
   });
 
-  const box = pageBox(pageSize, zoom.scale);
+  const box = pageBox(shown, zoom.scale);
   const pixelWidth = renderWidth(pageSize, zoom.renderScale);
 
   /**
@@ -118,10 +130,14 @@ export function PdfViewerBasic({
   useEffect(() => {
     if (pixelWidth <= 0) return;
     let cancelled = false;
-    const job = doc.render(index, { fitWidth: pixelWidth, priority: 0 });
+    const job = doc.render(index, {
+      fitWidth: pixelWidth,
+      priority: 0,
+      annotations,
+    });
     job.promise.then(
       (rendered) => {
-        if (!cancelled) void surface.current?.paint(rendered);
+        if (!cancelled) void surface.current?.paint(rendered, rotation);
       },
       () => {
         /* A cancelled or failed render leaves the previous page on screen. */
@@ -131,7 +147,9 @@ export function PdfViewerBasic({
       cancelled = true;
       job.cancel('page or zoom changed');
     };
-  }, [doc, index, pixelWidth]);
+    // `rotation` re-runs this only to repaint: the resubmission is a cache hit, which
+    // is cheaper than keeping the bitmap around to turn later.
+  }, [doc, index, pixelWidth, rotation, annotations]);
 
   const goTo = (next: number) => {
     setOwn(next);
@@ -153,6 +171,14 @@ export function PdfViewerBasic({
             scale={zoom.scale}
             settling={zoom.settling}
             spec={zoom.spec}
+            rotation={rotation}
+            onRotate={(quarters) =>
+              setRotation(
+                ((((rotation + quarters * 90) % 360) + 360) % 360) as Rotation,
+              )
+            }
+            annotations={annotations}
+            onAnnotations={setAnnotations}
           />
         </div>
         {/*

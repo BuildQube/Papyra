@@ -1,4 +1,5 @@
 import type { Document } from '@build-qube/papyra';
+import { rotateSize } from '@build-qube/papyra';
 import { useEffect, useMemo, useRef } from 'react';
 import { ContinuousPages } from '@/components/pdf-continuous-pages';
 import { PdfIsolationGuard } from '@/components/pdf-isolation-guard';
@@ -11,8 +12,10 @@ import {
   usePageLabels,
 } from '@/hooks/use-pdf-page-labels';
 import {
+  usePdfAnnotations,
   usePdfDocument,
   usePdfPage,
+  usePdfRotation,
   usePdfSearch,
   usePdfViewerActions,
 } from '@/hooks/use-pdf-viewer';
@@ -95,6 +98,8 @@ function ViewerBody({
   const loaded = usePdfDocument();
   const [page, setPage] = usePdfPage();
   const { matches, active } = usePdfSearch();
+  const [rotation, rotateBy] = usePdfRotation();
+  const [annotations, setAnnotations] = usePdfAnnotations();
   const { setDocument } = usePdfViewerActions();
 
   const viewport = useRef<HTMLDivElement>(null);
@@ -112,7 +117,12 @@ function ViewerBody({
   // Only worth the space when the document disagrees with the index — showing "3"
   // next to "3" is noise.
   const label = labelsDiffer(labels) ? pageLabel(labels, index) : '';
-  const pageSize = useMemo(() => doc.pageSize(index), [doc, index]);
+  // The fit modes measure the page as shown: turned, "page width" has to fit the
+  // page's height, or a landscape view of a portrait page overflows the column.
+  const pageSize = useMemo(
+    () => rotateSize(doc.pageSize(index), rotation),
+    [doc, index, rotation],
+  );
 
   const zoom = useZoom({
     viewport,
@@ -143,6 +153,10 @@ function ViewerBody({
           scale={zoom.scale}
           settling={zoom.settling}
           spec={zoom.spec}
+          rotation={rotation}
+          onRotate={rotateBy}
+          annotations={annotations}
+          onAnnotations={setAnnotations}
         />
       }
       viewport={viewport}
@@ -155,6 +169,8 @@ function ViewerBody({
         onPage={setPage}
         page={index}
         renderScale={zoom.renderScale}
+        rotation={rotation}
+        annotations={annotations}
         scale={zoom.scale}
         viewport={viewport}
       />

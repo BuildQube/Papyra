@@ -2,6 +2,7 @@ import {
   type Document,
   open,
   PasswordError,
+  type Rotation,
   type SearchMatch,
 } from '@build-qube/papyra';
 import type { ViewMode } from '@/lib/pdf-zoom';
@@ -63,6 +64,25 @@ export interface PdfViewerState {
    * a deep link are all the same thing to whatever is rendering.
    */
   view: ViewMode;
+  /**
+   * Quarter turns clockwise applied to every page on screen.
+   *
+   * Document-wide rather than per-page, matching every viewer a reader has used: a
+   * sideways scan is sideways throughout, and turning one page of a report is not a
+   * thing anyone asks for.
+   *
+   * Pages still render upright — this reaches the canvas as a paint-time transform and
+   * the overlays as a coordinate mapping, so rotating costs no re-render.
+   */
+  rotation: Rotation;
+  /**
+   * Whether the document's own annotations are drawn into the page bitmap.
+   *
+   * On by default. Off is worth showing here because this viewer draws its own link
+   * layer: with both on, a link's border comes from the PDF's appearance stream *and*
+   * from the overlay, which is the double-draw the switch exists for.
+   */
+  annotations: boolean;
 }
 
 /**
@@ -96,12 +116,22 @@ export interface PdfViewerActions {
   cancelPassword(): void;
   /** Switch between single-page and continuous. */
   setView(view: ViewMode): void;
+  /** Turn every page by a quarter, in either direction. Wraps at a full turn. */
+  rotateBy(quarters: 1 | -1): void;
+  /** Set the rotation outright — for a deep link, or a reset. */
+  setRotation(rotation: Rotation): void;
+  /** Draw the document's own annotations, or leave them to the overlay. */
+  setAnnotations(on: boolean): void;
 }
 
 /** Options for {@link createPdfViewerStore}. */
 export interface PdfViewerStoreOptions {
   /** The view to start in. Defaults to `scroll`. */
   view?: ViewMode;
+  /** The rotation to start at. Defaults to upright. */
+  rotation?: Rotation;
+  /** Whether to draw the document's own annotations. Defaults to on. */
+  annotations?: boolean;
   /**
    * Renders in flight at once.
    *
@@ -143,7 +173,12 @@ const EMPTY_SEARCH: PdfSearchSlice = { matches: [], active: null };
 export function createPdfViewerStore(
   options: PdfViewerStoreOptions = {},
 ): PdfViewerStore {
-  const { concurrency = 4, view = 'scroll' } = options;
+  const {
+    concurrency = 4,
+    view = 'scroll',
+    rotation = 0,
+    annotations = true,
+  } = options;
 
   let state: PdfViewerState = {
     document: null,
@@ -152,6 +187,8 @@ export function createPdfViewerStore(
     error: null,
     password: null,
     view,
+    rotation,
+    annotations,
   };
 
   const listeners = new Set<() => void>();
@@ -232,6 +269,23 @@ export function createPdfViewerStore(
     setView(next) {
       if (next === state.view) return;
       commit({ ...state, view: next });
+    },
+
+    rotateBy(quarters) {
+      // Modulo twice: the first can be negative, and a rotation of -90 is not one of
+      // the four the type admits.
+      const next = (((state.rotation + quarters * 90) % 360) + 360) % 360;
+      actions.setRotation(next as Rotation);
+    },
+
+    setRotation(next) {
+      if (next === state.rotation) return;
+      commit({ ...state, rotation: next });
+    },
+
+    setAnnotations(on) {
+      if (on === state.annotations) return;
+      commit({ ...state, annotations: on });
     },
   };
 

@@ -8,6 +8,9 @@ import {
   PasswordError,
   PasswordRequiredError,
   quadBounds,
+  viewport,
+  viewportQuad,
+  viewportRect,
 } from '../../src/index.js';
 
 /**
@@ -396,5 +399,134 @@ describeWithCorpus('encrypted documents', () => {
   test('opens with the right password', async () => {
     const doc = await open(encrypted(), { password: 'asdfasdf' });
     expect(doc.pageCount).toBeGreaterThan(0);
+  });
+});
+
+describeWithCorpus('the annotation switch, against real documents', () => {
+  /** How many of two equal-length buffers' bytes differ. */
+  const differing = (a: Uint8Array, b: Uint8Array): number => {
+    let n = 0;
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) n++;
+    return n;
+  };
+
+  test('turning annotations off changes the pixels', async () => {
+    // An AcroForm document: every widget is an annotation with its own appearance
+    // stream, so the two renders differ over a large fraction of the page rather than
+    // in a border somewhere.
+    const doc = await load('160F-2019.pdf');
+    const on = await doc.renderPage(0, { fitWidth: 400 });
+    const off = await doc.renderPage(0, { fitWidth: 400, annotations: false });
+
+    expect([off.width, off.height]).toEqual([on.width, on.height]);
+    expect(differing(on.data, off.data) / on.data.length).toBeGreaterThan(0.01);
+  });
+
+  test('the cache does not serve a render with the wrong layers on it', async () => {
+    // The failure this guards is silent: without the switch in the key, asking for a
+    // page with annotations off returns the bitmap that still has them drawn.
+    const doc = await load('160F-2019.pdf');
+    const on = await doc.renderPage(0, { fitWidth: 300 });
+    const off = await doc.renderPage(0, { fitWidth: 300, annotations: false });
+    const onAgain = await doc.renderPage(0, { fitWidth: 300 });
+
+    expect(differing(on.data, off.data)).toBeGreaterThan(0);
+    expect(differing(on.data, onAgain.data)).toBe(0);
+  });
+
+  test('defaults to on, matching what a viewer shows', async () => {
+    const doc = await load('160F-2019.pdf');
+    const bare = await doc.renderPage(0, { fitWidth: 300 });
+    const explicit = await doc.renderPage(0, {
+      fitWidth: 300,
+      annotations: true,
+    });
+    expect(differing(bare.data, explicit.data)).toBe(0);
+  });
+
+  test('the batch path honours it too', async () => {
+    // `renderPages` goes through rayon in Rust rather than the scheduler, so it is a
+    // separate route to the same settings and can regress on its own.
+    const doc = await load('160F-2019.pdf');
+    const [on] = await doc.renderPages(0, 1, { dpi: 36 });
+    const [off] = await doc.renderPages(0, 1, { dpi: 36, annotations: false });
+    expect(on && off).toBeTruthy();
+    if (!on || !off) return;
+    expect(differing(on.data, off.data)).toBeGreaterThan(0);
+  });
+
+  test('the export path honours it too', async () => {
+    const doc = await load('160F-2019.pdf');
+    const on = await doc.renderImage(0, { fitWidth: 300 });
+    const off = await doc.renderImage(0, {
+      fitWidth: 300,
+      annotations: false,
+    });
+    const [a, b] = await Promise.all([on.toPng(), off.toPng()]);
+    expect(a.bytes.byteLength).not.toBe(b.bytes.byteLength);
+  });
+
+  test('an SVG without annotations is smaller than one with them', async () => {
+    const doc = await load('160F-2019.pdf');
+    const on = await doc.renderSvg(0);
+    const off = await doc.renderSvg(0, { annotations: false });
+    expect(off.markup.length).toBeLessThan(on.markup.length);
+  });
+});
+
+describeWithCorpus('rotated viewports, against real documents', () => {
+  test("the viewport's dpi renders the bitmap it promised", async () => {
+    // The contract that makes a rotated view work at all: the render is unrotated, so
+    // its dimensions have to be the viewport's with the rotation undone. Get this
+    // wrong and the pixels and the link layer are different sizes.
+    const doc = await load('tracemonkey.pdf');
+    const vp = viewport(doc.pageSize(0), { fitWidth: 500, rotation: 90 });
+    const page = await doc.renderPage(0, { dpi: vp.dpi });
+
+    // Within a pixel rather than exact: both sides floor, but the scale is f64 here
+    // and f32 in the engine, so a dimension that lands on a whole number can fall
+    // either side of it.
+    expect(Math.abs(page.height - vp.width)).toBeLessThanOrEqual(1);
+    expect(Math.abs(page.width - vp.height)).toBeLessThanOrEqual(1);
+  });
+
+  test('link rects stay on the page at every rotation', async () => {
+    const doc = await load('basicapi.pdf');
+    const size = doc.pageSize(0);
+    const links = await doc.links(0);
+    expect(links.length).toBeGreaterThan(0);
+
+    for (const rotation of [0, 90, 180, 270] as const) {
+      const vp = viewport(size, { fitWidth: 800, rotation });
+      for (const link of links) {
+        const r = viewportRect(link.rect, vp);
+        expect(r.x).toBeGreaterThanOrEqual(-1);
+        expect(r.y).toBeGreaterThanOrEqual(-1);
+        expect(r.x + r.width).toBeLessThanOrEqual(vp.width + 1);
+        expect(r.y + r.height).toBeLessThanOrEqual(vp.height + 1);
+      }
+    }
+  });
+
+  test('a text highlight keeps its shape through a quarter turn', async () => {
+    const doc = await load('tracemonkey.pdf');
+    const text = await doc.pageText(0);
+    const line = text.lines[0];
+    expect(line).toBeDefined();
+    if (!line) return;
+
+    const size = doc.pageSize(0);
+    const quad = lineQuad(line, 0, line.text.length);
+    const upright = viewportQuad(quad, viewport(size, { rotation: 0 }));
+    const turned = viewportQuad(quad, viewport(size, { rotation: 90 }));
+
+    // The first line of this paper is horizontal, so upright its baseline runs in x
+    // and turned it runs in y — with the same length either way.
+    expect(Math.abs(upright.x1 - upright.x0)).toBeGreaterThan(1);
+    expect(Math.abs(turned.y1 - turned.y0)).toBeCloseTo(
+      Math.abs(upright.x1 - upright.x0),
+      6,
+    );
+    expect(Math.abs(turned.x1 - turned.x0)).toBeCloseTo(0, 6);
   });
 });

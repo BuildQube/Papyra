@@ -246,6 +246,37 @@ gate; CI needed no new job.
 - **`panic = "abort"` is deliberately absent** from the release profile: papyra parses
   untrusted PDFs and napi-rs turns caught panics into JS exceptions, so a malformed file
   must reject a promise rather than kill the host process.
+- **View rotation is TypeScript-only, and deliberately not a render option.** hayro's
+  `RenderSettings` carries `x_scale`/`y_scale`/`width`/`height`/`bg_color` and nothing
+  else, so a rotated render would be a post-hoc buffer shuffle — a copy, a napi field
+  and a new cache-key dimension to reproduce what a canvas transform does in the draw
+  call. `viewport.ts` holds the whole feature instead: `viewport()` resolves scale and
+  rotation together, `viewportRect`/`viewportQuad` turn link regions and text quads
+  into the same space, and `paintToCanvas` takes the rotation. Note that
+  `putImageData` **ignores the canvas transform**, which is why the rotated path
+  blits from a scratch surface via `drawImage` rather than painting directly.
+  `rotatePage` does exist for Node, and is the slow path by design.
+- **A viewport's `fitWidth` and a render's `fitWidth` are different measurements.**
+  The render's fits the page's own width; the viewport's fits the width *on screen*,
+  which at 90° is the page's height. `viewport()` floors its dimensions because
+  `hayro::render` floors `scaled_width`/`scaled_height` into its pixmap — reporting the
+  fractional value would put the viewport a pixel wider than the bitmap it describes
+  about half the time.
+- **The annotation switch is part of the render cache key.** `RenderOptions.annotations`
+  reaches hayro as `InterpreterSettings.render_annotations`, which is a plain bool —
+  pdf.js's `enableForms`/`enableStorage` have no analogue because they are about writing
+  values back. Since the scheduler coalesces on the key and the LRU is looked up by it,
+  `annotationKey()` in `document.ts` appends `:noannots`; without it, asking for a page
+  with annotations off is silently served the bitmap that still has them drawn on.
+- **Tile rendering is blocked upstream, and would cost N× rather than save.**
+  `hayro::render` is ~50 lines and every piece it uses is public *except* `Renderer`
+  (`mod renderer;` is private, `Renderer::new` is `pub(crate)`), so it cannot be
+  reimplemented with an offset transform from outside the crate; the upstream fix is an
+  `Affine::translate` composed into `initial_transform`. Even then: Addendum 10 measured
+  that hayro does **no viewport culling** — a 10%-area viewport cost 93.7ms against
+  104.6ms for the whole page — so N tiles is roughly N full renders. Tiles buy bounded
+  memory and a way past both the 100 MP cap and hayro's `u16` 65535px-per-side ceiling.
+  They do not buy speed.
 - **`.cargo/config.toml` forces `+simd128` for wasm** — vello_cpu is a SIMD rasteriser and
   is ~1.7x slower without it.
 - **Size renders with `fitWidth`, not `dpi`.** Page sizes vary by two orders of magnitude

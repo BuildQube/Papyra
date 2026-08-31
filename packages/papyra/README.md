@@ -104,6 +104,24 @@ Encrypted files throw `PasswordRequiredError` or `IncorrectPasswordError`, both
 extending `PasswordError` with a `retry` flag, so one dialog handles the cold ask and
 the wrong answer.
 
+## Rotate the view
+
+```ts
+const vp = viewport(doc.pageSize(index), { fitWidth: 1600, rotation: 90 });
+
+paintToCanvas(await doc.renderPage(index, { dpi: vp.dpi }), canvas, {
+  rotation: vp.rotation,
+});
+const box = viewportRect(link.rect, vp);   // the link layer, turned to match
+```
+
+Pages render unrotated and the canvas does the turning, so a rotate button costs no
+render. Size through the viewport rather than with `fitWidth` directly: turned, the
+width on screen is the page's height, and `vp.dpi` carries the answer back.
+
+Renders draw annotations by default. Pass `{ annotations: false }` when you are drawing
+your own link or highlight layer, or they appear twice.
+
 ## Two things that will bite you
 
 **Size with `fitWidth`, not `dpi`.** Page areas vary by two orders of magnitude. At a

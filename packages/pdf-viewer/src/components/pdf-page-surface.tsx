@@ -2,7 +2,9 @@ import {
   type Document,
   paintToCanvas,
   type RenderHandle,
+  type Rotation,
   type SearchMatch,
+  viewport,
 } from '@build-qube/papyra';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Highlights } from '@/components/pdf-highlights';
@@ -23,8 +25,20 @@ export interface PageSurfaceProps {
   width: number;
   /** Rendered height, in CSS pixels. */
   height: number;
-  /** Page width in PDF points, for placing highlights. */
+  /** Page width in PDF points, before rotation. */
   pageWidth: number;
+  /** Page height in PDF points, before rotation. */
+  pageHeight: number;
+  /**
+   * Quarter turns clockwise to show this page at.
+   *
+   * Applied when painting and when mapping the overlays, never when rendering: the
+   * bitmap is upright whatever this says, so turning the view re-reads the render
+   * cache instead of rasterising anything.
+   */
+  rotation: Rotation;
+  /** Whether to draw the document's own annotations into the bitmap. */
+  annotations: boolean;
   /** Device pixels to rasterise at, or 0 to stay a placeholder. */
   renderWidth: number;
   /** Lower runs first. Reassigned as the page moves through the viewport. */
@@ -59,6 +73,9 @@ export const PageSurface = memo(function PageSurface({
   width,
   height,
   pageWidth,
+  pageHeight,
+  rotation,
+  annotations,
   renderWidth,
   priority,
   matches,
@@ -76,7 +93,11 @@ export const PageSurface = memo(function PageSurface({
     let dropped = false;
     let handle: RenderHandle;
     try {
-      handle = doc.render(index, { fitWidth: renderWidth, priority });
+      handle = doc.render(index, {
+        fitWidth: renderWidth,
+        priority,
+        annotations,
+      });
     } catch {
       // The pixel guard. `renderWidth` caps well below it, so this is belt and braces.
       return;
@@ -87,7 +108,7 @@ export const PageSurface = memo(function PageSurface({
     handle.promise
       .then((page) => {
         if (dropped || !canvas.current) return;
-        paintToCanvas(page, canvas.current);
+        paintToCanvas(page, canvas.current, { rotation });
         setPainted(true);
         setPending(false);
       })
@@ -102,7 +123,10 @@ export const PageSurface = memo(function PageSurface({
     };
     // `priority` is deliberately absent: it is applied to the live job below rather
     // than resubmitting, which is the whole point of the handle.
-  }, [doc, index, renderWidth]);
+    // `rotation` is a dependency even though it changes nothing about the render:
+    // re-submitting hits papyra's cache and repaints, which costs nothing and avoids
+    // holding a multi-megabyte bitmap per mounted surface just to turn it later.
+  }, [doc, index, renderWidth, rotation, annotations]);
 
   useEffect(() => {
     job.current?.setPriority(priority);
@@ -111,6 +135,17 @@ export const PageSurface = memo(function PageSurface({
   const mine = useMemo(
     () => matches.filter((m) => m.page === index),
     [matches, index],
+  );
+
+  // Built from the CSS box rather than from the zoom, so the overlays land on the
+  // pixels even while a pinch has the canvas stretched to a size nothing rendered at.
+  const pageViewport = useMemo(
+    () =>
+      viewport(
+        { width: pageWidth, height: pageHeight },
+        { fitWidth: width, rotation },
+      ),
+    [pageWidth, pageHeight, width, rotation],
   );
 
   return (
@@ -141,7 +176,7 @@ export const PageSurface = memo(function PageSurface({
         <Links
           doc={doc}
           index={index}
-          scale={width / pageWidth}
+          pageViewport={pageViewport}
           onSelect={onSelect}
         />
       )}
@@ -149,7 +184,7 @@ export const PageSurface = memo(function PageSurface({
         <Highlights
           matches={mine}
           active={active?.page === index ? active : null}
-          scale={width / pageWidth}
+          pageViewport={pageViewport}
           width={width}
           height={height}
         />

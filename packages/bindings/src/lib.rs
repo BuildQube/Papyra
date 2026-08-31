@@ -97,11 +97,24 @@ fn map_err(e: papyra_core::PapyraError) -> Error {
 
 // ---------------------------------------------------------------- async tasks
 
+/// The render knobs that cross the boundary.
+///
+/// `scale` and `annotations` are the two a caller can set per request. The background
+/// is not among them: raster output is always opaque white, and only the SVG path —
+/// where an opaque rectangle behind vector artwork cannot be undone — exposes it.
+fn render_opts(dpi: f64, annotations: bool) -> RenderOptions {
+  RenderOptions {
+    annotations,
+    ..RenderOptions::at_dpi(dpi as f32)
+  }
+}
+
 /// One page, rendered off the JS thread.
 pub struct RenderTask {
   doc: Arc<HayroDocument>,
   index: usize,
   dpi: f64,
+  annotations: bool,
 }
 
 impl Task for RenderTask {
@@ -111,7 +124,7 @@ impl Task for RenderTask {
   fn compute(&mut self) -> Result<Self::Output> {
     self
       .doc
-      .render_page(self.index, &RenderOptions::at_dpi(self.dpi as f32))
+      .render_page(self.index, &render_opts(self.dpi, self.annotations))
       .map_err(map_err)
   }
 
@@ -128,6 +141,7 @@ pub struct RenderBatchTask {
   doc: Arc<HayroDocument>,
   indices: Vec<usize>,
   dpi: f64,
+  annotations: bool,
 }
 
 impl Task for RenderBatchTask {
@@ -137,7 +151,7 @@ impl Task for RenderBatchTask {
   fn compute(&mut self) -> Result<Self::Output> {
     self
       .doc
-      .render_pages_parallel(&self.indices, &RenderOptions::at_dpi(self.dpi as f32))
+      .render_pages_parallel(&self.indices, &render_opts(self.dpi, self.annotations))
       .map_err(map_err)
   }
 
@@ -275,6 +289,7 @@ pub struct RenderImageTask {
   doc: Arc<HayroDocument>,
   index: usize,
   dpi: f64,
+  annotations: bool,
 }
 
 impl Task for RenderImageTask {
@@ -284,7 +299,7 @@ impl Task for RenderImageTask {
   fn compute(&mut self) -> Result<Self::Output> {
     self
       .doc
-      .render_page(self.index, &RenderOptions::at_dpi(self.dpi as f32))
+      .render_page(self.index, &render_opts(self.dpi, self.annotations))
       .map_err(map_err)
   }
 
@@ -304,6 +319,7 @@ pub struct SvgTask {
   doc: Arc<HayroDocument>,
   index: usize,
   white_background: bool,
+  annotations: bool,
 }
 
 impl Task for SvgTask {
@@ -317,8 +333,9 @@ impl Task for SvgTask {
         self.index,
         &RenderOptions {
           // `scale` is meaningless for a resolution-independent format and is ignored
-          // by the backend; only the background carries over.
+          // by the backend; the background and the annotation switch both carry over.
           white_background: self.white_background,
+          annotations: self.annotations,
           ..RenderOptions::default()
         },
       )
@@ -764,8 +781,13 @@ impl PdfDocument {
 
   /// Render one page on the calling thread. Blocks; prefer `renderPageAsync`.
   #[napi]
-  pub fn render_page(&self, index: u32, dpi: Option<f64>) -> Result<RenderedPage> {
-    let opts = RenderOptions::at_dpi(dpi.unwrap_or(72.0) as f32);
+  pub fn render_page(
+    &self,
+    index: u32,
+    dpi: Option<f64>,
+    annotations: Option<bool>,
+  ) -> Result<RenderedPage> {
+    let opts = render_opts(dpi.unwrap_or(72.0), annotations.unwrap_or(true));
     self
       .inner
       .render_page(index as usize, &opts)
@@ -775,11 +797,17 @@ impl PdfDocument {
 
   /// Render one page off the JS thread. Several of these run concurrently.
   #[napi(ts_return_type = "Promise<RenderedPage>")]
-  pub fn render_page_async(&self, index: u32, dpi: Option<f64>) -> AsyncTask<RenderTask> {
+  pub fn render_page_async(
+    &self,
+    index: u32,
+    dpi: Option<f64>,
+    annotations: Option<bool>,
+  ) -> AsyncTask<RenderTask> {
     AsyncTask::new(RenderTask {
       doc: self.inner.clone(),
       index: index as usize,
       dpi: dpi.unwrap_or(72.0),
+      annotations: annotations.unwrap_or(true),
     })
   }
 
@@ -789,6 +817,7 @@ impl PdfDocument {
     &self,
     index: u32,
     dpi: Option<f64>,
+    annotations: Option<bool>,
     signal: Option<AbortSignal>,
   ) -> AsyncTask<RenderImageTask> {
     AsyncTask::with_optional_signal(
@@ -796,6 +825,7 @@ impl PdfDocument {
         doc: self.inner.clone(),
         index: index as usize,
         dpi: dpi.unwrap_or(72.0),
+        annotations: annotations.unwrap_or(true),
       },
       signal,
     )
@@ -810,6 +840,7 @@ impl PdfDocument {
     &self,
     index: u32,
     white_background: Option<bool>,
+    annotations: Option<bool>,
     signal: Option<AbortSignal>,
   ) -> AsyncTask<SvgTask> {
     AsyncTask::with_optional_signal(
@@ -817,6 +848,7 @@ impl PdfDocument {
         doc: self.inner.clone(),
         index: index as usize,
         white_background: white_background.unwrap_or(true),
+        annotations: annotations.unwrap_or(true),
       },
       signal,
     )
@@ -897,11 +929,13 @@ impl PdfDocument {
     start: u32,
     end: u32,
     dpi: Option<f64>,
+    annotations: Option<bool>,
   ) -> AsyncTask<RenderBatchTask> {
     AsyncTask::new(RenderBatchTask {
       doc: self.inner.clone(),
       indices: (start as usize..end as usize).collect(),
       dpi: dpi.unwrap_or(72.0),
+      annotations: annotations.unwrap_or(true),
     })
   }
 }

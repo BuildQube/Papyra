@@ -88,3 +88,75 @@ describe('slice identity', () => {
     expect(store.getState().page).toBe(0);
   });
 });
+
+describe('rotation', () => {
+  test('steps by a quarter turn in both directions and wraps', () => {
+    const store = createPdfViewerStore();
+    expect(store.getState().rotation).toBe(0);
+
+    store.actions.rotateBy(1);
+    expect(store.getState().rotation).toBe(90);
+    store.actions.rotateBy(1);
+    store.actions.rotateBy(1);
+    expect(store.getState().rotation).toBe(270);
+    store.actions.rotateBy(1);
+    expect(store.getState().rotation).toBe(0);
+
+    // The negative direction is the one a naive modulo gets wrong: -90 is not a
+    // rotation the type admits, and 270 is the same turn.
+    store.actions.rotateBy(-1);
+    expect(store.getState().rotation).toBe(270);
+  });
+
+  test('leaves every other slice alone', () => {
+    const store = createPdfViewerStore();
+    const before = store.getState();
+
+    store.actions.rotateBy(1);
+    const after = store.getState();
+    expect(after.search).toBe(before.search);
+    expect(after.document).toBe(before.document);
+    expect(after.page).toBe(before.page);
+    expect(after.view).toBe(before.view);
+  });
+
+  test('setting the rotation it already has does not notify', () => {
+    const store = createPdfViewerStore({ rotation: 90 });
+    let notifications = 0;
+    store.subscribe(() => {
+      notifications++;
+    });
+
+    store.actions.setRotation(90);
+    store.actions.rotateBy(1);
+    expect(notifications).toBe(1);
+    expect(store.getState().rotation).toBe(180);
+  });
+});
+
+describe('annotations', () => {
+  test('defaults to on and toggles', () => {
+    const store = createPdfViewerStore();
+    expect(store.getState().annotations).toBe(true);
+
+    store.actions.setAnnotations(false);
+    expect(store.getState().annotations).toBe(false);
+  });
+
+  test('starts from the option when one is given', () => {
+    expect(
+      createPdfViewerStore({ annotations: false }).getState().annotations,
+    ).toBe(false);
+  });
+
+  test('an idempotent write does not notify', () => {
+    const store = createPdfViewerStore();
+    let notifications = 0;
+    store.subscribe(() => {
+      notifications++;
+    });
+
+    store.actions.setAnnotations(true);
+    expect(notifications).toBe(0);
+  });
+});

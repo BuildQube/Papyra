@@ -1,8 +1,12 @@
+import type { Rotation } from '@build-qube/papyra';
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
+  HighlighterIcon,
   MinusIcon,
   PlusIcon,
+  RotateCcwIcon,
+  RotateCwIcon,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -24,7 +28,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Toggle } from '@/components/ui/toggle';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import {
   FIT_MODES,
   formatZoom,
@@ -71,6 +81,23 @@ export interface ZoomBarProps {
    * show a control that does nothing.
    */
   onMode?: (mode: ViewMode) => void;
+  /** The rotation currently applied, so the readout can name it. */
+  rotation?: Rotation;
+  /**
+   * Called with a quarter turn, positive for clockwise.
+   *
+   * Omit it and the rotate buttons are not rendered, on the same principle as
+   * {@link onMode}.
+   */
+  onRotate?: (quarters: 1 | -1) => void;
+  /** Whether the document's own annotations are being drawn. */
+  annotations?: boolean;
+  /**
+   * Called when the annotations toggle changes.
+   *
+   * Omit it and the toggle is not rendered.
+   */
+  onAnnotations?: (on: boolean) => void;
 }
 
 const FIT_LABELS: Record<string, string> = {
@@ -98,6 +125,10 @@ export function ZoomBar({
   onStepOut,
   onPage,
   onMode,
+  rotation = 0,
+  onRotate,
+  annotations = true,
+  onAnnotations,
 }: ZoomBarProps) {
   const custom =
     typeof spec === 'number' && !ZOOM_STEPS.includes(spec) ? spec : null;
@@ -213,6 +244,52 @@ export function ZoomBar({
           </SelectGroup>
         </SelectContent>
       </Select>
+
+      {onRotate && (
+        <ButtonGroup>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            aria-label="Rotate counter-clockwise"
+            title={`Rotate counter-clockwise (now ${rotation}°)`}
+            onClick={() => onRotate(-1)}
+          >
+            <RotateCcwIcon />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            aria-label="Rotate clockwise"
+            title={`Rotate clockwise (now ${rotation}°)`}
+            onClick={() => onRotate(1)}
+          >
+            <RotateCwIcon />
+          </Button>
+        </ButtonGroup>
+      )}
+
+      {onAnnotations && (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Toggle
+                variant="outline"
+                size="sm"
+                aria-label="Draw the document's own annotations"
+                pressed={annotations}
+                onPressedChange={onAnnotations}
+              />
+            }
+          >
+            <HighlighterIcon />
+          </TooltipTrigger>
+          <TooltipContent>
+            {annotations
+              ? "Drawing the document's own annotations. Turn off and link borders come only from the overlay."
+              : 'Annotations are not drawn. Links still work — the overlay is separate.'}
+          </TooltipContent>
+        </Tooltip>
+      )}
 
       {onMode && (
         <ToggleGroup

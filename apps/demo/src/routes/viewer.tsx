@@ -1,4 +1,5 @@
 import type { Document } from '@build-qube/papyra';
+import { viewport as pageViewportFor, rotateSize } from '@build-qube/papyra';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { ContinuousPages } from '@workspace/pdf-viewer/components/pdf-continuous-pages';
 import { Highlights } from '@workspace/pdf-viewer/components/pdf-highlights';
@@ -15,8 +16,10 @@ import {
   usePageLabels,
 } from '@workspace/pdf-viewer/hooks/use-pdf-page-labels';
 import {
+  usePdfAnnotations,
   usePdfDocument,
   usePdfPage,
+  usePdfRotation,
   usePdfSearch,
   usePdfView,
   usePdfViewerActions,
@@ -100,6 +103,8 @@ export function ViewerRoute() {
   }) as Search;
 
   const [mode, setMode] = usePdfView();
+  const [rotation, rotateBy] = usePdfRotation();
+  const [annotations, setAnnotations] = usePdfAnnotations();
   useViewUrlSync();
   const doc = loaded?.doc;
 
@@ -121,6 +126,12 @@ export function ViewerRoute() {
     () => (doc ? doc.pageSize(index) : null),
     [doc, index],
   );
+  // The page as shown. Zoom and the CSS box measure this; `pageSize` still sizes the
+  // render, because the bitmap is upright however the view is turned.
+  const shown = useMemo(
+    () => (pageSize ? rotateSize(pageSize, rotation) : null),
+    [pageSize, rotation],
+  );
 
   const patch = useCallback(
     (next: Partial<Search>) => {
@@ -135,14 +146,14 @@ export function ViewerRoute() {
 
   const zoom = useZoom({
     viewport,
-    page: pageSize,
+    page: shown,
     gutter: GUTTER,
     initial: zoomParam ?? 'auto',
     anchor,
     onCommit: useCallback((spec: ZoomSpec) => patch({ zoom: spec }), [patch]),
   });
 
-  const box = pageSize ? pageBox(pageSize, zoom.scale) : null;
+  const box = shown ? pageBox(shown, zoom.scale) : null;
 
   // Zoom decides how many pixels a page is worth. `?width=` still pins it, which is
   // how the perf probe and a like-for-like comparison against /export stay honest.
@@ -187,12 +198,16 @@ export function ViewerRoute() {
     const started = performance.now();
     setTiming(null);
 
-    const job = doc.render(index, { fitWidth: pixelWidth, priority: 0 });
+    const job = doc.render(index, {
+      fitWidth: pixelWidth,
+      priority: 0,
+      annotations,
+    });
     job.promise
       .then(async (rendered) => {
         if (cancelled) return;
         const render = performance.now() - started;
-        const painted = (await surface.current?.paint(rendered)) ?? {
+        const painted = (await surface.current?.paint(rendered, rotation)) ?? {
           paintMs: 0,
           presentMs: 0,
         };
@@ -218,7 +233,9 @@ export function ViewerRoute() {
       cancelled = true;
       job.cancel('page or zoom changed');
     };
-  }, [doc, index, pixelWidth, mode, setError]);
+    // `rotation` is here to repaint, not to re-render: the resubmission is a cache
+    // hit, which the status line's "cached" count shows.
+  }, [doc, index, pixelWidth, mode, rotation, annotations, setError]);
 
   useEffect(() => {
     const n = probeCount;
@@ -264,6 +281,10 @@ export function ViewerRoute() {
             onStepOut={zoom.stepOut}
             onPage={setPage}
             onMode={setMode}
+            rotation={rotation}
+            onRotate={rotateBy}
+            annotations={annotations}
+            onAnnotations={setAnnotations}
           />
         )
       }
@@ -296,6 +317,8 @@ export function ViewerRoute() {
           onPage={setPage}
           matches={matches}
           active={active}
+          rotation={rotation}
+          annotations={annotations}
         />
       ) : (
         <div
@@ -314,17 +337,19 @@ export function ViewerRoute() {
               <Links
                 doc={loaded.doc}
                 index={index}
-                scale={
-                  (box?.width ?? size.w) / loaded.doc.pageSize(index).width
-                }
+                pageViewport={pageViewportFor(loaded.doc.pageSize(index), {
+                  fitWidth: box?.width ?? size.w,
+                  rotation,
+                })}
                 onSelect={setPage}
               />
               <Highlights
                 matches={matches.filter((m) => m.page === index)}
                 active={active?.page === index ? active : null}
-                scale={
-                  (box?.width ?? size.w) / loaded.doc.pageSize(index).width
-                }
+                pageViewport={pageViewportFor(loaded.doc.pageSize(index), {
+                  fitWidth: box?.width ?? size.w,
+                  rotation,
+                })}
                 width={box?.width ?? size.w}
                 height={box?.height ?? size.h}
               />

@@ -28,6 +28,23 @@ export interface RenderOptions {
    * cost proportional to what is actually displayed.
    */
   fitWidth?: number;
+  /**
+   * Draw the page's annotations — links, highlights, stamps, filled form fields.
+   *
+   * On by default, which is what a PDF viewer is expected to show. Turn it off when
+   * you are drawing them yourself: a viewer that paints its own link or highlight
+   * layer over the bitmap otherwise shows every annotation twice, once from the
+   * document's appearance stream and once from its own.
+   *
+   * A boolean rather than pdf.js's four-way `annotationMode`, because that is the
+   * whole of what the engine offers. The two modes this has no answer for —
+   * `enableForms` and `enableStorage` — are about writing field values back, which
+   * papyra does not do.
+   *
+   * Part of the cache key, so flipping it re-renders instead of returning the
+   * previous answer.
+   */
+  annotations?: boolean;
 }
 
 /** {@link RenderOptions}, plus the two dials that only apply to a stream. */
@@ -63,6 +80,14 @@ export interface SvgOptions {
    * undo.
    */
   background?: 'white' | 'transparent';
+  /**
+   * Draw annotations, exactly as in {@link RenderOptions.annotations}. Defaults to on.
+   *
+   * Worth turning off more often here than for a raster page: an SVG is usually headed
+   * somewhere that will lay its own interaction over the artwork, and a baked-in link
+   * border is not removable afterwards.
+   */
+  annotations?: boolean;
 }
 
 /** A rendered page. `data` is tightly packed RGBA8, `height * stride` bytes. */

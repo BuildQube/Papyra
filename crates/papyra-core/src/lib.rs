@@ -61,6 +61,17 @@ pub struct RenderOptions {
   pub scale: f32,
   /// Render onto opaque white rather than transparent.
   pub white_background: bool,
+  /// Draw annotation appearance streams — links, highlights, stamps, filled form
+  /// fields — on top of the page content.
+  ///
+  /// On by default, matching what a PDF viewer is expected to show. Turn it off when
+  /// something else is drawing them: a viewer that paints its own highlight layer over
+  /// the bitmap otherwise draws every annotation twice.
+  ///
+  /// This is a single switch rather than a mode, because that is all the engine layer
+  /// can promise — an engine either draws annotations or it does not. Distinctions
+  /// like "forms but not their stored values" belong to a PDF writer.
+  pub annotations: bool,
 }
 
 impl Default for RenderOptions {
@@ -68,6 +79,7 @@ impl Default for RenderOptions {
     Self {
       scale: 1.0,
       white_background: true,
+      annotations: true,
     }
   }
 }
@@ -109,7 +121,8 @@ pub trait Document: Debug {
   ///
   /// Defaulted for the same reason as [`Self::outline`]. [`RenderOptions::scale`] has
   /// no meaning here — an SVG carries the page's own dimensions and rasterises at
-  /// whatever size it is drawn — so only `white_background` is read.
+  /// whatever size it is drawn — so only `white_background` and
+  /// [`RenderOptions::annotations`] are read.
   fn page_svg(&self, index: usize, opts: &RenderOptions) -> Result<String> {
     let _ = (index, opts);
     Err(PapyraError::Unsupported("SVG conversion".to_string()))

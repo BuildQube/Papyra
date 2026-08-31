@@ -1,4 +1,8 @@
-import { paintToCanvas, type RenderedPage } from '@build-qube/papyra';
+import {
+  paintToCanvas,
+  type RenderedPage,
+  type Rotation,
+} from '@build-qube/papyra';
 import type { CSSProperties } from 'react';
 import { useImperativeHandle, useRef } from 'react';
 
@@ -18,8 +22,13 @@ export interface PaintTiming {
  * page change for a value nothing else reads.
  */
 export interface PageViewHandle {
-  /** Paint immediately and report when the frame is actually on screen. */
-  paint(page: RenderedPage): Promise<PaintTiming>;
+  /**
+   * Paint immediately and report when the frame is actually on screen.
+   *
+   * `rotation` is applied by the canvas as it draws, so turning the page costs a
+   * blit rather than a render.
+   */
+  paint(page: RenderedPage, rotation?: Rotation): Promise<PaintTiming>;
 }
 
 /** Props for {@link PageView}. */
@@ -51,13 +60,13 @@ export function PageView({ ref, className, style }: PageViewProps) {
   const canvas = useRef<HTMLCanvasElement>(null);
 
   useImperativeHandle(ref, () => ({
-    paint(page) {
+    paint(page, rotation = 0) {
       const target = canvas.current;
       if (!target) {
         return Promise.resolve({ paintMs: 0, presentMs: 0 });
       }
       const started = performance.now();
-      paintToCanvas(page, target);
+      paintToCanvas(page, target, { rotation });
       const painted = performance.now();
       return new Promise((resolve) => {
         requestAnimationFrame(() => {
