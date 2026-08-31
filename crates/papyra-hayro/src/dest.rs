@@ -148,7 +148,7 @@ impl<'a> Resolver<'a> {
 }
 
 /// Map each page's object id to its 0-based index.
-fn page_index_by_ref(pdf: &Pdf) -> HashMap<ObjectIdentifier, usize> {
+pub(crate) fn page_index_by_ref(pdf: &Pdf) -> HashMap<ObjectIdentifier, usize> {
   let mut map = HashMap::new();
   for (index, page) in pdf.pages().iter().enumerate() {
     let Some(id) = page.raw().obj_id() else {

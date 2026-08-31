@@ -21,6 +21,7 @@ import {
   usePdfPage,
   usePdfRotation,
   usePdfSearch,
+  usePdfStructure,
   usePdfView,
   usePdfViewerActions,
 } from '@workspace/pdf-viewer/hooks/use-pdf-viewer';
@@ -91,6 +92,7 @@ export function ViewerRoute() {
   const loaded = usePdfDocument();
   const { setError } = usePdfViewerActions();
   const { matches, active } = usePdfSearch();
+  const structure = usePdfStructure();
   const [page, setPage] = usePdfPage();
   const navigate = useNavigate();
   const {
@@ -317,6 +319,7 @@ export function ViewerRoute() {
           onPage={setPage}
           matches={matches}
           active={active}
+          structure={structure}
           rotation={rotation}
           annotations={annotations}
         />
@@ -346,6 +349,7 @@ export function ViewerRoute() {
               <Highlights
                 matches={matches.filter((m) => m.page === index)}
                 active={active?.page === index ? active : null}
+                regions={structure.page === index ? structure.quads : undefined}
                 pageViewport={pageViewportFor(loaded.doc.pageSize(index), {
                   fitWidth: box?.width ?? size.w,
                   rotation,

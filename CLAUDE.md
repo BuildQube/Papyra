@@ -185,6 +185,14 @@ Five features beyond rendering follow the same split:
   takes `RasterFormat` (`webp`/`png`/`jpeg`) while `EncodedFormat` also includes `'svg'` —
   `PageImage` holds pixels and can never produce one. `hayro-svg` needs the same
   `embed-fonts` default feature as `hayro`, for the same reason.
+- **Structure (tagged PDF).** `crates/papyra-hayro/src/struct_tree.rs` walks
+  `/StructTreeRoot` and returns a **flat, pre-order** `Vec<StructNode>` whose `level`
+  carries the tree, exactly as the outline does. The half that cannot be done from
+  outside hayro is already there: `Device::begin_marked_content(tag, mcid)` is public
+  with a default no-op body, and the interpreter dispatches to it from both `BDC` (with
+  the id) and `BMC` (with `None`) — so `text.rs` tags each line with the id that
+  produced it and nothing needs a second interpretation pass. Reading order is the
+  point of all this, and it is the one ordering content-stream order cannot give.
 - **Text and search.** `crates/papyra-hayro/src/text.rs` implements
   `hayro_interpret::Device` and collects glyphs, which is how encodings, `ToUnicode`
   cmaps, CID and Type3 fonts, and the graphics-state transform all arrive already
@@ -290,11 +298,29 @@ gate; CI needed no new job.
   is insufficient — a started job competes for CPU for its whole duration.
 - **Benchmark wasm only in a clean headless browser.** An attached debugger suppresses JIT
   tiering and inflates timings ~4x.
+- **A structure element's mcids belong to it, not to the last node pushed.** `/K` mixes
+  children and content in one array, so `/K [ <</S /Span>> 3 ]` pushes the span before
+  the bare `3` that belongs to the *parent*. `struct_tree.rs` threads an owner index
+  through the walk rather than appending to `nodes.last_mut()`, and there is a test
+  named for the regression.
+- **`/RoleMap` is not optional decoration.** A tagged PDF may name its heading
+  `/Heading1` and map it to `/H1`; Word, InDesign and Excel all emit such files — the
+  corpus's own `160F-2019.pdf` maps `/Workbook` and `/Worksheet`. Matching on the raw
+  tag misses those documents entirely, so `role` is post-`/RoleMap` and `raw_role`
+  keeps the original. The mapping is followed as a chain, with a visited set: a
+  `/RoleMap` naming two tags for each other is malformed and would otherwise spin.
+- **`TextLine.mcid` is the line's *first* glyph, and lines are still grouped by
+  geometry.** Tagging deliberately does not change line grouping — breaking a line
+  where a `/Span` starts would fragment "the **bold** word" into three and regress
+  search, which is a shipped feature. So a line that switches element mid-way is filed
+  under the element that starts it. That is sound for ordering and wrong as "every
+  character here is in that element".
 - **Anything walking the PDF object graph needs a cycle guard, not a depth cap.** Real
   files contain cyclic `/Next` and `/Kids` chains. A depth limit does not save a name
   tree whose two `/Kids` point back at it — that branches rather than repeats, so 32
-  levels is four billion visits. `outline.rs` (siblings), `dest.rs` (the name tree) and
-  `info.rs` (the page-label number tree) all use a visited set for exactly this.
+  levels is four billion visits. `outline.rs` (siblings), `dest.rs` (the name tree),
+  `info.rs` (the page-label number tree) and `struct_tree.rs` (`/K`, and `/RoleMap`)
+  all use a visited set for exactly this.
 - **PDF text strings are not Latin-1.** They are UTF-16 or UTF-8 with a BOM, else
   PDFDocEncoding, which differs from Latin-1 precisely in `0x80..=0x9F` — where the em
   and en dashes live. `decode_text_string` in `strings.rs` is the one place this is

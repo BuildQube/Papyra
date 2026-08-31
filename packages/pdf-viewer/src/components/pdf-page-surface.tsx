@@ -1,6 +1,7 @@
 import {
   type Document,
   paintToCanvas,
+  type Quad,
   type RenderHandle,
   type Rotation,
   type SearchMatch,
@@ -47,6 +48,11 @@ export interface PageSurfaceProps {
   matches: readonly SearchMatch[];
   /** The match drawn in the active colour, if it is on this page. */
   active: SearchMatch | null;
+  /**
+   * Content of the picked structure element, already narrowed to this page by the
+   * caller — the surface knows nothing about which element it belongs to.
+   */
+  regions?: readonly Quad[];
   /** True when this is the page the viewer considers current, which outlines it. */
   current: boolean;
   /** Where an internal link goes. */
@@ -80,6 +86,7 @@ export const PageSurface = memo(function PageSurface({
   priority,
   matches,
   active,
+  regions,
   current,
   onSelect,
 }: PageSurfaceProps) {
@@ -180,15 +187,18 @@ export const PageSurface = memo(function PageSurface({
           onSelect={onSelect}
         />
       )}
-      {painted && mine.length > 0 && pageWidth > 0 && (
-        <Highlights
-          matches={mine}
-          active={active?.page === index ? active : null}
-          pageViewport={pageViewport}
-          width={width}
-          height={height}
-        />
-      )}
+      {painted &&
+        (mine.length > 0 || (regions?.length ?? 0) > 0) &&
+        pageWidth > 0 && (
+          <Highlights
+            matches={mine}
+            active={active?.page === index ? active : null}
+            regions={regions}
+            pageViewport={pageViewport}
+            width={width}
+            height={height}
+          />
+        )}
     </div>
   );
 });

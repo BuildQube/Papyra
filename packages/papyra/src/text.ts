@@ -31,6 +31,24 @@ export interface TextLine {
   readonly ascent: number;
   /** Extent below the baseline. */
   readonly descent: number;
+  /**
+   * Marked-content id of the line's **first** glyph, joining this line to the
+   * structure tree — see {@link StructNode.content} and {@link readingOrder}.
+   *
+   * Absent on an untagged page, and on a tagged page for content the document left
+   * outside any marked-content sequence, which is where running heads and page
+   * numbers usually live.
+   *
+   * Optional rather than `null` because lines cross the binding as-is rather than
+   * being rebuilt one by one — a page is thousands of them — so an absent id arrives
+   * as `undefined` and saying otherwise would be a lie about the runtime shape.
+   *
+   * The *first* glyph rather than all of them: lines are grouped by geometry and
+   * tagging does not change that grouping, so a line whose middle switches to a
+   * `Span` stays one line. Ordering by the element that starts a line is sound;
+   * reading this as "every character here belongs to that element" is not.
+   */
+  readonly mcid?: number;
 }
 
 /**

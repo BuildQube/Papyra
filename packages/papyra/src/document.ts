@@ -18,6 +18,7 @@ import {
 import { DEFAULT_PRIORITY, type JobHandle, Scheduler } from './scheduler.js';
 import { type SearchMatch, searchPageText } from './search.js';
 import { toBytes } from './source.js';
+import { buildStructTree, type StructNode } from './structure.js';
 import { type PageText, pageTextBytes, toPageText } from './text.js';
 import type {
   DocumentMetadata,
@@ -182,6 +183,8 @@ export class Document {
   readonly #linksPending = new Map<number, Promise<readonly PageLink[]>>();
   /** Memoised by {@link outline}; the outline cannot change under us. */
   #outline: Promise<OutlineNode[]> | undefined;
+  /** Memoised by {@link structTree}. */
+  #structure?: Promise<StructNode[]>;
   /** Memoised by {@link pageLabels}. */
   #labels: Promise<readonly string[]> | undefined;
   /** Memoised by {@link metadata}. */
@@ -348,6 +351,44 @@ export class Document {
       throw e;
     });
     return this.#labels;
+  }
+
+  /**
+   * The document structure tree, if the document is tagged.
+   *
+   * Resolves to an **empty array** for an untagged document, which is the common
+   * case — most PDFs carry no `/StructTreeRoot` at all. That emptiness is the signal
+   * to fall back to {@link Document.pageText} on its own.
+   *
+   * What it buys, when it is there, is the thing extraction otherwise cannot get:
+   * the reading order the author declared. {@link Document.pageText} reports lines in
+   * content-stream order, and a two-column page is free to draw its columns
+   * interleaved. Pass both to {@link readingOrder} to resolve it.
+   *
+   * The walk runs off the event loop and the result is memoised — it is one walk for
+   * the whole document, not one per page.
+   *
+   * @example
+   * ```ts
+   * const [text, tree] = await Promise.all([
+   *   doc.pageText(0),
+   *   doc.structTree(),
+   * ]);
+   * for (const { line, node } of readingOrder(text, tree)) {
+   *   console.log(node?.role ?? '-', line.text);
+   * }
+   * ```
+   */
+  async structTree(): Promise<StructNode[]> {
+    this.#structure ??= this.#inner
+      .structTree()
+      .then(buildStructTree)
+      // A failed walk must not be cached as a permanent absence of structure.
+      .catch((e: unknown) => {
+        this.#structure = undefined;
+        throw e;
+      });
+    return this.#structure;
   }
 
   /**

@@ -164,6 +164,19 @@ pub trait Document: Debug {
   fn page_labels(&self) -> Vec<String> {
     Vec::new()
   }
+
+  /// The document structure tree (tagged PDF), in pre-order. Empty when the document
+  /// is untagged, which is the common case.
+  ///
+  /// Pre-order is the whole point: it is the reading order the document declares, and
+  /// it is the one ordering [`Self::page_text`] cannot supply — a two-column page
+  /// interleaves in content-stream order no matter how carefully its lines are
+  /// grouped. Join the two through [`TextLine::mcid`] and [`StructNode::content`].
+  ///
+  /// Defaulted for the same reason as [`Self::outline`].
+  fn struct_tree(&self) -> Vec<StructNode> {
+    Vec::new()
+  }
 }
 
 /// A PDF backend.
@@ -244,6 +257,56 @@ pub struct OutlineItem {
   pub open: bool,
 }
 
+/// One run of page content owned by a [`StructNode`].
+///
+/// The pair is what makes the join possible: a marked-content id is only unique within
+/// one page's content stream, so an id without a page cannot address anything. An
+/// element carries several when its content spans a page break — a paragraph broken
+/// across two pages is one `/P` with content on both.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MarkedContent {
+  /// Zero-based page index, resolved from the element's `/Pg`.
+  pub page: usize,
+  /// The id the content stream's `BDC` gave this run, matching [`TextLine::mcid`].
+  pub mcid: i32,
+}
+
+/// One element of the document structure tree, in pre-order.
+///
+/// Flat rather than nested, for the reasons on [`OutlineItem`]: `level` carries the
+/// tree, and the shape crosses FFI without recursive type generation. Pre-order is
+/// also the point of the structure tree — it *is* the reading order the document
+/// declares, which is the one thing content-stream order cannot give.
+#[derive(Debug, Clone, PartialEq)]
+pub struct StructNode {
+  /// Standard structure type: `Document`, `H1`, `P`, `Table`, `TD`, `Figure`, …
+  ///
+  /// Already resolved through the structure tree root's `/RoleMap`, so a document that
+  /// tags its headings `/Heading1` and maps that to `/H1` reports `H1` here. Documents
+  /// do this often enough that matching on the raw tag misses most tagged PDFs.
+  pub role: String,
+  /// The document's own tag, before `/RoleMap`. Equal to [`Self::role`] unless the
+  /// document remapped it; kept because a custom tag can carry meaning the standard
+  /// role flattens away.
+  pub raw_role: String,
+  /// Nesting depth. The children of `/StructTreeRoot` are 0.
+  pub level: usize,
+  /// Content this element owns directly, in the order the tree declares it.
+  ///
+  /// Empty for a pure container — a `/Sect` whose text all belongs to the `/P`s
+  /// beneath it — which is most interior nodes.
+  pub content: Vec<MarkedContent>,
+  /// `/Alt` — replacement text for a figure, and the only text an image has.
+  pub alt: Option<String>,
+  /// `/ActualText` — text that replaces the content rather than describing it, which
+  /// is how a document spells out a ligature or a decorative glyph.
+  pub actual_text: Option<String>,
+  /// `/Lang` — a BCP 47 tag overriding the document language for this subtree.
+  pub lang: Option<String>,
+  /// `/T` — a human-readable title for the element, e.g. a table's caption.
+  pub title: Option<String>,
+}
+
 /// An axis-aligned rectangle in the page-as-rendered space described on [`PageText`].
 ///
 /// Pixels from the top-left at 72 DPI, y increasing downwards, with page rotation and
@@ -322,6 +385,18 @@ pub struct TextLine {
   pub ascent: f32,
   /// Extent below the baseline.
   pub descent: f32,
+  /// Marked-content id of the line's first glyph, pairing with [`MarkedContent::mcid`]
+  /// on this page — the hook a caller joins to the structure tree with.
+  ///
+  /// `None` on an untagged page, and on tagged pages for content the document left
+  /// outside any marked-content sequence (`/Artifact` runs mostly, which is where
+  /// running heads and page numbers belong).
+  ///
+  /// The line's *first* glyph rather than all of them, deliberately: lines are grouped
+  /// by geometry and that grouping is not changed by tagging, so a line whose middle
+  /// switches to a `/Span` stays one line. Ordering by the element that starts a line
+  /// is right; reading this as "every glyph here is in that element" is not.
+  pub mcid: Option<i32>,
 }
 
 /// Every line of text on one page.

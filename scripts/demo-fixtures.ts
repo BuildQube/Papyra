@@ -51,6 +51,7 @@ for (const name of WANTED) {
 const generated: [string, Uint8Array][] = [
   ['rotated.pdf', rotatedTextPdf()],
   ['labelled.pdf', labelledPdf()],
+  ['tagged-columns.pdf', taggedColumnsPdf()],
 ];
 for (const [name, bytes] of generated) {
   await writeFile(join(to, name), bytes);
@@ -133,6 +134,92 @@ function labelledPdf(): Uint8Array {
   });
 
   objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+  return assemble(objects);
+}
+
+/**
+ * Two columns drawn interleaved, tagged in the order they are meant to be read.
+ *
+ * Generated because the corpus has exactly one tagged file (`160F-2019.pdf`, a form),
+ * and a form does not make the point at a glance. Here the content stream draws
+ * left line, right line, left line — the order a generator found convenient — so
+ * reading it as drawn interleaves the two columns into nonsense, and the structure
+ * tree puts them back. Ten of the thirteen lines move.
+ *
+ * That gap is the whole reason to read a structure tree, and it cannot be recovered
+ * from geometry: the drawing order genuinely is what it is.
+ *
+ * The columns are tagged `/Column` and mapped to `/Sect` through the root's
+ * `/RoleMap`, because real tagged files do exactly this — Word, InDesign and Excel
+ * all ship their own tag names — and a viewer that matches the raw tag sees nothing.
+ */
+function taggedColumnsPdf(): Uint8Array {
+  const title = 'Reading order is not drawing order';
+  const left = [
+    'A PDF says where each glyph',
+    'goes and nothing more. The',
+    'order it draws them in is',
+    'whatever suited the program',
+    'that wrote the file, which is',
+    'rarely the order you read.',
+  ];
+  const right = [
+    'A tagged PDF adds a structure',
+    "tree: the document's own",
+    'account of which runs are',
+    'headings, which are paragraphs,',
+    'and what order a reader is',
+    'meant to take them in.',
+  ];
+
+  // Marked-content ids run in *reading* order: 0 is the title, 1-6 the left column,
+  // 7-12 the right. The content stream below then emits them in a different order,
+  // which is the entire point of the fixture.
+  const show = (
+    mcid: number,
+    x: number,
+    y: number,
+    size: number,
+    text: string,
+  ) =>
+    `/P << /MCID ${mcid} >> BDC BT /F1 ${size} Tf ${x} ${y} Td (${text}) Tj ET EMC`;
+
+  const LEFT_X = 56;
+  const RIGHT_X = 316;
+  const TOP = 648;
+  const STEP = 20;
+
+  const drawn = [show(0, LEFT_X, 700, 18, title)];
+  // Interleaved: one line of the left column, then one of the right.
+  for (let i = 0; i < left.length; i++) {
+    drawn.push(show(1 + i, LEFT_X, TOP - i * STEP, 11, left[i] as string));
+    drawn.push(show(7 + i, RIGHT_X, TOP - i * STEP, 11, right[i] as string));
+  }
+  const content = drawn.join('\n');
+
+  // A paragraph per three lines, so the tree has something to expand and each node
+  // highlights a block rather than the whole column.
+  const para = (mcids: number[]) =>
+    `<< /Type /StructElem /S /P /Pg 3 0 R /K [${mcids.join(' ')}] >>`;
+
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R /StructTreeRoot 6 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R ' +
+      '/Resources << /Font << /F1 5 0 R >> >> >>',
+    `<< /Length ${content.length + 1} >>\nstream\n${content}\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    '<< /Type /StructTreeRoot /RoleMap << /Column /Sect >> /K [7 0 R] >>',
+    '<< /Type /StructElem /S /Document /Pg 3 0 R /K [8 0 R 9 0 R 12 0 R] >>',
+    '<< /Type /StructElem /S /H1 /Pg 3 0 R /T (Title) /K [0] >>',
+    '<< /Type /StructElem /S /Column /T (Left column) /K [10 0 R 11 0 R] >>',
+    para([1, 2, 3]),
+    para([4, 5, 6]),
+    '<< /Type /StructElem /S /Column /T (Right column) /K [13 0 R 14 0 R] >>',
+    para([7, 8, 9]),
+    para([10, 11, 12]),
+  ];
+
   return assemble(objects);
 }
 

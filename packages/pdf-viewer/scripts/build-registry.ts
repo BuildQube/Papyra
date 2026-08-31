@@ -50,13 +50,21 @@ if (built.exitCode !== 0) {
 
 // The CLI reports success whether or not it wrote anything a consumer can use, so
 // check the edge that actually matters: sibling URLs made it into the output.
+//
+// The expected count comes from the source rather than a literal. Hard-coding it
+// means the guard fails the build every time a panel is added to the sidebar, which
+// trains you to bump the number instead of reading what it is telling you.
+const source = registry.items.find((i) => i.name === 'pdf-sidebar');
+const expected = (source?.registryDependencies ?? []).filter((d) =>
+  d.includes('{{REGISTRY}}'),
+).length;
 const sidebar = await Bun.file(join(output, 'pdf-sidebar.json')).json();
 const siblings = (sidebar.registryDependencies as string[]).filter((d) =>
   d.startsWith('http'),
 );
-if (siblings.length !== 3) {
+if (siblings.length !== expected) {
   throw new Error(
-    `pdf-sidebar should carry 3 sibling URLs, found ${siblings.length}`,
+    `pdf-sidebar should carry ${expected} sibling URLs, found ${siblings.length}`,
   );
 }
 

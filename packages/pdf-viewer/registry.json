@@ -9,14 +9,24 @@
       "title": "Zoom",
       "description": "Zoom ladder, fit modes, and the page-box maths a viewer resolves them against.",
       "dependencies": ["@build-qube/papyra@^0.3.0"],
-      "files": [{ "path": "src/lib/pdf-zoom.ts", "type": "registry:lib" }]
+      "files": [
+        {
+          "path": "src/lib/pdf-zoom.ts",
+          "type": "registry:lib"
+        }
+      ]
     },
     {
       "name": "pdf-page-class",
       "type": "registry:lib",
       "title": "Page surface class",
       "description": "The shared Tailwind classes a rendered page is painted with.",
-      "files": [{ "path": "src/lib/pdf-page-class.ts", "type": "registry:lib" }]
+      "files": [
+        {
+          "path": "src/lib/pdf-page-class.ts",
+          "type": "registry:lib"
+        }
+      ]
     },
     {
       "name": "pdf-viewer-store",
@@ -26,7 +36,10 @@
       "dependencies": ["@build-qube/papyra@^0.3.0"],
       "registryDependencies": ["{{REGISTRY}}/pdf-zoom.json"],
       "files": [
-        { "path": "src/lib/pdf-viewer-store.ts", "type": "registry:lib" }
+        {
+          "path": "src/lib/pdf-viewer-store.ts",
+          "type": "registry:lib"
+        }
       ]
     },
     {
@@ -46,13 +59,16 @@
       "name": "use-pdf-viewer",
       "type": "registry:hook",
       "title": "Viewer hooks",
-      "description": "Selector hooks over the viewer store — one subscription per slice, so a component re-renders only for the state it reads.",
+      "description": "Selector hooks over the viewer store \u2014 one subscription per slice, so a component re-renders only for the state it reads.",
       "registryDependencies": [
         "{{REGISTRY}}/pdf-viewer-provider.json",
         "{{REGISTRY}}/pdf-viewer-store.json"
       ],
       "files": [
-        { "path": "src/hooks/use-pdf-viewer.ts", "type": "registry:hook" }
+        {
+          "path": "src/hooks/use-pdf-viewer.ts",
+          "type": "registry:hook"
+        }
       ]
     },
     {
@@ -63,7 +79,10 @@
       "dependencies": ["@build-qube/papyra@^0.3.0"],
       "registryDependencies": ["{{REGISTRY}}/pdf-zoom.json"],
       "files": [
-        { "path": "src/hooks/use-pdf-zoom.ts", "type": "registry:hook" }
+        {
+          "path": "src/hooks/use-pdf-zoom.ts",
+          "type": "registry:hook"
+        }
       ]
     },
     {
@@ -127,7 +146,10 @@
         "{{REGISTRY}}/use-pdf-zoom.json"
       ],
       "files": [
-        { "path": "src/blocks/pdf-viewer.tsx", "type": "registry:block" }
+        {
+          "path": "src/blocks/pdf-viewer.tsx",
+          "type": "registry:block"
+        }
       ]
     },
     {
@@ -155,7 +177,7 @@
       "name": "pdf-page-preview",
       "type": "registry:block",
       "title": "Page preview",
-      "description": "One page, rendered once, with nothing to interact with — for the places a PDF is a picture rather than a document.",
+      "description": "One page, rendered once, with nothing to interact with \u2014 for the places a PDF is a picture rather than a document.",
       "dependencies": ["@build-qube/papyra@^0.3.0"],
       "registryDependencies": [
         "skeleton",
@@ -245,7 +267,10 @@
       "description": "Hit regions over a page for its link annotations, invisible until hovered, mapped through a viewport so they follow a rotated view.",
       "dependencies": ["@build-qube/papyra@^0.3.0"],
       "files": [
-        { "path": "src/components/pdf-links.tsx", "type": "registry:component" }
+        {
+          "path": "src/components/pdf-links.tsx",
+          "type": "registry:component"
+        }
       ]
     },
     {
@@ -336,6 +361,28 @@
       ]
     },
     {
+      "name": "pdf-structure",
+      "type": "registry:component",
+      "title": "Structure",
+      "description": "The tag tree of a tagged PDF, and the reading order it declares \u2014 with the count of how many lines that moves.",
+      "dependencies": ["@build-qube/papyra@^0.3.0", "lucide-react"],
+      "registryDependencies": [
+        "alert",
+        "badge",
+        "button",
+        "collapsible",
+        "empty",
+        "spinner",
+        "tabs"
+      ],
+      "files": [
+        {
+          "path": "src/components/pdf-structure.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
       "name": "pdf-search",
       "type": "registry:component",
       "title": "Search",
@@ -360,12 +407,13 @@
       "name": "pdf-sidebar",
       "type": "registry:component",
       "title": "Viewer sidebar",
-      "description": "Pages, outline and search in one column, every panel kept mounted so a tab change does not discard a thumbnail stream or a result set.",
+      "description": "Pages, outline, tags and search in one column, every panel kept mounted so a tab change does not discard a thumbnail stream or a result set.",
       "dependencies": ["@build-qube/papyra@^0.3.0"],
       "registryDependencies": [
         "badge",
         "tabs",
         "{{REGISTRY}}/pdf-outline.json",
+        "{{REGISTRY}}/pdf-structure.json",
         "{{REGISTRY}}/pdf-search.json",
         "{{REGISTRY}}/pdf-thumbnails.json"
       ],
