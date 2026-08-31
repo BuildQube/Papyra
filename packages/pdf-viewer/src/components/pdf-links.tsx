@@ -1,5 +1,5 @@
-import type { Document, PageLink } from '@build-qube/papyra';
-import { scaleRect } from '@build-qube/papyra';
+import type { Document, PageLink, Viewport } from '@build-qube/papyra';
+import { viewportRect } from '@build-qube/papyra';
 import { useEffect, useState } from 'react';
 
 /** Props for {@link Links}. */
@@ -8,8 +8,14 @@ export interface LinksProps {
   doc: Document;
   /** The 0-based page whose annotations to read. */
   index: number;
-  /** Page-space (72 DPI) to CSS-pixel scale — the same one highlights use. */
-  scale: number;
+  /**
+   * Page space to CSS pixels, rotation included — the same viewport highlights use.
+   *
+   * A viewport rather than a bare scale because a rotated view has to turn the hit
+   * regions with the pixels. Getting this wrong does not look broken, it just puts
+   * every link a quarter turn from its own glyphs.
+   */
+  pageViewport: Viewport;
   /** Called with a 0-based page index when the reader picks a page. */
   onSelect: (index: number) => void;
 }
@@ -22,14 +28,15 @@ export interface LinksProps {
  * pixels, it was knowing where the regions are — which is exactly what `doc.links`
  * added.
  *
- * Positions come from `scaleRect`, the same 72-DPI page space the search highlights
- * use, so a link sits on its own glyphs at any zoom and on a rotated page.
+ * Positions come from `viewportRect`, the same mapping the search highlights use, so a
+ * link sits on its own glyphs at any zoom, on a page the document itself rotated, and
+ * at any angle the reader has turned the view to.
  *
  * These are focusable elements rather than hit-testing on a click handler: a keyboard
  * can then tab through a table of contents, and a URI link gets the browser's own
  * status bar and context menu for free.
  */
-export function Links({ doc, index, scale, onSelect }: LinksProps) {
+export function Links({ doc, index, pageViewport, onSelect }: LinksProps) {
   const [links, setLinks] = useState<readonly PageLink[]>([]);
 
   useEffect(() => {
@@ -49,7 +56,7 @@ export function Links({ doc, index, scale, onSelect }: LinksProps) {
   return (
     <div className="pointer-events-none absolute inset-0">
       {links.map((link) => {
-        const { x, y, width, height } = scaleRect(link.rect, scale);
+        const { x, y, width, height } = viewportRect(link.rect, pageViewport);
         const style = { left: x, top: y, width, height };
         const key = `${link.rect.x},${link.rect.y},${target(link)}`;
 

@@ -1,4 +1,4 @@
-import type { Document, SearchMatch } from '@build-qube/papyra';
+import type { Document, Rotation, SearchMatch } from '@build-qube/papyra';
 import { useEffect, useState } from 'react';
 import { Outline } from '@/components/pdf-outline';
 import { Search } from '@/components/pdf-search';
@@ -24,6 +24,8 @@ export interface SidebarProps {
   active: SearchMatch | null;
   /** Called when the highlighted match changes. */
   onActive: (match: SearchMatch | null) => void;
+  /** Quarter turns the thumbnails are shown at, so the strip matches the page. */
+  rotation?: Rotation;
 }
 
 /**
@@ -43,6 +45,7 @@ export function Sidebar({
   onMatches,
   active,
   onActive,
+  rotation = 0,
 }: SidebarProps) {
   const [tab, setTab] = useState<Tab>('pages');
   const [hasOutline, setHasOutline] = useState<boolean | null>(null);
@@ -95,7 +98,12 @@ export function Sidebar({
         keepMounted
         className="min-h-0 overflow-y-auto"
       >
-        <Thumbnails doc={doc} current={current} onSelect={onSelect} />
+        <Thumbnails
+          doc={doc}
+          current={current}
+          onSelect={onSelect}
+          rotation={rotation}
+        />
       </TabsContent>
       <TabsContent
         value="outline"

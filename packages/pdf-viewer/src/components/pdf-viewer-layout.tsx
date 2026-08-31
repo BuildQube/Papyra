@@ -3,6 +3,7 @@ import { Sidebar } from '@/components/pdf-sidebar';
 import {
   usePdfDocument,
   usePdfPage,
+  usePdfRotation,
   usePdfSearch,
   usePdfViewerActions,
 } from '@/hooks/use-pdf-viewer';
@@ -51,6 +52,7 @@ export function ViewerLayout({
   const doc = usePdfDocument();
   const [page, setPage] = usePdfPage();
   const { matches, active } = usePdfSearch();
+  const [rotation] = usePdfRotation();
   const { setMatches, setActive } = usePdfViewerActions();
   if (!doc) return null;
 
@@ -67,6 +69,7 @@ export function ViewerLayout({
           onMatches={setMatches}
           active={active}
           onActive={setActive}
+          rotation={rotation}
         />
       )}
       <section className="flex min-h-0 min-w-0 flex-1 flex-col">

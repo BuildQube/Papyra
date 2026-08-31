@@ -1,4 +1,4 @@
-import type { Document, RenderedPage } from '@build-qube/papyra';
+import type { Document, RenderedPage, Rotation } from '@build-qube/papyra';
 import { useEffect, useState } from 'react';
 import { PageCanvas } from '@/components/pdf-page-canvas';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,13 @@ export interface ThumbnailsProps {
   onSelect: (index: number) => void;
   /** Tiles per row. One is the sidebar strip; more makes it a picker grid. */
   columns?: number;
+  /**
+   * Quarter turns clockwise to show tiles at, so the strip agrees with the page.
+   *
+   * Costs nothing: the same bitmap is repainted under a canvas transform, so turning
+   * the view does not restream a 400-page document.
+   */
+  rotation?: Rotation;
   /** Classes for the scrolling container. */
   className?: string;
 }
@@ -38,6 +45,7 @@ export function Thumbnails({
   current,
   onSelect,
   columns = 1,
+  rotation = 0,
   className,
 }: ThumbnailsProps) {
   const [thumbs, setThumbs] = useState<Map<number, RenderedPage>>(new Map());
@@ -92,6 +100,7 @@ export function Thumbnails({
               {thumbs.has(i) ? (
                 <PageCanvas
                   page={thumbs.get(i) ?? null}
+                  rotation={rotation}
                   className="block h-auto w-full rounded-xs bg-white"
                 />
               ) : (

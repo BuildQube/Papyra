@@ -1,4 +1,5 @@
-import type { Document, SearchMatch } from '@build-qube/papyra';
+import type { Document, Rotation, SearchMatch } from '@build-qube/papyra';
+import { rotateSize } from '@build-qube/papyra';
 import {
   type RefObject,
   useCallback,
@@ -72,6 +73,15 @@ export interface ContinuousPagesProps {
   matches: readonly SearchMatch[];
   /** The match drawn in the active colour, if it is on a visible page. */
   active: SearchMatch | null;
+  /**
+   * Quarter turns clockwise applied to every page. Defaults to upright.
+   *
+   * Changes the column's geometry — a turned portrait page is a landscape box — but
+   * not what is rendered, so the pages already rasterised are reused as they are.
+   */
+  rotation?: Rotation;
+  /** Whether to draw the document's own annotations. Defaults to on. */
+  annotations?: boolean;
 }
 
 /** Last slot starting at or before `y`. Documents run to thousands of pages. */
@@ -110,6 +120,8 @@ export function ContinuousPages({
   onPage,
   matches,
   active,
+  rotation = 0,
+  annotations = true,
 }: ContinuousPagesProps) {
   const content = useRef<HTMLDivElement>(null);
 
@@ -117,7 +129,11 @@ export function ContinuousPages({
     const sizes = Array.from({ length: doc.pageCount }, (_, i) =>
       doc.pageSize(i),
     );
-    const width = sizes.reduce(
+    // Boxes are laid out from the *turned* size and rendering still uses the page's
+    // own, which is the whole arrangement: rotating re-flows the column without
+    // invalidating a single bitmap.
+    const shown = sizes.map((size) => rotateSize(size, rotation));
+    const width = shown.reduce(
       (widest, size) =>
         Math.max(widest, Math.round(size.width * CSS_UNITS * scale)),
       0,
@@ -125,8 +141,9 @@ export function ContinuousPages({
     const slots: Slot[] = [];
     let top = 0;
     for (const [index, size] of sizes.entries()) {
-      const w = Math.max(1, Math.round(size.width * CSS_UNITS * scale));
-      const h = Math.max(1, Math.round(size.height * CSS_UNITS * scale));
+      const box = shown[index] ?? size;
+      const w = Math.max(1, Math.round(box.width * CSS_UNITS * scale));
+      const h = Math.max(1, Math.round(box.height * CSS_UNITS * scale));
       slots.push({
         index,
         top,
@@ -139,7 +156,7 @@ export function ContinuousPages({
       top += h + GAP;
     }
     return { slots, width, height: Math.max(0, top - GAP) };
-  }, [doc, scale]);
+  }, [doc, scale, rotation]);
 
   // Read from event handlers and layout effects, which run outside React's render.
   const layoutRef = useRef(layout);
@@ -345,6 +362,9 @@ export function ContinuousPages({
           width={slot.width}
           height={slot.height}
           pageWidth={slot.pageWidth}
+          pageHeight={slot.pageHeight}
+          rotation={rotation}
+          annotations={annotations}
           renderWidth={
             slot.index >= renderFirst && slot.index <= renderLast
               ? renderWidth(

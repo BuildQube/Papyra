@@ -68,6 +68,10 @@ one is a single page. Keeping it in state means a toggle, a saved preference and
 deep link are the same thing, and adding the toggle to a block later is a UI change
 rather than a state change. The demo already exercises both.
 
+The store also carries the **rotation** and the **annotation switch**, for the same
+reason: both are document-wide display state that the toolbar writes, the page column
+reads, and the thumbnail strip has an opinion about.
+
 Two things deliberately stay out of the store:
 
 - **Zoom.** A pinch changes the scale every animation frame; a store notification per
@@ -81,6 +85,37 @@ The components themselves stay **controlled** — `Sidebar` still takes `matches
 `onMatches` rather than reading the store. That is what keeps `memo` effective and
 lets each one be documented and demonstrated on its own; the provider supplies the
 props, it does not replace them.
+
+## Rotation costs no render
+
+papyra renders pages upright — the engine has no transform knob, and the whole point
+of `viewport()` is that it does not need one. A rotate button changes three things and
+none of them is a rasterisation:
+
+- **The boxes.** `ContinuousPages` lays out from `rotateSize(size, rotation)`, so a
+  turned portrait page is a landscape box and the column re-flows.
+- **The pixels.** `paintToCanvas(page, canvas, { rotation })` turns the bitmap in the
+  draw call. `PageSurface` does re-submit its render on a rotation change, but that
+  resubmission is a cache hit — the demo's status line shows the "cached" count going
+  up and "0 rendering" throughout. Re-submitting is cheaper than the alternative,
+  which is retaining a multi-megabyte bitmap per mounted surface just to repaint it
+  later.
+- **The overlays.** `Links` and `Highlights` take a `pageViewport` rather than a bare
+  scale, and map through `viewportRect`/`viewportQuad`. This is the part that is easy
+  to get subtly wrong and hard to notice: a highlight a quarter turn out still looks
+  like a highlight. `rotated.pdf` in the demo fixtures is the case to check against —
+  its diagonal label's highlight has to stay a parallelogram at the *text's* own
+  angle while the *view* turns underneath it.
+
+Sizing has one trap. A render's `fitWidth` fits the page's own width; a viewport's
+fits the width **on screen**, which at 90° is the page's height. Build the viewport,
+then hand `vp.dpi` to the render — the blocks do this, and `useZoom` is given the
+rotated size so the fit modes measure what the reader sees.
+
+The thumbnail strip is the one place that is deliberately inconsistent: it follows the
+rotation, because that is a repaint, but it does **not** follow the annotation switch,
+because that would re-stream every page in the document on a toggle. The strip is a
+navigation aid with no overlay of its own, which is the case the switch exists for.
 
 ## The registry
 

@@ -13,13 +13,17 @@ import { join } from 'node:path';
 
 /**
  * Enough to show every feature: an outline, links, text to search, a big document,
- * and one that will not open without a password.
+ * annotations worth switching off, and one that will not open without a password.
  */
 const WANTED = [
   'basicapi.pdf',
   'issue3214.pdf',
   'tracemonkey.pdf',
   'TAMReview.pdf',
+  // Every AcroForm widget is an annotation with its own appearance stream, so this is
+  // the one document in the set where the toolbar's annotations toggle visibly does
+  // something — a page of filled fields against a blank form.
+  '160F-2019.pdf',
   // Opens with `asdfasdf` — the demo's password prompt has nothing to prompt for
   // otherwise.
   'pr6531_1.pdf',
