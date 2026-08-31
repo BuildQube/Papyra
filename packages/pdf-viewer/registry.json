@@ -450,12 +450,26 @@
       ]
     },
     {
+      "name": "pdf-attachments",
+      "type": "registry:component",
+      "title": "Attachments",
+      "description": "The files a document embeds, with an inline preview for text and a save button \u2014 and a hybrid invoice called out by name.",
+      "dependencies": ["@build-qube/papyra@^0.3.0", "lucide-react"],
+      "registryDependencies": ["badge", "button", "spinner"],
+      "files": [
+        {
+          "path": "src/components/pdf-attachments.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
       "name": "pdf-properties",
       "type": "registry:component",
       "title": "Document properties",
       "description": "The metadata dialog every viewer has: file, title, dates, producer, page size and a content fingerprint.",
       "dependencies": ["@build-qube/papyra@^0.3.0"],
-      "registryDependencies": ["dialog"],
+      "registryDependencies": ["dialog", "{{REGISTRY}}/pdf-attachments.json"],
       "files": [
         {
           "path": "src/components/pdf-properties.tsx",

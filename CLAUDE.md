@@ -152,7 +152,7 @@ keyword is not "less important" than a literal, it is a different thing) and the
 `--primary` and `--ring`; **not** on `--accent`, which in shadcn is the hover
 surface. See `packages/ui/README.md`.
 
-Five features beyond rendering follow the same split:
+The features beyond rendering follow the same split:
 
 - **Outlines.** `crates/papyra-hayro/src/outline.rs` walks the PDF object graph directly
   — hayro's object layer is public but it exposes no outline API — and returns a **flat,
@@ -185,6 +185,14 @@ Five features beyond rendering follow the same split:
   takes `RasterFormat` (`webp`/`png`/`jpeg`) while `EncodedFormat` also includes `'svg'` —
   `PageImage` holds pixels and can never produce one. `hayro-svg` needs the same
   `embed-fonts` default feature as `hayro`, for the same reason.
+- **Attachments.** `crates/papyra-hayro/src/attachments.rs` reads the
+  `/Names /EmbeddedFiles` name tree through `dest.rs`'s `walk_name_tree`, which was
+  factored out of the named-destination reader for it — one walk, one cycle guard, two
+  callers. Listing is metadata only (`attachments()`); the bytes come separately from
+  `attachment_data(index)`, because an embedded file is as large as it is and a list is
+  not a reason to decompress every one of them. The motivating case is hybrid
+  e-invoicing: a ZUGFeRD or Factur-X PDF *is* a wrapper around an XML payload, which is
+  what `isInvoiceAttachment` in `attachments.ts` recognises.
 - **Structure (tagged PDF).** `crates/papyra-hayro/src/struct_tree.rs` walks
   `/StructTreeRoot` and returns a **flat, pre-order** `Vec<StructNode>` whose `level`
   carries the tree, exactly as the outline does. The half that cannot be done from
@@ -298,6 +306,21 @@ gate; CI needed no new job.
   is insufficient — a started job competes for CPU for its whole duration.
 - **Benchmark wasm only in a clean headless browser.** An attached debugger suppresses JIT
   tiering and inflates timings ~4x.
+- **There are two PDF-date parsers here, and that is not an oversight.** hayro parses
+  the format, but `DateTime::from_bytes` is `pub(crate)` and the only `DateTime` it
+  hands out is the information dictionary's — so a date anywhere else in the file, such
+  as an embedded file's `/Params /ModDate`, is unreachable through it.
+  `date_string_to_iso8601` in `info.rs` exists for those, and defaults its fields the
+  same way `to_iso8601` does so the two agree on what `D:2024` means.
+- **`Attachment.size` is the document's claim, not a measurement.** It is
+  `/Params /Size`, and reading the true length means decompressing the stream — which
+  is the work the metadata/bytes split exists to defer. The demo's own fixture is off
+  by one byte for exactly this reason. Fine for a size column; do not allocate against
+  it.
+- **An attachment index counts what `read_attachments` returned**, not filespecs in the
+  tree. A `/Filespec` naming an external file carries no `/EF` and is not an
+  attachment, so `read_attachment_data` has to skip on the same rule the list did or
+  the indices silently disagree.
 - **A structure element's mcids belong to it, not to the last node pushed.** `/K` mixes
   children and content in one array, so `/K [ <</S /Span>> 3 ]` pushes the span before
   the bare `3` that belongs to the *parent*. `struct_tree.rs` threads an owner index
@@ -318,9 +341,9 @@ gate; CI needed no new job.
 - **Anything walking the PDF object graph needs a cycle guard, not a depth cap.** Real
   files contain cyclic `/Next` and `/Kids` chains. A depth limit does not save a name
   tree whose two `/Kids` point back at it — that branches rather than repeats, so 32
-  levels is four billion visits. `outline.rs` (siblings), `dest.rs` (the name tree),
-  `info.rs` (the page-label number tree) and `struct_tree.rs` (`/K`, and `/RoleMap`)
-  all use a visited set for exactly this.
+  levels is four billion visits. `outline.rs` (siblings), `dest.rs` (`walk_name_tree`,
+  shared with `attachments.rs`), `info.rs` (the page-label number tree) and
+  `struct_tree.rs` (`/K`, and `/RoleMap`) all use a visited set for exactly this.
 - **PDF text strings are not Latin-1.** They are UTF-16 or UTF-8 with a BOM, else
   PDFDocEncoding, which differs from Latin-1 precisely in `0x80..=0x9F` — where the em
   and en dashes live. `decode_text_string` in `strings.rs` is the one place this is

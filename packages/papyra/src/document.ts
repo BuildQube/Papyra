@@ -3,6 +3,7 @@ import {
   type DocumentInfo as NativeDocumentInfo,
   type PageImage as NativePageImage,
 } from '@build-qube/papyra-native';
+import { type Attachment, toAttachment } from './attachments.js';
 import { type CacheStats, RenderCache } from './cache.js';
 import { PageImage, type SvgPage, svgPage } from './encode.js';
 import { rethrowLoadError } from './errors.js';
@@ -183,6 +184,8 @@ export class Document {
   readonly #linksPending = new Map<number, Promise<readonly PageLink[]>>();
   /** Memoised by {@link outline}; the outline cannot change under us. */
   #outline: Promise<OutlineNode[]> | undefined;
+  /** Memoised by {@link attachments}. */
+  #attachments?: Promise<readonly Attachment[]>;
   /** Memoised by {@link structTree}. */
   #structure?: Promise<StructNode[]>;
   /** Memoised by {@link pageLabels}. */
@@ -389,6 +392,52 @@ export class Document {
         throw e;
       });
     return this.#structure;
+  }
+
+  /**
+   * The files embedded in the document, in the order it files them.
+   *
+   * Resolves to an **empty array** when there are none, which is the common case.
+   * Metadata only — {@link Document.attachmentData} fetches the bytes, so listing a
+   * document's attachments never decompresses one.
+   *
+   * Worth honouring even in a viewer that has no use for the files themselves: a
+   * ZUGFeRD or Factur-X invoice keeps its machine-readable half here, and a reader
+   * that never mentions it leaves the user retyping data the document is carrying.
+   * See {@link isInvoiceAttachment}.
+   *
+   * The walk runs off the event loop and the result is memoised.
+   *
+   * @example
+   * ```ts
+   * for (const file of await doc.attachments()) {
+   *   const bytes = await doc.attachmentData(file.index);
+   *   await write(file.name, bytes);
+   * }
+   * ```
+   */
+  async attachments(): Promise<readonly Attachment[]> {
+    this.#attachments ??= this.#inner
+      .attachments()
+      .then((files) => files.map(toAttachment))
+      // A failed walk must not be cached as a permanent absence of attachments.
+      .catch((e: unknown) => {
+        this.#attachments = undefined;
+        throw e;
+      });
+    return this.#attachments;
+  }
+
+  /**
+   * Decompress one embedded file, by its {@link Attachment.index}.
+   *
+   * Not cached: the bytes are the caller's to keep or drop, and holding every
+   * attachment a document was ever asked for is the cost {@link Document.attachments}
+   * is shaped to avoid. Rejects if the index names no attachment, or if the stream
+   * cannot be decoded.
+   */
+  async attachmentData(index: number): Promise<Uint8Array> {
+    return this.#inner.attachmentData(index);
   }
 
   /**
