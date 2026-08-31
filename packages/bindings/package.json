@@ -1,6 +1,6 @@
 {
   "name": "@build-qube/papyra-native",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Node-API bindings for papyra \u2014 prefer the @build-qube/papyra wrapper",
   "license": "MIT",
   "repository": {
