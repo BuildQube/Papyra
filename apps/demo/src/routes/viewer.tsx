@@ -47,6 +47,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { useShowProperties } from '../lib/properties.js';
 import { useViewUrlSync } from '../lib/urlSync.js';
 
 interface Timing {
@@ -108,6 +109,7 @@ export function ViewerRoute() {
   const [mode, setMode] = usePdfView();
   const [rotation, rotateBy] = usePdfRotation();
   const [annotations, setAnnotations] = usePdfAnnotations();
+  const showProperties = useShowProperties();
   useViewUrlSync();
   const doc = loaded?.doc;
 
@@ -300,6 +302,7 @@ export function ViewerRoute() {
               onRotate={rotateBy}
               annotations={annotations}
               onAnnotations={setAnnotations}
+              onProperties={showProperties ?? undefined}
             />
           </>
         )

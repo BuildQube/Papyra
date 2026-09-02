@@ -305,9 +305,9 @@ export function ZoomBar({
             >
               <EllipsisIcon />
             </DropdownMenuTrigger>
-            {/* Wide enough that "Rotate counter-clockwise" is one line; the
+            {/* Wide enough that the annotation item is one line; the
                 popup's natural width is its shortest item's. */}
-            <DropdownMenuContent align="end" className="min-w-60">
+            <DropdownMenuContent align="end" className="min-w-64">
               {onRotate && (
                 <DropdownMenuGroup>
                   <DropdownMenuLabel>

@@ -25,7 +25,8 @@ import {
 } from '@workspace/ui/components/empty';
 import { cn } from '@workspace/ui/lib/utils';
 import { FileUpIcon, TriangleAlertIcon, UploadIcon } from 'lucide-react';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
+import { ShowPropertiesContext } from '../lib/properties.js';
 import { useFileParam, usePageUrlSync } from '../lib/urlSync.js';
 
 /**
@@ -40,6 +41,7 @@ export function RootShell() {
   const password = usePdfPassword();
   const { load, cancelPassword } = usePdfViewerActions();
   const [showProperties, setShowProperties] = useState(false);
+  const openProperties = useCallback(() => setShowProperties(true), []);
   const [page] = usePdfPage();
   const { file } = useSearch({ strict: false }) as { file?: string };
   useFileParam(file);
@@ -52,92 +54,94 @@ export function RootShell() {
   return (
     // `h-dvh`, not `h-screen` (100vh): on mobile Safari 100vh is the height with
     // the address bar hidden, so the bottom of the page sits under it.
-    <div className="flex h-dvh flex-col">
-      <header className="flex flex-none items-center gap-3 border-b bg-card px-4 py-2.5">
-        <h1 className="font-heading text-sm font-semibold tracking-wide">
-          papyra
-        </h1>
-        <Badge variant="secondary">{currentRuntime()}</Badge>
-        <Badge variant="secondary">{backend()}</Badge>
+    <ShowPropertiesContext value={openProperties}>
+      <div className="flex h-dvh flex-col">
+        <header className="flex flex-none items-center gap-3 border-b bg-card px-4 py-2.5">
+          <h1 className="font-heading text-sm font-semibold tracking-wide">
+            papyra
+          </h1>
+          <Badge variant="secondary">{currentRuntime()}</Badge>
+          <Badge variant="secondary">{backend()}</Badge>
 
-        <nav className="flex items-center gap-1">
-          <NavLink to="/" exact>
-            viewer
-          </NavLink>
-          <NavLink to="/export">export</NavLink>
-          <NavLink to="/bench">bench</NavLink>
-          <NavLink to="/components">components</NavLink>
-          <NavLink to="/docs">docs</NavLink>
-        </nav>
+          <nav className="flex items-center gap-1">
+            <NavLink to="/" exact>
+              viewer
+            </NavLink>
+            <NavLink to="/export">export</NavLink>
+            <NavLink to="/bench">bench</NavLink>
+            <NavLink to="/components">components</NavLink>
+            <NavLink to="/docs">docs</NavLink>
+          </nav>
 
-        {/* A label wearing the button's classes, not a `Button` rendering a label:
+          {/* A label wearing the button's classes, not a `Button` rendering a label:
             the control has to be a real child of the label for a click on it to open
             the picker, and `buttonVariants` is exported for exactly this case. */}
-        <label
-          className={cn(
-            buttonVariants({ variant: 'outline', size: 'sm' }),
-            'ml-auto cursor-pointer',
-          )}
-        >
-          <UploadIcon data-icon="inline-start" />
-          Open PDF
-          <input
-            type="file"
-            accept="application/pdf"
-            className="sr-only"
-            onChange={(e) => {
-              const picked = e.target.files?.[0];
-              if (picked) void load(picked);
-            }}
-          />
-        </label>
-
-        {loaded && (
-          <Button
-            variant="link"
-            size="sm"
-            className="text-muted-foreground underline decoration-dotted underline-offset-4 hover:text-foreground"
-            title="Document properties"
-            onClick={() => setShowProperties(true)}
+          <label
+            className={cn(
+              buttonVariants({ variant: 'outline', size: 'sm' }),
+              'ml-auto cursor-pointer',
+            )}
           >
-            {loaded.name ?? 'document.pdf'}
-          </Button>
+            <UploadIcon data-icon="inline-start" />
+            Open PDF
+            <input
+              type="file"
+              accept="application/pdf"
+              className="sr-only"
+              onChange={(e) => {
+                const picked = e.target.files?.[0];
+                if (picked) void load(picked);
+              }}
+            />
+          </label>
+
+          {loaded && (
+            <Button
+              variant="link"
+              size="sm"
+              className="text-muted-foreground underline decoration-dotted underline-offset-4 hover:text-foreground"
+              title="Document properties"
+              onClick={() => setShowProperties(true)}
+            >
+              {loaded.name ?? 'document.pdf'}
+            </Button>
+          )}
+        </header>
+
+        {error && (
+          <Alert variant="destructive" className="mx-4 mt-4 w-auto">
+            <TriangleAlertIcon />
+            <AlertTitle>This PDF could not be opened</AlertTitle>
+            <AlertDescription className="font-mono text-xs">
+              {error}
+            </AlertDescription>
+          </Alert>
         )}
-      </header>
 
-      {error && (
-        <Alert variant="destructive" className="mx-4 mt-4 w-auto">
-          <TriangleAlertIcon />
-          <AlertTitle>This PDF could not be opened</AlertTitle>
-          <AlertDescription className="font-mono text-xs">
-            {error}
-          </AlertDescription>
-        </Alert>
-      )}
+        {password ? (
+          <PasswordPrompt
+            name={password.file.name}
+            retry={password.retry}
+            onSubmit={(secret) => void load(password.file, secret)}
+            onCancel={cancelPassword}
+          />
+        ) : loaded || standalone ? (
+          <Outlet />
+        ) : (
+          <Dropzone onFile={load} />
+        )}
 
-      {password ? (
-        <PasswordPrompt
-          name={password.file.name}
-          retry={password.retry}
-          onSubmit={(secret) => void load(password.file, secret)}
-          onCancel={cancelPassword}
-        />
-      ) : loaded || standalone ? (
-        <Outlet />
-      ) : (
-        <Dropzone onFile={load} />
-      )}
-
-      {loaded && showProperties && (
-        <Properties
-          doc={loaded.doc}
-          name={loaded.name ?? 'document.pdf'}
-          byteLength={loaded.bytes?.byteLength ?? 0}
-          page={Math.min(page, loaded.doc.pageCount - 1)}
-          onClose={() => setShowProperties(false)}
-        />
-      )}
-    </div>
+        {loaded && showProperties && (
+          <Properties
+            doc={loaded.doc}
+            name={loaded.name ?? 'document.pdf'}
+            byteLength={loaded.bytes?.byteLength ?? 0}
+            page={Math.min(page, loaded.doc.pageCount - 1)}
+            onClose={() => setShowProperties(false)}
+          />
+        )}
+      </div>
+    </ShowPropertiesContext>
   );
 }
 
