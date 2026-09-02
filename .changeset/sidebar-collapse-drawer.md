@@ -23,6 +23,11 @@ which no longer fits once the column can be resized. Attachments joins Pages,
 Outline, Tags and Search results; a panel the document does not have is a
 disabled item rather than a dimmed tab.
 
+**Thumbnails.** `Thumbnails` picks its column count from its width when
+`columns` is not given — as many 160px tiles as fit — so a widened sidebar or a
+full-width drawer shows a grid instead of one tile stretched across it, with no
+re-render.
+
 **More menu.** `ZoomBar` moves rotation, the annotation switch and the view mode
 behind a more menu at every width, and gains `onProperties` for a "Document
 properties…" item. Below 768px of container width it also hides the zoom steppers

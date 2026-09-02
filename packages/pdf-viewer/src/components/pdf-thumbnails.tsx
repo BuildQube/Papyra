@@ -1,5 +1,5 @@
 import type { Document, RenderedPage, Rotation } from '@build-qube/papyra';
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { PageCanvas } from '@/components/pdf-page-canvas';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -13,7 +13,12 @@ export interface ThumbnailsProps {
   current: number;
   /** Called with a 0-based page index when the reader picks a page. */
   onSelect: (index: number) => void;
-  /** Tiles per row. One is the sidebar strip; more makes it a picker grid. */
+  /**
+   * Tiles per row.
+   *
+   * Leave it out and the count follows the width: as many tiles of their rendered
+   * size as fit, one at minimum. A picker grid sets it outright.
+   */
   columns?: number;
   /**
    * Quarter turns clockwise to show tiles at, so the strip agrees with the page.
@@ -36,6 +41,27 @@ const THUMB_PRIORITY = 2;
  */
 const THUMB_WIDTH = 160;
 
+/** The grid's padding on each side, and the gap between tiles — `p-2` and `gap-2`. */
+const GRID_INSET = 8;
+
+/**
+ * How many tiles of {@link THUMB_WIDTH} fit across a container, at least one.
+ *
+ * Adding columns rather than re-rendering wider is what keeps a resizable sidebar
+ * and a full-width drawer cheap: the bitmap is the same 160px in either, and the
+ * worst case is a single tile stretched to just under two widths. Re-rendering at
+ * the container's width would be a cache miss across the document on every drag
+ * pixel, for a picture nobody reads the text of.
+ */
+function columnsFor(width: number): number {
+  return Math.max(
+    1,
+    Math.floor(
+      (width - 2 * GRID_INSET + GRID_INSET) / (THUMB_WIDTH + GRID_INSET),
+    ),
+  );
+}
+
 /**
  * Streams thumbnails in, yielding each as it finishes rather than waiting for the
  * whole document. Rendering is abandoned if the document changes mid-stream.
@@ -44,13 +70,27 @@ export function Thumbnails({
   doc,
   current,
   onSelect,
-  columns = 1,
+  columns,
   rotation = 0,
   className,
 }: ThumbnailsProps) {
   const [thumbs, setThumbs] = useState<Map<number, RenderedPage>>(new Map());
   const [elapsed, setElapsed] = useState<number | null>(null);
+  const [fit, setFit] = useState(1);
+  const root = useRef<HTMLDivElement>(null);
   const labels = usePageLabels(doc);
+
+  // Only measured when the count is not given: a picker grid that says three
+  // columns gets three, and pays for no observer.
+  useLayoutEffect(() => {
+    const el = root.current;
+    if (columns !== undefined || !el) return;
+    const measure = () => setFit(columnsFor(el.clientWidth));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [columns]);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,7 +115,7 @@ export function Thumbnails({
   }, [doc]);
 
   return (
-    <div className={className}>
+    <div ref={root} className={className}>
       <header className="sticky top-0 z-10 flex justify-between border-b bg-card px-2.5 py-2 text-xs">
         <span>{doc.pageCount} pages</span>
         {elapsed !== null && (
@@ -84,7 +124,9 @@ export function Thumbnails({
       </header>
       <ol
         className="grid gap-2 p-2"
-        style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+        style={{
+          gridTemplateColumns: `repeat(${columns ?? fit}, minmax(0, 1fr))`,
+        }}
       >
         {Array.from({ length: doc.pageCount }, (_, i) => (
           // The list is `Array.from({ length: pageCount })` and never reorders,
