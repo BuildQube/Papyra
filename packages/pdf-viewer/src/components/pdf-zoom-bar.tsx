@@ -2,7 +2,8 @@ import type { Rotation } from '@build-qube/papyra';
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
-  HighlighterIcon,
+  EllipsisIcon,
+  InfoIcon,
   MinusIcon,
   PlusIcon,
   RotateCcwIcon,
@@ -11,6 +12,18 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   InputGroup,
   InputGroupAddon,
@@ -28,13 +41,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Toggle } from '@/components/ui/toggle';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 import {
   FIT_MODES,
   formatZoom,
@@ -75,29 +81,36 @@ export interface ZoomBarProps {
   /** Called with a 0-based page index when the pager moves. */
   onPage: (index: number) => void;
   /**
-   * Called when the single/continuous toggle changes.
+   * Called when the single/continuous choice changes.
    *
-   * Omit it and the toggle is not rendered — a viewer fixed to one view should not
+   * Omit it and the choice is not offered — a viewer fixed to one view should not
    * show a control that does nothing.
    */
   onMode?: (mode: ViewMode) => void;
-  /** The rotation currently applied, so the readout can name it. */
+  /** The rotation currently applied, so the menu can name it. */
   rotation?: Rotation;
   /**
    * Called with a quarter turn, positive for clockwise.
    *
-   * Omit it and the rotate buttons are not rendered, on the same principle as
+   * Omit it and the rotate items are not rendered, on the same principle as
    * {@link onMode}.
    */
   onRotate?: (quarters: 1 | -1) => void;
   /** Whether the document's own annotations are being drawn. */
   annotations?: boolean;
   /**
-   * Called when the annotations toggle changes.
+   * Called when the annotations switch changes.
    *
-   * Omit it and the toggle is not rendered.
+   * Omit it and the switch is not rendered.
    */
   onAnnotations?: (on: boolean) => void;
+  /**
+   * Called when "Document properties…" is picked.
+   *
+   * The dialog itself is the application's — it knows the file name and size, which
+   * the document does not carry. Omit it and the item is not rendered.
+   */
+  onProperties?: () => void;
 }
 
 const FIT_LABELS: Record<string, string> = {
@@ -107,10 +120,21 @@ const FIT_LABELS: Record<string, string> = {
 };
 
 /**
- * A viewer toolbar: pager, zoom steppers, fit-mode select and the view toggle.
+ * A viewer toolbar: pager, zoom steppers, fit-mode select, and a more menu.
  *
  * Entirely controlled — it holds no zoom state of its own, so the same bar drives a
  * single-page view and a continuous one.
+ *
+ * Rotation, the annotation switch, the view mode and document properties live behind
+ * the menu at every width, not only narrow ones. One arrangement is one to learn, and
+ * with them inline the bar wrapped to a second row on anything under ~900px — which
+ * is the worst outcome a toolbar has.
+ *
+ * What does shrink with the container is expressed as `@max-md/pdf-viewer:` rather
+ * than `@md/pdf-viewer:`: the second form hides a control until a container named
+ * `pdf-viewer` says otherwise, so a consumer mounting this bar in a frame of their
+ * own would lose the zoom steppers for good. The first form hides nothing unless
+ * that container exists and is narrow.
  */
 export function ZoomBar({
   spec,
@@ -129,9 +153,11 @@ export function ZoomBar({
   onRotate,
   annotations = true,
   onAnnotations,
+  onProperties,
 }: ZoomBarProps) {
   const custom =
     typeof spec === 'number' && !ZOOM_STEPS.includes(spec) ? spec : null;
+  const more = onRotate || onMode || onAnnotations || onProperties;
 
   return (
     <>
@@ -176,12 +202,18 @@ export function ZoomBar({
       </ButtonGroup>
 
       {label && (
-        <Badge variant="outline" title="The number printed on this page">
+        <Badge
+          variant="outline"
+          title="The number printed on this page"
+          className="@max-md/pdf-viewer:hidden"
+        >
           {label}
         </Badge>
       )}
 
-      <ButtonGroup>
+      {/* Pinch and ⌘-scroll cover this on a narrow viewer, and the select still
+          offers every step. */}
+      <ButtonGroup className="@max-md/pdf-viewer:hidden">
         <Button
           variant="outline"
           size="icon-sm"
@@ -202,9 +234,6 @@ export function ZoomBar({
         </Button>
       </ButtonGroup>
 
-      {/* Values cross as strings, as they did through the native `<select>` this
-          replaces: a fit mode and a scale share one control, and one type of option
-          value is less to go wrong than a union that has to survive inference. */}
       <Select
         value={String(spec)}
         onValueChange={(value) =>
@@ -214,10 +243,19 @@ export function ZoomBar({
         <SelectTrigger
           size="sm"
           aria-label="Zoom"
-          // The pages on screen are a stretched bitmap until the gesture settles.
-          className={cn('w-40', settling && 'border-primary')}
+          className={cn(
+            'w-40 @max-md/pdf-viewer:w-22',
+            settling && 'border-primary',
+          )}
         >
-          <SelectValue>{describeZoom(spec, scale)}</SelectValue>
+          <SelectValue>
+            <span className="@max-md/pdf-viewer:hidden">
+              {describeZoom(spec, scale)}
+            </span>
+            <span className="hidden @max-md/pdf-viewer:inline">
+              {formatZoom(scale)}
+            </span>
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectGroup>
@@ -245,75 +283,88 @@ export function ZoomBar({
         </SelectContent>
       </Select>
 
-      {onRotate && (
-        <ButtonGroup>
-          <Button
-            variant="outline"
-            size="icon-sm"
-            aria-label="Rotate counter-clockwise"
-            title={`Rotate counter-clockwise (now ${rotation}°)`}
-            onClick={() => onRotate(-1)}
-          >
-            <RotateCcwIcon />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon-sm"
-            aria-label="Rotate clockwise"
-            title={`Rotate clockwise (now ${rotation}°)`}
-            onClick={() => onRotate(1)}
-          >
-            <RotateCwIcon />
-          </Button>
-        </ButtonGroup>
-      )}
+      <div className="ml-auto flex items-center gap-2.5">
+        {/* Not on a coarse pointer, where there is no ⌘ to hold, and not where the
+            bar is narrow enough that it would be the thing wrapping. */}
+        <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground @max-xl/pdf-viewer:hidden pointer-coarse:hidden">
+          <Kbd>⌘/ctrl</Kbd> + scroll, pinch, or <Kbd>⌘/ctrl</Kbd>
+          <Kbd>+</Kbd>/<Kbd>−</Kbd> to zoom
+        </span>
 
-      {onAnnotations && (
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Toggle
-                variant="outline"
-                size="sm"
-                aria-label="Draw the document's own annotations"
-                pressed={annotations}
-                onPressedChange={onAnnotations}
-              />
-            }
-          >
-            <HighlighterIcon />
-          </TooltipTrigger>
-          <TooltipContent>
-            {annotations
-              ? "Drawing the document's own annotations. Turn off and link borders come only from the overlay."
-              : 'Annotations are not drawn. Links still work — the overlay is separate.'}
-          </TooltipContent>
-        </Tooltip>
-      )}
-
-      {onMode && (
-        <ToggleGroup
-          variant="outline"
-          size="sm"
-          spacing={0}
-          value={[mode ?? 'scroll']}
-          onValueChange={(value) => {
-            // A toggle group can be emptied by clicking the active item; this one is
-            // a segmented control, so the current mode stands rather than falling to
-            // none.
-            const next = value[0];
-            if (next) onMode(next as ViewMode);
-          }}
-        >
-          <ToggleGroupItem value="page">Single</ToggleGroupItem>
-          <ToggleGroupItem value="scroll">Continuous</ToggleGroupItem>
-        </ToggleGroup>
-      )}
-
-      <span className="ml-auto flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-        <Kbd>⌘/ctrl</Kbd> + scroll, pinch, or <Kbd>⌘/ctrl</Kbd>
-        <Kbd>+</Kbd>/<Kbd>−</Kbd> to zoom
-      </span>
+        {more && (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="outline"
+                  size="icon-sm"
+                  aria-label="More tools"
+                  className="data-popup-open:bg-muted"
+                />
+              }
+            >
+              <EllipsisIcon />
+            </DropdownMenuTrigger>
+            {/* Wide enough that the annotation item is one line; the
+                popup's natural width is its shortest item's. */}
+            <DropdownMenuContent align="end" className="min-w-64">
+              {onRotate && (
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>
+                    Rotation{rotation !== 0 && ` · ${rotation}°`}
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem onClick={() => onRotate(1)}>
+                    <RotateCwIcon />
+                    Rotate clockwise
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onRotate(-1)}>
+                    <RotateCcwIcon />
+                    Rotate counter-clockwise
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+              )}
+              {onMode && (
+                <>
+                  {onRotate && <DropdownMenuSeparator />}
+                  <DropdownMenuRadioGroup
+                    value={mode ?? 'scroll'}
+                    onValueChange={(value) => onMode(value as ViewMode)}
+                  >
+                    <DropdownMenuRadioItem value="page">
+                      Single page
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="scroll">
+                      Continuous
+                    </DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </>
+              )}
+              {onAnnotations && (
+                <>
+                  {(onRotate || onMode) && <DropdownMenuSeparator />}
+                  <DropdownMenuCheckboxItem
+                    checked={annotations}
+                    onCheckedChange={(checked) => onAnnotations(checked)}
+                  >
+                    Draw the document's annotations
+                  </DropdownMenuCheckboxItem>
+                </>
+              )}
+              {onProperties && (
+                <>
+                  {(onRotate || onMode || onAnnotations) && (
+                    <DropdownMenuSeparator />
+                  )}
+                  <DropdownMenuItem onClick={onProperties}>
+                    <InfoIcon />
+                    Document properties…
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
     </>
   );
 }

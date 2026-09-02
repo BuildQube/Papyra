@@ -134,6 +134,76 @@ describe('rotation', () => {
   });
 });
 
+describe('search query', () => {
+  test('starts empty, and a write leaves the results alone', () => {
+    const store = createPdfViewerStore();
+    const match = { page: 1 } as never;
+    store.actions.setMatches([match]);
+    const before = store.getState();
+
+    store.actions.setQuery('site plan');
+    const after = store.getState();
+    expect(after.search.query).toBe('site plan');
+    expect(after.search.matches).toBe(before.search.matches);
+    expect(after.page).toBe(before.page);
+  });
+
+  test('an idempotent write does not notify', () => {
+    const store = createPdfViewerStore();
+    let notifications = 0;
+    store.subscribe(() => {
+      notifications++;
+    });
+
+    store.actions.setQuery('');
+    expect(notifications).toBe(0);
+  });
+
+  test('is cleared with the rest of the search when a document is set', () => {
+    const store = createPdfViewerStore();
+    store.actions.setQuery('x');
+    store.actions.setDocument({ doc: { pageCount: 1 } } as never);
+    expect(store.getState().search.query).toBe('');
+  });
+});
+
+describe('sidebar', () => {
+  test('defaults to open, and the option starts it closed', () => {
+    expect(createPdfViewerStore().getState().sidebar).toBe(true);
+    expect(createPdfViewerStore({ sidebar: false }).getState().sidebar).toBe(
+      false,
+    );
+  });
+
+  test('toggles, and an idempotent set does not notify', () => {
+    const store = createPdfViewerStore();
+    let notifications = 0;
+    store.subscribe(() => {
+      notifications++;
+    });
+
+    store.actions.setSidebar(true);
+    expect(notifications).toBe(0);
+
+    store.actions.toggleSidebar();
+    expect(store.getState().sidebar).toBe(false);
+    store.actions.toggleSidebar();
+    expect(store.getState().sidebar).toBe(true);
+    expect(notifications).toBe(2);
+  });
+
+  test('leaves every other slice alone', () => {
+    const store = createPdfViewerStore();
+    const before = store.getState();
+
+    store.actions.setSidebar(false);
+    const after = store.getState();
+    expect(after.search).toBe(before.search);
+    expect(after.document).toBe(before.document);
+    expect(after.page).toBe(before.page);
+  });
+});
+
 describe('annotations', () => {
   test('defaults to on and toggles', () => {
     const store = createPdfViewerStore();
