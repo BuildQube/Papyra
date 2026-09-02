@@ -1,4 +1,4 @@
-import { PanelLeftIcon } from 'lucide-react';
+import { MaximizeIcon, MinimizeIcon, PanelLeftIcon } from 'lucide-react';
 import type { ComponentProps, ReactNode, Ref, RefObject } from 'react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Sidebar } from '@/components/pdf-sidebar';
@@ -29,6 +29,8 @@ export interface ViewerLayoutProps {
   aside?: ReactNode;
   /** Whether the sidebar exists at all. Its open state lives in the store. */
   showThumbs?: boolean;
+  /** Whether the full-screen toggle is offered. On by default. */
+  fullscreen?: boolean;
   /**
    * The scrolling element, handed back so a route can drive it. The viewer binds its
    * zoom gestures here and corrects the scroll offset after every zoom.
@@ -74,6 +76,58 @@ type PanelHandle =
   >
     ? NonNullable<T>
     : never;
+
+/**
+ * Full screen, as a takeover of the window plus the Fullscreen API on the *page*.
+ *
+ * Two halves, on purpose. The viewer itself goes `fixed inset-0`, which is what
+ * gives it the whole window — and is the only half iOS Safari gets, since it
+ * allows `requestFullscreen` on nothing but video. Where the API exists it is
+ * asked of the document element, not the viewer: a fullscreen element shows only
+ * its own subtree, and the find bar, the more menu, the panel picker and the
+ * drawer all portal to `body`, so a viewer that went fullscreen by itself would
+ * lose every one of them. The page going fullscreen hides the browser chrome and
+ * leaves the portals where they are.
+ *
+ * Escape exits either way: the browser ends the API half itself and this hook
+ * hears it, and the takeover half listens for the key where the API is absent.
+ */
+function useFullscreen(): [boolean, () => void] {
+  const [on, setOn] = useState(false);
+
+  useEffect(() => {
+    if (!on) return;
+    const exited = () => {
+      if (!document.fullscreenElement) setOn(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      // A menu or popover closing on Escape claims the event first; that press
+      // was for it, not for this.
+      if (event.defaultPrevented || event.key !== 'Escape') return;
+      if (!document.fullscreenElement) setOn(false);
+    };
+    document.addEventListener('fullscreenchange', exited);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('fullscreenchange', exited);
+      document.removeEventListener('keydown', onKey);
+      if (document.fullscreenElement) void document.exitFullscreen?.();
+    };
+  }, [on]);
+
+  const toggle = () => {
+    if (on) {
+      setOn(false);
+      return;
+    }
+    setOn(true);
+    // Rejected when the gesture is not trusted or the page forbids it; the
+    // takeover half still applies, so a rejection is not an error to show.
+    document.documentElement.requestFullscreen?.().catch(() => {});
+  };
+
+  return [on, toggle];
+}
 
 /**
  * Whether the element is narrower than {@link COMPACT_WIDTH}. Null until measured.
@@ -122,6 +176,7 @@ export function ViewerLayout({
   status,
   aside,
   showThumbs = true,
+  fullscreen = true,
   viewport,
   children,
   className,
@@ -136,6 +191,7 @@ export function ViewerLayout({
 
   const root = useRef<HTMLElement>(null);
   const compact = useCompact(root);
+  const [full, toggleFullscreen] = useFullscreen();
   const panel = useRef<PanelHandle | null>(null);
   // The width the reader last dragged the column to, so the toggle reopens it there.
   // Not the panel's own `expand()`: measured, that came back at the minimum rather
@@ -180,7 +236,7 @@ export function ViewerLayout({
 
   const pages = (
     <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
-      {(toolbar || showThumbs) && (
+      {(toolbar || showThumbs || fullscreen) && (
         <div className="flex flex-none flex-wrap items-center gap-2.5 border-b bg-card px-3 py-1.5">
           {showThumbs && (
             <Toggle
@@ -194,6 +250,17 @@ export function ViewerLayout({
             </Toggle>
           )}
           {toolbar}
+          {fullscreen && (
+            <Toggle
+              variant="outline"
+              size="sm"
+              aria-label={full ? 'Exit full screen' : 'Full screen'}
+              pressed={full}
+              onPressedChange={toggleFullscreen}
+            >
+              {full ? <MinimizeIcon /> : <MaximizeIcon />}
+            </Toggle>
+          )}
         </div>
       )}
       {status && (
@@ -220,6 +287,10 @@ export function ViewerLayout({
       data-slot="pdf-viewer"
       className={cn(
         'flex min-h-0 min-w-0 flex-1 @container/pdf-viewer',
+        // `dvh`, not `vh`: on a phone the static viewport height is taller than
+        // what is visible while the address bar is up, and the toolbar would sit
+        // under it.
+        full && 'fixed inset-0 z-50 h-dvh w-screen bg-background',
         className,
       )}
     >

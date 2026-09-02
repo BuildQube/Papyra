@@ -34,6 +34,13 @@ properties…" item. Below 768px of container width it also hides the zoom stepp
 and the page label and shortens the zoom readout; the keyboard hint is hidden on
 coarse pointers and narrow containers.
 
+**Full screen.** A toggle at the trailing edge of the toolbar row takes the
+viewer over the window and, where the browser allows it, puts the page into
+fullscreen — the page rather than the viewer, so the menus and the drawer that
+portal to `body` stay visible. On iOS, which allows fullscreen for video only,
+the takeover alone applies. Escape exits. `ViewerLayout` takes `fullscreen`
+to turn the toggle off.
+
 `PdfViewerProvider` now forwards every store option, not only `concurrency`.
 
 Requires the official `drawer`, `dropdown-menu`, `popover`, `resizable` and

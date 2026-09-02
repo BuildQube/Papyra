@@ -116,7 +116,7 @@
       "name": "pdf-viewer-layout",
       "type": "registry:component",
       "title": "Viewer layout",
-      "description": "The frame a viewer sits in: a resizable, collapsible sidebar that becomes a drawer on a narrow viewer, toolbar, status line and a native scroll area the zoom gestures can bind to.",
+      "description": "The frame a viewer sits in: a resizable, collapsible sidebar that becomes a drawer on a narrow viewer, toolbar with a full-screen toggle, status line and a native scroll area the zoom gestures can bind to.",
       "dependencies": ["@build-qube/papyra@^0.3.0"],
       "registryDependencies": [
         "drawer",

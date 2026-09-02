@@ -50,7 +50,9 @@ export function RootShell() {
     !!matchRoute({ to: '/docs' }) || !!matchRoute({ to: '/components' });
 
   return (
-    <div className="flex h-screen flex-col">
+    // `h-dvh`, not `h-screen` (100vh): on mobile Safari 100vh is the height with
+    // the address bar hidden, so the bottom of the page sits under it.
+    <div className="flex h-dvh flex-col">
       <header className="flex flex-none items-center gap-3 border-b bg-card px-4 py-2.5">
         <h1 className="font-heading text-sm font-semibold tracking-wide">
           papyra
