@@ -118,6 +118,17 @@ export function usePdfAnnotations(): [boolean, (on: boolean) => void] {
   return [annotations, usePdfViewerActions().setAnnotations];
 }
 
+/**
+ * Whether the sidebar is open, and a setter.
+ *
+ * The setter is the plain `open` write; `toggleSidebar` on the actions object is the
+ * one a button wants, since it needs no subscription to flip the flag.
+ */
+export function usePdfSidebar(): [boolean, (open: boolean) => void] {
+  const sidebar = useSlice((state) => state.sidebar);
+  return [sidebar, usePdfViewerActions().setSidebar];
+}
+
 /** The pending password request, or null. */
 export function usePdfPassword(): PdfPasswordRequest | null {
   return useSlice((state) => state.password);

@@ -152,12 +152,18 @@ does not exist.
 
 ## Adding a shadcn primitive
 
-Run it against this package, not the app; the `ui` alias points back at
-`@workspace/ui`, so primitives land there and viewer components land here:
+Run it against the demo app, whose `ui` alias points at `@workspace/ui`, so the
+primitive lands there with the rest:
 
 ```bash
-bunx shadcn@latest add dialog -c packages/pdf-viewer
+bunx shadcn@latest add dialog -c apps/demo
 ```
+
+Not against this package: its own `components.json` aliases `ui` to
+`@/components/ui`, which the CLI resolves as a directory *here* — verified with
+`drawer`, which arrived at `src/components/ui/drawer.tsx` importing `@/lib/utils`,
+and added `@base-ui/react` to this package's dependencies. That alias exists for
+the consumer's install, not for ours.
 
 ## Props are documented, and the build enforces it
 

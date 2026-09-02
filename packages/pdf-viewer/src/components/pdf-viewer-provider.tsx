@@ -34,11 +34,15 @@ export interface PdfViewerProviderProps extends PdfViewerStoreOptions {
  */
 export function PdfViewerProvider({
   store,
-  concurrency,
   children,
+  ...options
 }: PdfViewerProviderProps) {
   // Lazily, and once: a store created in render would be replaced on every pass.
-  const [fallback] = useState(() => createPdfViewerStore({ concurrency }));
+  // Every option goes through, not just `concurrency` — a block passing `view` or
+  // `sidebar` and getting the default back is a bug that presents as "the prop does
+  // nothing". A later change to a prop is ignored, deliberately: a store is not
+  // rebuilt, and the render cache on its document with it, because a prop moved.
+  const [fallback] = useState(() => createPdfViewerStore(options));
 
   return (
     <PdfViewerContext value={store ?? fallback}>{children}</PdfViewerContext>

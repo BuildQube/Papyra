@@ -2,6 +2,7 @@ import type { Document } from '@build-qube/papyra';
 import { viewport as pageViewportFor, rotateSize } from '@build-qube/papyra';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { ContinuousPages } from '@workspace/pdf-viewer/components/pdf-continuous-pages';
+import { FindBar } from '@workspace/pdf-viewer/components/pdf-find-bar';
 import { Highlights } from '@workspace/pdf-viewer/components/pdf-highlights';
 import { Links } from '@workspace/pdf-viewer/components/pdf-links';
 import {
@@ -90,8 +91,8 @@ interface PageAnchor {
  */
 export function ViewerRoute() {
   const loaded = usePdfDocument();
-  const { setError } = usePdfViewerActions();
-  const { matches, active } = usePdfSearch();
+  const { setError, setQuery, setMatches, setActive } = usePdfViewerActions();
+  const { query, matches, active } = usePdfSearch();
   const structure = usePdfStructure();
   const [page, setPage] = usePdfPage();
   const navigate = useNavigate();
@@ -270,24 +271,37 @@ export function ViewerRoute() {
       viewport={viewport}
       toolbar={
         doc && (
-          <ZoomBar
-            spec={zoom.spec}
-            scale={zoom.scale}
-            page={index}
-            pageCount={doc.pageCount}
-            label={label}
-            mode={mode}
-            settling={zoom.settling}
-            onSpec={(spec) => zoom.setSpec(spec)}
-            onStepIn={zoom.stepIn}
-            onStepOut={zoom.stepOut}
-            onPage={setPage}
-            onMode={setMode}
-            rotation={rotation}
-            onRotate={rotateBy}
-            annotations={annotations}
-            onAnnotations={setAnnotations}
-          />
+          <>
+            <FindBar
+              doc={doc}
+              current={index}
+              query={query}
+              onQuery={setQuery}
+              matches={matches}
+              onMatches={setMatches}
+              active={active}
+              onActive={setActive}
+              onSelect={setPage}
+            />
+            <ZoomBar
+              spec={zoom.spec}
+              scale={zoom.scale}
+              page={index}
+              pageCount={doc.pageCount}
+              label={label}
+              mode={mode}
+              settling={zoom.settling}
+              onSpec={(spec) => zoom.setSpec(spec)}
+              onStepIn={zoom.stepIn}
+              onStepOut={zoom.stepOut}
+              onPage={setPage}
+              onMode={setMode}
+              rotation={rotation}
+              onRotate={rotateBy}
+              annotations={annotations}
+              onAnnotations={setAnnotations}
+            />
+          </>
         )
       }
       status={

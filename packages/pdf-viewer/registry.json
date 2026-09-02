@@ -116,9 +116,12 @@
       "name": "pdf-viewer-layout",
       "type": "registry:component",
       "title": "Viewer layout",
-      "description": "The frame a viewer sits in: sidebar, toolbar, status line and a native scroll area the zoom gestures can bind to.",
+      "description": "The frame a viewer sits in: a resizable, collapsible sidebar that becomes a drawer on a narrow viewer, toolbar, status line and a native scroll area the zoom gestures can bind to.",
       "dependencies": ["@build-qube/papyra@^0.3.0"],
       "registryDependencies": [
+        "drawer",
+        "resizable",
+        "toggle",
         "{{REGISTRY}}/pdf-sidebar.json",
         "{{REGISTRY}}/use-pdf-viewer.json"
       ],
@@ -133,10 +136,11 @@
       "name": "pdf-viewer",
       "type": "registry:block",
       "title": "PDF viewer",
-      "description": "A complete viewer: sidebar, toolbar, view rotation and a continuous scrolling column. Give it an open document and it works.",
+      "description": "A complete viewer: sidebar, toolbar with find, view rotation and a continuous scrolling column. Give it an open document and it works.",
       "dependencies": ["@build-qube/papyra@^0.3.0"],
       "registryDependencies": [
         "{{REGISTRY}}/pdf-continuous-pages.json",
+        "{{REGISTRY}}/pdf-find-bar.json",
         "{{REGISTRY}}/pdf-isolation-guard.json",
         "{{REGISTRY}}/pdf-viewer-layout.json",
         "{{REGISTRY}}/pdf-viewer-provider.json",
@@ -383,19 +387,35 @@
       ]
     },
     {
-      "name": "pdf-search",
+      "name": "pdf-find-bar",
       "type": "registry:component",
-      "title": "Search",
-      "description": "Full-text search over a document, run outward from the page on screen so the first result is usually the one wanted.",
+      "title": "Find bar",
+      "description": "Find in document, from the toolbar: a popover with the query, previous/next, match case and whole words. Runs the search outward from the page on screen so the first result is usually the one wanted.",
       "dependencies": ["@build-qube/papyra@^0.3.0", "lucide-react"],
       "registryDependencies": [
         "badge",
         "button",
+        "button-group",
         "input-group",
-        "item",
+        "popover",
         "spinner",
+        "toggle",
         "tooltip"
       ],
+      "files": [
+        {
+          "path": "src/components/pdf-find-bar.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
+      "name": "pdf-search",
+      "type": "registry:component",
+      "title": "Search results",
+      "description": "The results of the find bar's search as a list of hits with context, for a sidebar panel.",
+      "dependencies": ["@build-qube/papyra@^0.3.0"],
+      "registryDependencies": ["item"],
       "files": [
         {
           "path": "src/components/pdf-search.tsx",
@@ -407,11 +427,13 @@
       "name": "pdf-sidebar",
       "type": "registry:component",
       "title": "Viewer sidebar",
-      "description": "Pages, outline, tags and search in one column, every panel kept mounted so a tab change does not discard a thumbnail stream or a result set.",
-      "dependencies": ["@build-qube/papyra@^0.3.0"],
+      "description": "Pages, outline, tags, attachments and search results in one column, picked from a menu rather than a tab strip, every panel kept mounted so a switch does not discard a thumbnail stream or a result set.",
+      "dependencies": ["@build-qube/papyra@^0.3.0", "lucide-react"],
       "registryDependencies": [
         "badge",
-        "tabs",
+        "button",
+        "dropdown-menu",
+        "{{REGISTRY}}/pdf-attachments.json",
         "{{REGISTRY}}/pdf-outline.json",
         "{{REGISTRY}}/pdf-structure.json",
         "{{REGISTRY}}/pdf-search.json",
@@ -428,18 +450,16 @@
       "name": "pdf-zoom-bar",
       "type": "registry:component",
       "title": "Zoom bar",
-      "description": "Pager, zoom steppers, fit-mode select, rotate buttons, an annotations toggle and a single/continuous toggle for a viewer toolbar.",
+      "description": "Pager, zoom steppers and fit-mode select for a viewer toolbar, with rotation, the annotation switch, the view mode and document properties behind a more menu.",
       "dependencies": ["@build-qube/papyra@^0.3.0", "lucide-react"],
       "registryDependencies": [
         "badge",
         "button",
         "button-group",
+        "dropdown-menu",
         "input-group",
         "kbd",
         "select",
-        "toggle",
-        "toggle-group",
-        "tooltip",
         "{{REGISTRY}}/pdf-zoom.json"
       ],
       "files": [

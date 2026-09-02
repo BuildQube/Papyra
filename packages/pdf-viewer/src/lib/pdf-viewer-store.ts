@@ -25,6 +25,14 @@ export interface PdfDocumentSlice {
 
 /** Every match found so far, and whichever one the viewer is showing. */
 export interface PdfSearchSlice {
+  /**
+   * What is being searched for. Empty when nothing is.
+   *
+   * In the store, not in the find bar: the results list lives in the sidebar, which
+   * on a phone is a drawer that unmounts when closed, and the bar that runs the
+   * search has to outlive it. Both read this; only the bar writes it.
+   */
+  query: string;
   /** Results in the order they were found — nearest page first. */
   matches: SearchMatch[];
   /** The match the page overlay draws in the active colour, if any. */
@@ -103,6 +111,15 @@ export interface PdfViewerState {
    * from the overlay, which is the double-draw the switch exists for.
    */
   annotations: boolean;
+  /**
+   * Whether the pages/outline/search sidebar is open.
+   *
+   * In the store rather than local to the layout because two things drive it: the
+   * toolbar's toggle, and the layout itself, which closes it when the viewer becomes
+   * too narrow to hold a column beside the page. On a phone the same flag opens a
+   * drawer instead, so whatever reads it need not know which frame it is in.
+   */
+  sidebar: boolean;
 }
 
 /**
@@ -126,6 +143,8 @@ export interface PdfViewerActions {
   setDocument(document: PdfDocumentSlice | null): void;
   /** Move to a page. Clamped to the open document. */
   setPage(index: number): void;
+  /** Set what is being searched for. Clearing it is the empty string. */
+  setQuery(query: string): void;
   /** Replace the search results. */
   setMatches(matches: SearchMatch[]): void;
   /** Set the highlighted match, or clear it. */
@@ -144,6 +163,10 @@ export interface PdfViewerActions {
   setRotation(rotation: Rotation): void;
   /** Draw the document's own annotations, or leave them to the overlay. */
   setAnnotations(on: boolean): void;
+  /** Open or close the sidebar. */
+  setSidebar(open: boolean): void;
+  /** Flip the sidebar, for a toolbar button. */
+  toggleSidebar(): void;
 }
 
 /** Options for {@link createPdfViewerStore}. */
@@ -154,6 +177,13 @@ export interface PdfViewerStoreOptions {
   rotation?: Rotation;
   /** Whether to draw the document's own annotations. Defaults to on. */
   annotations?: boolean;
+  /**
+   * Whether the sidebar starts open. Defaults to open.
+   *
+   * The layout still closes it on a narrow viewer, whatever this says: a drawer that
+   * covers the document on first load is not a default anyone wants.
+   */
+  sidebar?: boolean;
   /**
    * Renders in flight at once.
    *
@@ -182,7 +212,7 @@ export interface PdfViewerStore {
 }
 
 /** Shared so an empty result set does not churn the slice reference. */
-const EMPTY_SEARCH: PdfSearchSlice = { matches: [], active: null };
+const EMPTY_SEARCH: PdfSearchSlice = { query: '', matches: [], active: null };
 
 /** Shared for the same reason as {@link EMPTY_SEARCH}. */
 const EMPTY_STRUCTURE: PdfStructureSlice = { page: null, quads: [] };
@@ -203,6 +233,7 @@ export function createPdfViewerStore(
     view = 'scroll',
     rotation = 0,
     annotations = true,
+    sidebar = true,
   } = options;
 
   let state: PdfViewerState = {
@@ -215,6 +246,7 @@ export function createPdfViewerStore(
     view,
     rotation,
     annotations,
+    sidebar,
   };
 
   const listeners = new Set<() => void>();
@@ -273,6 +305,11 @@ export function createPdfViewerStore(
       commit({ ...state, page: next });
     },
 
+    setQuery(query) {
+      if (query === state.search.query) return;
+      commit({ ...state, search: { ...state.search, query } });
+    },
+
     setMatches(matches) {
       if (matches === state.search.matches) return;
       if (matches.length === 0 && state.search.matches.length === 0) return;
@@ -325,6 +362,15 @@ export function createPdfViewerStore(
     setAnnotations(on) {
       if (on === state.annotations) return;
       commit({ ...state, annotations: on });
+    },
+
+    setSidebar(open) {
+      if (open === state.sidebar) return;
+      commit({ ...state, sidebar: open });
+    },
+
+    toggleSidebar() {
+      commit({ ...state, sidebar: !state.sidebar });
     },
   };
 
