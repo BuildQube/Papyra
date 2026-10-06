@@ -1,4 +1,3 @@
-import type { Rotation } from '@build-qube/papyra';
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -43,10 +42,12 @@ import {
 } from '@/components/ui/select';
 import {
   FIT_MODES,
+  type FitMode,
   formatZoom,
   isFitMode,
   MAX_ZOOM,
   MIN_ZOOM,
+  type Rotation,
   type ViewMode,
   ZOOM_STEPS,
   type ZoomSpec,
@@ -60,14 +61,14 @@ export interface ZoomBarProps {
   /** The resolved scale, which is what a fit mode actually came out as. */
   scale: number;
   /** The current page, 0-based. */
-  page: number;
+  page?: number;
   /** How many pages the document has. */
-  pageCount: number;
+  pageCount?: number;
   /**
    * The label printed on this page, when the document numbers its pages as something
    * other than their index. Empty when it does not, so nothing is shown.
    */
-  label: string;
+  label?: string;
   /** Which view is mounted. Only meaningful alongside `onMode`. */
   mode?: ViewMode;
   /** True while the pages on screen are a stretched bitmap awaiting a re-render. */
@@ -78,8 +79,18 @@ export interface ZoomBarProps {
   onStepIn: () => void;
   /** Called to step one rung down. */
   onStepOut: () => void;
-  /** Called with a 0-based page index when the pager moves. */
-  onPage: (index: number) => void;
+  /**
+   * Called with a 0-based page index when the pager moves.
+   *
+   * Omit it and there is no pager — the bar then zooms a single thing, such as an
+   * image, with the same gestures and fit modes a page gets.
+   */
+  onPage?: (index: number) => void;
+  /**
+   * What the fit modes fit, for their labels: "Page fit", "Image fit". Defaults to
+   * `'Page'`.
+   */
+  subject?: string;
   /**
    * Called when the single/continuous choice changes.
    *
@@ -113,11 +124,10 @@ export interface ZoomBarProps {
   onProperties?: () => void;
 }
 
-const FIT_LABELS: Record<string, string> = {
-  auto: 'Automatic',
-  'page-fit': 'Page fit',
-  'page-width': 'Page width',
-};
+function fitLabel(fit: FitMode, subject: string): string {
+  if (fit === 'auto') return 'Automatic';
+  return `${subject} ${fit === 'page-fit' ? 'fit' : 'width'}`;
+}
 
 /**
  * A viewer toolbar: pager, zoom steppers, fit-mode select, and a more menu.
@@ -139,15 +149,16 @@ const FIT_LABELS: Record<string, string> = {
 export function ZoomBar({
   spec,
   scale,
-  page,
-  pageCount,
-  label,
+  page = 0,
+  pageCount = 1,
+  label = '',
   mode,
   settling,
   onSpec,
   onStepIn,
   onStepOut,
   onPage,
+  subject = 'Page',
   onMode,
   rotation = 0,
   onRotate,
@@ -161,45 +172,47 @@ export function ZoomBar({
 
   return (
     <>
-      <ButtonGroup>
-        <Button
-          variant="outline"
-          size="icon-sm"
-          aria-label="Previous page"
-          disabled={page <= 0}
-          onClick={() => onPage(page - 1)}
-        >
-          <ChevronLeftIcon />
-        </Button>
-        <InputGroup className="h-7 w-28">
-          <InputGroupInput
-            type="number"
-            aria-label="Page number"
-            className="text-right tabular-nums"
-            min={1}
-            max={pageCount}
-            value={page + 1}
-            onChange={(e) => {
-              const next = Number(e.target.value) - 1;
-              if (Number.isInteger(next) && next >= 0 && next < pageCount) {
-                onPage(next);
-              }
-            }}
-          />
-          <InputGroupAddon align="inline-end">
-            <InputGroupText>of {pageCount}</InputGroupText>
-          </InputGroupAddon>
-        </InputGroup>
-        <Button
-          variant="outline"
-          size="icon-sm"
-          aria-label="Next page"
-          disabled={page >= pageCount - 1}
-          onClick={() => onPage(page + 1)}
-        >
-          <ChevronRightIcon />
-        </Button>
-      </ButtonGroup>
+      {onPage && (
+        <ButtonGroup>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            aria-label="Previous page"
+            disabled={page <= 0}
+            onClick={() => onPage(page - 1)}
+          >
+            <ChevronLeftIcon />
+          </Button>
+          <InputGroup className="h-7 w-28">
+            <InputGroupInput
+              type="number"
+              aria-label="Page number"
+              className="text-right tabular-nums"
+              min={1}
+              max={pageCount}
+              value={page + 1}
+              onChange={(e) => {
+                const next = Number(e.target.value) - 1;
+                if (Number.isInteger(next) && next >= 0 && next < pageCount) {
+                  onPage(next);
+                }
+              }}
+            />
+            <InputGroupAddon align="inline-end">
+              <InputGroupText>of {pageCount}</InputGroupText>
+            </InputGroupAddon>
+          </InputGroup>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            aria-label="Next page"
+            disabled={page >= pageCount - 1}
+            onClick={() => onPage(page + 1)}
+          >
+            <ChevronRightIcon />
+          </Button>
+        </ButtonGroup>
+      )}
 
       {label && (
         <Badge
@@ -250,7 +263,7 @@ export function ZoomBar({
         >
           <SelectValue>
             <span className="@max-md/pdf-viewer:hidden">
-              {describeZoom(spec, scale)}
+              {describeZoom(spec, scale, subject)}
             </span>
             <span className="hidden @max-md/pdf-viewer:inline">
               {formatZoom(scale)}
@@ -262,7 +275,7 @@ export function ZoomBar({
             <SelectLabel>Fit</SelectLabel>
             {FIT_MODES.map((fit) => (
               <SelectItem key={fit} value={fit}>
-                {FIT_LABELS[fit] ?? fit}
+                {fitLabel(fit, subject)}
               </SelectItem>
             ))}
           </SelectGroup>
@@ -370,7 +383,7 @@ export function ZoomBar({
 }
 
 /** What the trigger reads: a fit mode also says what it actually came out as. */
-function describeZoom(spec: ZoomSpec, scale: number): string {
+function describeZoom(spec: ZoomSpec, scale: number, subject: string): string {
   if (typeof spec === 'number') return formatZoom(spec);
-  return `${FIT_LABELS[spec] ?? spec} · ${formatZoom(scale)}`;
+  return `${fitLabel(spec, subject)} · ${formatZoom(scale)}`;
 }

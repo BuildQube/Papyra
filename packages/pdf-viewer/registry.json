@@ -8,7 +8,6 @@
       "type": "registry:lib",
       "title": "Zoom",
       "description": "Zoom ladder, fit modes, and the page-box maths a viewer resolves them against.",
-      "dependencies": ["@build-qube/papyra@^0.3.0"],
       "files": [
         {
           "path": "src/lib/pdf-zoom.ts",
@@ -76,7 +75,6 @@
       "type": "registry:hook",
       "title": "Zoom controller",
       "description": "Wheel, pinch and keyboard zoom bound to a scroll container, with the settled scale committed separately from the one the layout follows.",
-      "dependencies": ["@build-qube/papyra@^0.3.0"],
       "registryDependencies": ["{{REGISTRY}}/pdf-zoom.json"],
       "files": [
         {
@@ -451,7 +449,7 @@
       "type": "registry:component",
       "title": "Zoom bar",
       "description": "Pager, zoom steppers and fit-mode select for a viewer toolbar, with rotation, the annotation switch, the view mode and document properties behind a more menu.",
-      "dependencies": ["@build-qube/papyra@^0.3.0", "lucide-react"],
+      "dependencies": ["lucide-react"],
       "registryDependencies": [
         "badge",
         "button",
@@ -549,8 +547,13 @@
       "name": "file-preview-image",
       "type": "registry:component",
       "title": "Image renderer",
-      "description": "PNG, JPEG, GIF, WebP, AVIF, BMP, ICO and SVG for the file preview, drawn by the browser. No dependencies.",
-      "registryDependencies": ["{{REGISTRY}}/file-preview-core.json"],
+      "description": "PNG, JPEG, GIF, WebP, AVIF, BMP, ICO and SVG for the file preview, drawn by the browser and zoomed like a page. No engine.",
+      "registryDependencies": [
+        "{{REGISTRY}}/file-preview-core.json",
+        "{{REGISTRY}}/pdf-zoom.json",
+        "{{REGISTRY}}/pdf-zoom-bar.json",
+        "{{REGISTRY}}/use-pdf-zoom.json"
+      ],
       "files": [
         {
           "path": "src/components/file-preview-image.ts",

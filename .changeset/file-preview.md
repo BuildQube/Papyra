@@ -12,8 +12,8 @@ pager (← / → while focus is inside), a download button, and a card for a fil
 renderer recognises, a format `allow` leaves out, or a view that throws.
 
 **Renderers.** `file-preview-pdf` (papyra, with the password prompt),
-`file-preview-image` (PNG, JPEG, GIF, WebP, AVIF, BMP, ICO and SVG, no
-dependencies) and `file-preview-code` (shiki, on its JavaScript regex engine).
+`file-preview-image` (PNG, JPEG, GIF, WebP, AVIF, BMP, ICO and SVG, zoomed
+with the page viewer's own controls) and `file-preview-code` (shiki, on its JavaScript regex engine).
 Each is a small descriptor plus a view loaded by `import()`, so an installed
 format's dependency is still not fetched until a file of that type is shown.
 
@@ -23,3 +23,17 @@ an `allow` list cannot be passed by renaming a file. Formats with no signature,
 such as source code, match by extension or MIME type, and are refused when the
 file's head contains a NUL byte. `acceptOf()` builds a file input's `accept` from
 the same list.
+
+**Zoom without the engine.** `pdf-zoom`, `use-pdf-zoom` and `pdf-zoom-bar` no
+longer depend on `@build-qube/papyra`. They imported only its `PageSize` and
+`Rotation` types, which `pdf-zoom` now declares itself as `Size` and `Rotation`
+(the same shapes, so papyra's values still fit). That lets the image renderer
+reuse ⌘/ctrl-scroll, pinch, the keyboard shortcuts and the fit modes without
+installing a PDF engine. Images open at 100% when they fit and at "Image fit"
+when they do not; an SVG is sized from its own `width`/`height` or `viewBox`
+rather than the browser's 150px default.
+
+`ZoomBar`'s `page`, `pageCount`, `label` and `onPage` are now optional. Leave
+out `onPage` and the pager is not rendered. `subject` renames the fit modes,
+so "Page fit" can read "Image fit".
+

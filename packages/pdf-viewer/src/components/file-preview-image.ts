@@ -36,7 +36,8 @@ export function sniffImage(head: Uint8Array): boolean {
 }
 
 /**
- * Raster images and SVG, drawn by the browser itself. No dependencies.
+ * Raster images and SVG, drawn by the browser itself and zoomed with the page
+ * viewer's controls. No engine: the zoom items are maths and a toolbar.
  *
  * SVG goes through `<img>`, never inline, and an SVG in an `<img>` runs no script and
  * loads nothing external — so a hostile one is a picture, not a page.
