@@ -1,5 +1,6 @@
 //! Excel and OpenDocument, through calamine.
 
+use crate::styles::{Package, StyleSheet};
 use crate::{Format, Merge, Result, Sheet, SheetInfo, SheetKind, TableError, Visibility};
 use calamine::{Dimensions, Ods, Reader as _, Sheets, Xls, Xlsb, Xlsx};
 use std::io::Cursor;
@@ -8,7 +9,19 @@ use std::sync::Arc;
 /// Shared rather than owned, so trying a second format does not copy the file.
 type Bytes = Cursor<Arc<[u8]>>;
 
-pub(crate) struct Reader(Sheets<Bytes>);
+pub(crate) struct Reader {
+  sheets: Sheets<Bytes>,
+  /// What calamine does not read, for xlsx only.
+  xlsx: Option<XlsxFormatting>,
+}
+
+struct XlsxFormatting {
+  package: Package,
+  /// Worksheet part per sheet, in calamine's order.
+  paths: Vec<Option<String>>,
+  styles: Arc<StyleSheet>,
+  date1904: bool,
+}
 
 impl Reader {
   /// Open `bytes` as `hint`, falling back through the other formats.
@@ -45,7 +58,18 @@ impl Reader {
         Format::Csv | Format::Tsv => unreachable!("delimited text never reaches calamine"),
       };
       match opened {
-        Ok(sheets) => return Ok((Self(sheets), format)),
+        Ok(sheets) => {
+          let xlsx = match &sheets {
+            Sheets::Xlsx(x) => Package::open(bytes.clone()).map(|mut package| XlsxFormatting {
+              paths: package.sheet_paths(),
+              styles: Arc::new(package.style_sheet()),
+              date1904: x.has_1904_epoch(),
+              package,
+            }),
+            _ => None,
+          };
+          return Ok((Self { sheets, xlsx }, format));
+        }
         Err(is_password) => encrypted |= is_password,
       }
     }
@@ -58,7 +82,7 @@ impl Reader {
 
   pub(crate) fn sheets(&self) -> Vec<SheetInfo> {
     self
-      .0
+      .sheets
       .sheets_metadata()
       .iter()
       .map(|s| SheetInfo {
@@ -80,7 +104,7 @@ impl Reader {
   }
 
   pub(crate) fn read_sheet(&mut self, index: usize, name: &str) -> Result<Sheet> {
-    let range = match self.0.worksheet_range_at(index) {
+    let range = match self.sheets.worksheet_range_at(index) {
       Some(range) => range.map_err(parse)?,
       // A chartsheet has a slot in the list and no cells; an empty sheet is the
       // honest answer for it.
@@ -90,14 +114,24 @@ impl Reader {
     let origin = range.start().unwrap_or((0, 0));
     let width = range.width() as u32;
     let cells = range.cells().map(|(_, _, d)| d.clone().into()).collect();
-    Ok(Sheet::new(name.to_string(), origin, width, cells, merges))
+    let sheet = Sheet::new(name.to_string(), origin, width, cells, merges);
+    Ok(match &mut self.xlsx {
+      Some(x) => {
+        let meta = match x.paths.get(index).cloned().flatten() {
+          Some(path) => x.package.sheet_meta(&path, &x.styles),
+          None => Default::default(),
+        };
+        sheet.with_formatting(x.styles.clone(), meta, x.date1904)
+      }
+      None => sheet,
+    })
   }
 
   /// Merged regions. calamine reads them for xlsx and xls; xlsb and ods have none to
   /// offer, which leaves a merged title as a value in its top-left cell — still right,
   /// just not centred across the span.
   fn merges(&mut self, index: usize) -> Result<Vec<Merge>> {
-    let dims = match &mut self.0 {
+    let dims = match &mut self.sheets {
       Sheets::Xlsx(x) => x.merge_cells_by_sheet_id(index).map_err(parse)?,
       Sheets::Xls(x) => x.merge_cells_by_sheet_id(index).map_err(parse)?,
       Sheets::Xlsb(_) | Sheets::Ods(_) => Vec::new(),

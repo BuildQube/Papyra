@@ -6,6 +6,12 @@ import {
 import { CellWindow, type MergedRange, toMergedRanges } from './cells.js';
 import { rethrowLoadError } from './errors.js';
 import { toBytes } from './source.js';
+import {
+  type CellStyle,
+  type SheetLayout,
+  toCellStyle,
+  toSheetLayout,
+} from './styles.js';
 import type { PdfSource } from './types.js';
 
 /**
@@ -187,6 +193,16 @@ export class Sheet {
    * merges from.
    */
   readonly merges: readonly MergedRange[];
+  /**
+   * The styles {@link CellWindow.style} indexes into, with the default at 0.
+   * xlsx only: empty for every other format, whose cells all read as style 0.
+   */
+  readonly styles: readonly CellStyle[];
+  /**
+   * Column widths and row heights as the author set them. xlsx only; for anything
+   * else a grid sizes columns itself.
+   */
+  readonly layout: SheetLayout | undefined;
   readonly #native: NativeSheet;
 
   /** @internal — construct via {@link Workbook.sheet}. */
@@ -196,6 +212,8 @@ export class Sheet {
     this.rows = native.rows;
     this.cols = native.cols;
     this.merges = toMergedRanges(native.merges);
+    this.styles = native.styles.map(toCellStyle);
+    this.layout = native.layout ? toSheetLayout(native.layout) : undefined;
   }
 
   /**

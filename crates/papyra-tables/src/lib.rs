@@ -11,9 +11,12 @@
 mod book;
 mod cell;
 mod delimited;
+mod numfmt;
+mod styles;
 
 pub use cell::{Cell, CellKind, Window};
 pub use delimited::DelimitedOptions;
+pub use styles::{BorderStyle, CellStyle, ColSpan, Edge, HAlign, Layout, RowSize, VAlign};
 
 use std::sync::{Arc, Mutex};
 
@@ -147,11 +150,32 @@ pub struct Sheet {
   /// One past the last column holding a value or covered by a merge.
   pub cols: u32,
   pub merges: Vec<Merge>,
+  /// Column widths and row heights, for xlsx. `None` for every other format, which
+  /// leaves sizing to whoever draws the sheet.
+  pub layout: Option<Layout>,
   /// Where `cells` starts. Everything above and to the left of it is empty.
   origin: (u32, u32),
   /// Row-major over the used range, `width` cells to a row.
   cells: Vec<Cell>,
   width: u32,
+  formatting: Option<Formatting>,
+}
+
+/// An xlsx sheet's formatting, which no other format carries.
+#[derive(Debug, Clone)]
+struct Formatting {
+  styles: Arc<styles::StyleSheet>,
+  /// `(row, col, style)`, row-major, for every cell whose style is not the default.
+  /// Sparse because styles routinely reach far past the data — a formatted but
+  /// empty block, a bordered print area.
+  cells: Vec<(u32, u32, u16)>,
+  date1904: bool,
+}
+
+impl PartialEq for Formatting {
+  fn eq(&self, other: &Self) -> bool {
+    Arc::ptr_eq(&self.styles, &other.styles) && self.cells == other.cells
+  }
 }
 
 impl Sheet {
@@ -179,9 +203,84 @@ impl Sheet {
       rows,
       cols,
       merges,
+      layout: None,
       origin,
       cells,
       width,
+      formatting: None,
+    }
+  }
+
+  /// Attach what the xlsx style pass found.
+  pub(crate) fn with_formatting(
+    mut self,
+    styles: Arc<styles::StyleSheet>,
+    meta: styles::SheetMeta,
+    date1904: bool,
+  ) -> Self {
+    // A fill or a border shows on an empty cell, so the grid has to reach it — a
+    // coloured header band often runs past the last column with a value in it.
+    for &(r, c, s) in &meta.cells {
+      if styles
+        .styles
+        .get(s as usize)
+        .is_some_and(|s| s.is_visible_when_empty())
+      {
+        self.rows = self.rows.max(r + 1);
+        self.cols = self.cols.max(c + 1);
+      }
+    }
+    self.layout = meta.layout;
+    self.formatting = Some(Formatting {
+      styles,
+      cells: meta.cells,
+      date1904,
+    });
+    self
+  }
+
+  /// The styles cells refer to by index. Empty when the format carries none.
+  pub fn styles(&self) -> &[CellStyle] {
+    self.formatting.as_ref().map_or(&[], |f| &f.styles.styles)
+  }
+
+  /// The style index of the cell at `(row, col)`; 0, the default, when it has none.
+  pub fn style(&self, row: u32, col: u32) -> u16 {
+    let Some(f) = &self.formatting else { return 0 };
+    f.cells
+      .binary_search_by_key(&(row, col), |&(r, c, _)| (r, c))
+      .map_or(0, |i| f.cells[i].2)
+  }
+
+  /// What the cell at `(row, col)` shows: its value through its number format, and
+  /// any colour the format chose.
+  pub fn display(&self, row: u32, col: u32) -> (std::borrow::Cow<'_, str>, Option<u32>) {
+    let cell = self.cell(row, col);
+    let Some(f) = &self.formatting else {
+      return (cell.text(), None);
+    };
+    let Some(format) = f.styles.format(self.style(row, col)) else {
+      return (cell.text(), None);
+    };
+    let number = match cell {
+      Cell::Number(n) => Some(*n),
+      // A date or duration keeps its ISO form under General, and the serial is NaN
+      // when the file only stored that form.
+      Cell::Date(n, _) | Cell::Duration(n, _) if n.is_finite() && !format.is_general() => Some(*n),
+      Cell::Text(s) => {
+        return match format.format_text(s) {
+          Some(t) => (t.text.into(), t.color),
+          None => (cell.text(), None),
+        };
+      }
+      _ => None,
+    };
+    match number {
+      Some(n) if !format.is_general() => {
+        let t = format.format(n, f.date1904);
+        (t.text.into(), t.color)
+      }
+      _ => (cell.text(), None),
     }
   }
 
@@ -208,7 +307,15 @@ impl Sheet {
       col_start,
       row_end - row_start,
       col_end - col_start,
-      |r, c| self.cell(r, c),
+      |r, c| {
+        let (text, color) = self.display(r, c);
+        cell::Entry {
+          cell: self.cell(r, c),
+          text,
+          style: self.style(r, c),
+          color,
+        }
+      },
     )
   }
 }
@@ -403,6 +510,79 @@ mod tests {
     let book = Workbook::load(sample("sample.ods"), &LoadOptions::default()).unwrap();
     assert_eq!(book.format(), Format::Ods);
     assert_summary(&book);
+  }
+
+  #[test]
+  fn applies_xlsx_number_formats_and_styles() {
+    let book = Workbook::load(sample("styled.xlsx"), &LoadOptions::default()).unwrap();
+    let s = book.sheet(0).unwrap();
+    let text = |r, c| s.display(r, c).0.into_owned();
+
+    // The values are unchanged; only what they display as is.
+    assert_eq!(s.cell(2, 1), &Cell::Number(1234.5));
+    assert_eq!(text(2, 1), "1,234.50");
+    assert_eq!(text(3, 1), "(987.25)");
+    assert_eq!(s.display(3, 1).1, Some(0xFF0000));
+    assert_eq!(text(2, 2), "25.6%");
+    assert_eq!(text(2, 3), "15-Mar-24");
+    assert_eq!(text(3, 3), "1-Dec-24");
+    // An unformatted cell is unchanged.
+    assert_eq!(text(2, 0), "Steel");
+
+    let style = |r, c| &s.styles()[s.style(r, c) as usize];
+    let title = style(0, 0);
+    assert!(title.bold);
+    assert_eq!(title.font_scale, 2.0);
+    assert_eq!(title.color, Some(0x1F4E79));
+    let header = style(1, 1);
+    assert_eq!(header.fill, Some(0x4472C4));
+    assert_eq!(header.color, Some(0xFFFFFF));
+    assert_eq!(header.h_align, Some(HAlign::Center));
+    assert_eq!(header.border[2].map(|e| e.style), Some(BorderStyle::Double));
+    assert!(style(2, 0).italic);
+    assert_eq!(
+      style(2, 1).border[0].map(|e| e.style),
+      Some(BorderStyle::Thin)
+    );
+    assert!(style(4, 0).wrap);
+    assert_eq!(style(4, 0).v_align, Some(VAlign::Top));
+    assert_eq!(s.style(0, 9), 0);
+
+    // A filled cell with nothing in it still widens the sheet to reach it.
+    assert_eq!(s.cols, 5);
+    let layout = s.layout.as_ref().unwrap();
+    assert!(!layout.show_grid_lines);
+    assert!(layout.cols.contains(&ColSpan {
+      first: 0,
+      last: 0,
+      width: 145.0
+    }));
+    assert!(layout.cols.iter().any(|c| c.first == 5 && c.width == 0.0));
+    assert!(layout.rows.contains(&RowSize {
+      row: 0,
+      height: 40.0
+    }));
+    assert!(layout.rows.contains(&RowSize {
+      row: 5,
+      height: 0.0
+    }));
+
+    // The window carries the same: a style per cell, and the format's colour.
+    let w = s.window(3, 4, 1, 2);
+    assert_eq!(w.text, "(987.25)");
+    assert_eq!(w.colors, vec![0x01FF_0000]);
+    assert_eq!(w.styles, vec![s.style(3, 1)]);
+  }
+
+  #[test]
+  fn other_formats_carry_no_styles() {
+    for name in ["sample.xls", "sample.ods"] {
+      let book = Workbook::load(sample(name), &LoadOptions::default()).unwrap();
+      let s = book.sheet(0).unwrap();
+      assert!(s.styles().is_empty(), "{name}");
+      assert!(s.layout.is_none(), "{name}");
+      assert_eq!(s.window(0, 5, 0, 4).styles, vec![0; 20], "{name}");
+    }
   }
 
   #[test]

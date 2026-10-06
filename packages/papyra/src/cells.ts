@@ -192,6 +192,25 @@ export class CellWindow {
     return i < 0 ? Number.NaN : (this.#native.numbers[i] ?? Number.NaN);
   }
 
+  /**
+   * The index of the cell's style in `Sheet.styles`. 0, the default, for a cell
+   * with none — and for every cell of a format that carries no styles.
+   */
+  style(row: number, col: number): number {
+    const i = this.#index(row, col);
+    return i < 0 ? 0 : (this.#native.styles[i] ?? 0);
+  }
+
+  /**
+   * The colour the cell's number format chose, as `0xRRGGBB` — the `[Red]` in
+   * `#,##0;[Red](#,##0)`. It overrides the style's text colour, as in Excel.
+   */
+  color(row: number, col: number): number | undefined {
+    const i = this.#index(row, col);
+    const c = i < 0 ? 0 : (this.#native.colors[i] ?? 0);
+    return c === 0 ? undefined : c & 0xffffff;
+  }
+
   /** The cell at `(row, col)`, fully decoded. */
   cell(row: number, col: number): Cell {
     const kind = this.kind(row, col);

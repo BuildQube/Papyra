@@ -1,9 +1,8 @@
 import {
-  type CellKind,
+  type CellStyle,
   type CellWindow,
   columnName,
   EncryptedWorkbookError,
-  type MergedRange,
   openWorkbook,
   type Sheet,
   type Workbook,
@@ -29,6 +28,16 @@ import {
 } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  type Axis,
+  cellCss,
+  edgesAxis,
+  layoutColumns,
+  layoutRows,
+  leadingBorders,
+  toEdges,
+  uniformAxis,
+} from '@/lib/file-preview-sheet-layout';
 import { cn } from '@/lib/utils';
 
 /** Every row is one line. Wrapped text would need a measured height per row. */
@@ -287,11 +296,11 @@ export interface SheetGridProps {
 }
 
 /**
- * Left edges of every column, plus the right edge of the last, from the text in the
- * first and last rows. calamine does not read column widths, so this is a guess sized to the
- * content — the same thing Excel's double-click on a column border does.
+ * Column widths for a sheet that carries none — CSV, and every format but xlsx —
+ * from the text in its first and last rows. The same guess Excel's double-click on
+ * a column border makes.
  */
-function columnEdges(sheet: Sheet): Float64Array {
+function estimatedColumns(sheet: Sheet): Axis {
   const head = sheet.window({
     rowStart: 0,
     rowEnd: Math.min(sheet.rows, SAMPLE_ROWS),
@@ -300,7 +309,7 @@ function columnEdges(sheet: Sheet): Float64Array {
     rowStart: Math.max(head.rowEnd, sheet.rows - SAMPLE_ROWS),
     rowEnd: sheet.rows,
   });
-  const edges = new Float64Array(sheet.cols + 1);
+  const widths = new Float64Array(sheet.cols);
   for (let c = 0; c < sheet.cols; c++) {
     let longest = 0;
     for (const sample of [head, tail]) {
@@ -308,28 +317,15 @@ function columnEdges(sheet: Sheet): Float64Array {
         longest = Math.max(longest, sample.text(r, c).length);
       }
     }
-    const width =
+    widths[c] =
       longest === 0
         ? DEFAULT_COL_WIDTH
         : Math.min(
             MAX_COL_WIDTH,
             Math.max(MIN_COL_WIDTH, longest * CHAR_WIDTH + CELL_PADDING),
           );
-    edges[c + 1] = (edges[c] ?? 0) + width;
   }
-  return edges;
-}
-
-/** The last index `i` with `edges[i] <= x`. */
-function columnAt(edges: Float64Array, x: number): number {
-  let lo = 0;
-  let hi = edges.length - 2;
-  while (lo < hi) {
-    const mid = (lo + hi + 1) >> 1;
-    if ((edges[mid] ?? 0) <= x) lo = mid;
-    else hi = mid - 1;
-  }
-  return Math.max(0, lo);
+  return edgesAxis(toEdges(widths));
 }
 
 /**
@@ -346,16 +342,6 @@ function logical(
   return (scroll * (extent - view)) / (physical - view);
 }
 
-const ALIGN: Record<CellKind, string> = {
-  empty: '',
-  number: 'justify-end tabular-nums',
-  date: 'justify-end tabular-nums',
-  duration: 'justify-end tabular-nums',
-  bool: 'justify-center',
-  error: 'justify-center text-destructive',
-  text: '',
-};
-
 /**
  * One sheet as a scrolling grid, drawing only what is on screen.
  *
@@ -363,12 +349,31 @@ const ALIGN: Record<CellKind, string> = {
  * cells, a few hundred of them — and draws those, the headers, and any merged
  * region that crosses the view. Nothing else exists in the DOM, so a million rows
  * cost what twenty do.
+ *
+ * An xlsx sheet is drawn with its own geometry and formatting: column widths and
+ * row heights, hidden rows and columns, fonts, fills, borders, alignment and
+ * wrapping, and no gridlines if the author turned them off. Everything else gets
+ * estimated widths and plain cells.
  */
 export function SheetGrid({ sheet, className }: SheetGridProps) {
   const scroller = useRef<HTMLElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [scroll, setScroll] = useState({ left: 0, top: 0 });
-  const edges = useMemo(() => columnEdges(sheet), [sheet]);
+  const columns = useMemo(
+    () =>
+      sheet.layout
+        ? layoutColumns(sheet.layout, sheet.cols)
+        : estimatedColumns(sheet),
+    [sheet],
+  );
+  const rowAxis = useMemo(
+    () =>
+      sheet.layout
+        ? layoutRows(sheet.layout, sheet.rows)
+        : uniformAxis(sheet.rows, ROW_HEIGHT),
+    [sheet],
+  );
+  const gridLines = sheet.layout?.showGridLines ?? true;
 
   useLayoutEffect(() => {
     const el = scroller.current;
@@ -397,20 +402,15 @@ export function SheetGrid({ sheet, className }: SheetGridProps) {
   );
   const bodyWidth = Math.max(0, size.width - gutter);
   const bodyHeight = Math.max(0, size.height - HEADER);
-  const fullWidth = edges[sheet.cols] ?? 0;
-  const fullHeight = sheet.rows * ROW_HEIGHT;
-  const physWidth = Math.min(fullWidth, MAX_EXTENT);
-  const physHeight = Math.min(fullHeight, MAX_EXTENT);
-  const x = logical(scroll.left, fullWidth, physWidth, bodyWidth);
-  const y = logical(scroll.top, fullHeight, physHeight, bodyHeight);
+  const physWidth = Math.min(columns.total, MAX_EXTENT);
+  const physHeight = Math.min(rowAxis.total, MAX_EXTENT);
+  const x = logical(scroll.left, columns.total, physWidth, bodyWidth);
+  const y = logical(scroll.top, rowAxis.total, physHeight, bodyHeight);
 
-  const rowStart = Math.max(0, Math.floor(y / ROW_HEIGHT) - OVERSCAN);
-  const rowEnd = Math.min(
-    sheet.rows,
-    Math.ceil((y + bodyHeight) / ROW_HEIGHT) + OVERSCAN,
-  );
-  const colStart = Math.max(0, columnAt(edges, x) - 1);
-  const colEnd = Math.min(sheet.cols, columnAt(edges, x + bodyWidth) + 2);
+  const rowStart = Math.max(0, rowAxis.at(y) - OVERSCAN);
+  const rowEnd = Math.min(sheet.rows, rowAxis.at(y + bodyHeight) + OVERSCAN);
+  const colStart = Math.max(0, columns.at(x) - 1);
+  const colEnd = Math.min(sheet.cols, columns.at(x + bodyWidth) + 2);
 
   const cells = useMemo(
     () => sheet.window({ rowStart, rowEnd, colStart, colEnd }),
@@ -435,68 +435,105 @@ export function SheetGrid({ sheet, className }: SheetGridProps) {
       (m) => r >= m.row && r <= m.lastRow && c >= m.col && c <= m.lastCol,
     );
 
-  const left = (c: number) => gutter + (edges[c] ?? 0) - x;
-  const top = (r: number) => HEADER + r * ROW_HEIGHT - y;
-  const width = (c: number, last = c) =>
-    (edges[last + 1] ?? 0) - (edges[c] ?? 0);
+  const left = (c: number) => gutter + columns.start(c) - x;
+  const top = (r: number) => HEADER + rowAxis.start(r) - y;
+  const span = (axis: Axis, first: number, last: number) =>
+    axis.start(last) + axis.size(last) - axis.start(first);
 
   const body: ReactNode[] = [];
-  for (let r = cells.rowStart; r < cells.rowEnd; r++) {
-    for (let c = cells.colStart; c < cells.colEnd; c++) {
-      if (merges.length > 0 && covered(r, c)) continue;
-      body.push(
-        <GridCell
-          cells={cells}
-          col={c}
-          key={`${r}:${c}`}
-          row={r}
+  const edges: ReactNode[] = [];
+  const draw = (
+    key: string,
+    window: CellWindow,
+    row: number,
+    col: number,
+    box: CSSProperties,
+  ) => {
+    const style = sheet.styles[window.style(row, col)];
+    body.push(
+      <GridCell
+        cells={window}
+        col={col}
+        gridLines={gridLines}
+        key={key}
+        row={row}
+        style={style}
+        box={box}
+      />,
+    );
+    const leading = leadingBorders(style);
+    if (leading) {
+      edges.push(
+        <div
+          aria-hidden
+          className="pointer-events-none absolute"
+          key={`e${key}`}
           style={{
-            left: left(c),
-            top: top(r),
-            width: width(c),
-            height: ROW_HEIGHT,
+            ...leading,
+            left: Number(box.left) - 1,
+            top: Number(box.top) - 1,
+            width: Number(box.width) + 1,
+            height: Number(box.height) + 1,
           }}
         />,
       );
     }
+  };
+
+  for (let r = cells.rowStart; r < cells.rowEnd; r++) {
+    const height = rowAxis.size(r);
+    if (height === 0) continue;
+    for (let c = cells.colStart; c < cells.colEnd; c++) {
+      const width = columns.size(c);
+      if (width === 0 || (merges.length > 0 && covered(r, c))) continue;
+      draw(`${r}:${c}`, cells, r, c, {
+        left: left(c),
+        top: top(r),
+        width,
+        height,
+      });
+    }
   }
   for (const m of merges) {
-    body.push(
-      <MergedCell
-        key={`m${m.row}:${m.col}`}
-        merge={m}
-        sheet={sheet}
-        style={{
-          left: left(m.col),
-          top: top(m.row),
-          width: width(m.col, m.lastCol),
-          height: (m.lastRow - m.row + 1) * ROW_HEIGHT,
-        }}
-      />,
-    );
+    const one = sheet.window({
+      rowStart: m.row,
+      rowEnd: m.row + 1,
+      colStart: m.col,
+      colEnd: m.col + 1,
+    });
+    draw(`m${m.row}:${m.col}`, one, m.row, m.col, {
+      left: left(m.col),
+      top: top(m.row),
+      width: span(columns, m.col, m.lastCol),
+      height: span(rowAxis, m.row, m.lastRow),
+    });
   }
 
   const header =
-    'absolute flex items-center justify-center border-r border-b bg-muted text-[11px] font-medium text-muted-foreground';
-  const columns: ReactNode[] = [];
+    'absolute flex items-center justify-center overflow-hidden border-r border-b bg-muted text-[11px] font-medium text-muted-foreground';
+  const columnHeads: ReactNode[] = [];
   for (let c = cells.colStart; c < cells.colEnd; c++) {
-    columns.push(
+    const width = columns.size(c);
+    if (width === 0) continue;
+    columnHeads.push(
       <div
         className={header}
         key={c}
-        style={{ left: left(c), top: 0, width: width(c), height: HEADER }}
+        style={{ left: left(c), top: 0, width, height: HEADER }}
       >
         {columnName(c)}
       </div>,
     );
   }
-  const rows: ReactNode[] = [];
+  const rowHeads: ReactNode[] = [];
   for (let r = cells.rowStart; r < cells.rowEnd; r++) {
-    rows.push(
+    const height = rowAxis.size(r);
+    if (height === 0) continue;
+    rowHeads.push(
       <div
         className={cn(header, 'justify-end px-2 tabular-nums')}
         key={r}
-        style={{ left: 0, top: top(r), width: gutter, height: ROW_HEIGHT }}
+        style={{ left: 0, top: top(r), width: gutter, height }}
       >
         {r + 1}
       </div>,
@@ -524,15 +561,23 @@ export function SheetGrid({ sheet, className }: SheetGridProps) {
         style={{ width: gutter + physWidth, height: HEADER + physHeight }}
       >
         <div
-          className="sticky top-0 left-0 overflow-hidden text-xs"
+          className={cn(
+            'sticky top-0 left-0 overflow-hidden',
+            // Excel's widths are measured for Calibri 11 and a couple of pixels of
+            // padding. This UI's font runs wider, so a sheet laid out by Excel gets
+            // a slightly smaller size and Excel's padding, or its own default
+            // column truncates `15-Mar-24`.
+            sheet.layout ? 'text-[11px] [&_[data-cell]]:px-[3px]' : 'text-xs',
+          )}
           style={{ width: size.width, height: size.height }}
         >
           {body}
+          {edges}
           <div className="absolute inset-x-0 top-0 z-10" style={{ height: 0 }}>
-            {columns}
+            {columnHeads}
           </div>
           <div className="absolute inset-y-0 left-0 z-10" style={{ width: 0 }}>
-            {rows}
+            {rowHeads}
           </div>
           <div
             className={cn(header, 'z-20')}
@@ -544,57 +589,44 @@ export function SheetGrid({ sheet, className }: SheetGridProps) {
   );
 }
 
-const CELL =
-  'absolute flex items-center overflow-hidden border-r border-b border-border/60 px-2 whitespace-nowrap';
-
 function GridCell({
   cells,
   row,
   col,
   style,
+  gridLines,
+  box,
 }: {
   cells: CellWindow;
   row: number;
   col: number;
-  style: CSSProperties;
+  style: CellStyle | undefined;
+  gridLines: boolean;
+  box: CSSProperties;
 }) {
   const kind = cells.kind(row, col);
   const text = kind === 'empty' ? '' : cells.text(row, col);
+  const css = cellCss(style, kind, cells.color(row, col), gridLines);
   return (
     <div
-      className={cn(CELL, ALIGN[kind])}
-      style={style}
+      className={cn(
+        'absolute flex overflow-hidden px-2 py-px whitespace-nowrap',
+        // Without a fill a cell is transparent, so a merged region's background is
+        // the page's; with one, the fill is what shows.
+        style?.fill === undefined && 'bg-background',
+        kind === 'error' && style?.color === undefined && 'text-destructive',
+        (kind === 'number' || kind === 'date' || kind === 'duration') &&
+          'tabular-nums',
+      )}
+      data-cell
+      style={{ ...box, ...css }}
       title={text || undefined}
     >
-      <span className="truncate">{text}</span>
-    </div>
-  );
-}
-
-function MergedCell({
-  sheet,
-  merge,
-  style,
-}: {
-  sheet: Sheet;
-  merge: MergedRange;
-  style: CSSProperties;
-}) {
-  const one = sheet.window({
-    rowStart: merge.row,
-    rowEnd: merge.row + 1,
-    colStart: merge.col,
-    colEnd: merge.col + 1,
-  });
-  const kind = one.kind(merge.row, merge.col);
-  const text = one.text(merge.row, merge.col);
-  return (
-    <div
-      className={cn(CELL, 'bg-background', ALIGN[kind])}
-      style={style}
-      title={text || undefined}
-    >
-      <span className="truncate">{text}</span>
+      {/* The extra pixel on the right keeps an italic's overhang from being
+          clipped by the truncation. */}
+      <span className={cn(style?.wrap ? 'min-w-0' : 'truncate', 'pr-px')}>
+        {text}
+      </span>
     </div>
   );
 }

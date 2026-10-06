@@ -47,7 +47,11 @@ describe.each(['xlsx', 'xls', 'ods'])('openWorkbook, %s', (ext) => {
       text: 'TRUE',
     });
     expect(cells.text(1, 3)).toBe('2024-03-15');
-    expect(cells.text(2, 3)).toBe('2024-03-15T13:30:00');
+    // xlsx shows the cell through its number format — openpyxl's default for a
+    // datetime. The other two carry no formats here, and fall back to ISO 8601.
+    expect(cells.text(2, 3)).toBe(
+      ext === 'xlsx' ? '2024-03-15 13:30:00' : '2024-03-15T13:30:00',
+    );
   });
 });
 
@@ -91,6 +95,49 @@ describe('openWorkbook, workbook features', () => {
     await expect(opening).rejects.toThrow(
       /^this workbook is password-protected$/,
     );
+  });
+});
+
+describe('openWorkbook, formatting', () => {
+  test('applies number formats, and exposes styles and layout', async () => {
+    const sheet = await (await openWorkbook(fixture('styled.xlsx'))).sheet(0);
+    const cells = sheet.window({ rowStart: 0, rowEnd: sheet.rows });
+
+    expect(cells.text(2, 1)).toBe('1,234.50');
+    expect(cells.text(3, 1)).toBe('(987.25)');
+    expect(cells.color(3, 1)).toBe(0xff0000);
+    expect(cells.text(2, 2)).toBe('25.6%');
+    expect(cells.text(2, 3)).toBe('15-Mar-24');
+    // The value under the format is untouched.
+    expect(cells.cell(2, 1)).toEqual({
+      kind: 'number',
+      value: 1234.5,
+      text: '1,234.50',
+    });
+
+    const title = sheet.styles[cells.style(0, 0)];
+    expect(title).toMatchObject({ bold: true, fontScale: 2, color: 0x1f4e79 });
+    const header = sheet.styles[cells.style(1, 0)];
+    expect(header).toMatchObject({
+      fill: 0x4472c4,
+      color: 0xffffff,
+      horizontal: 'center',
+      borderBottom: { style: 'double', color: 0x0000ff },
+    });
+
+    expect(sheet.layout?.showGridLines).toBe(false);
+    expect(sheet.layout?.columns).toContainEqual({
+      first: 0,
+      last: 0,
+      width: 145,
+    });
+    expect(sheet.layout?.rows).toContainEqual({ row: 0, height: 40 });
+  });
+
+  test('other formats read unstyled', async () => {
+    const sheet = await (await openWorkbook(fixture('sample.xls'))).sheet(0);
+    expect(sheet.styles).toEqual([]);
+    expect(sheet.layout).toBeUndefined();
   });
 });
 

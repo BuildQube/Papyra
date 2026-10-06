@@ -140,7 +140,7 @@ fn duration(days: f64) -> String {
 /// Excel keeps 15 significant digits, so rounding there first is what turns the
 /// stored `0.30000000000000004` back into the `0.3` the user typed. Rust's `Display`
 /// then gives the shortest string that round-trips, with no trailing zeros.
-fn general(n: f64) -> String {
+pub(crate) fn general(n: f64) -> String {
   if !n.is_finite() {
     return n.to_string();
   }
@@ -179,6 +179,19 @@ pub struct Window {
   pub text: String,
   /// `rows * cols + 1` offsets into `text`; cell `i` is `offsets[i]..offsets[i + 1]`.
   pub offsets: Vec<u32>,
+  /// Index into the sheet's styles per cell; 0 is the default style.
+  pub styles: Vec<u16>,
+  /// A colour the number format chose per cell — `[Red]` on a negative section —
+  /// as `0x01RRGGBB`, or 0 for none. The high byte keeps black distinct from none.
+  pub colors: Vec<u32>,
+}
+
+/// One cell, as a window is built from it.
+pub(crate) struct Entry<'a> {
+  pub cell: &'a Cell,
+  pub text: std::borrow::Cow<'a, str>,
+  pub style: u16,
+  pub color: Option<u32>,
 }
 
 impl Window {
@@ -187,7 +200,7 @@ impl Window {
     col_start: u32,
     rows: u32,
     cols: u32,
-    cell: impl Fn(u32, u32) -> &'a Cell,
+    mut entry: impl FnMut(u32, u32) -> Entry<'a>,
   ) -> Self {
     let n = rows as usize * cols as usize;
     let mut w = Self {
@@ -199,18 +212,21 @@ impl Window {
       numbers: Vec::with_capacity(n),
       text: String::new(),
       offsets: Vec::with_capacity(n + 1),
+      styles: Vec::with_capacity(n),
+      colors: Vec::with_capacity(n),
     };
     let mut at = 0u32;
     w.offsets.push(0);
     for r in row_start..row_start + rows {
       for c in col_start..col_start + cols {
-        let cell = cell(r, c);
-        w.kinds.push(cell.kind() as u8);
-        w.numbers.push(cell.number());
-        let text = cell.text();
-        at += text.encode_utf16().count() as u32;
-        w.text.push_str(&text);
+        let e = entry(r, c);
+        w.kinds.push(e.cell.kind() as u8);
+        w.numbers.push(e.cell.number());
+        at += e.text.encode_utf16().count() as u32;
+        w.text.push_str(&e.text);
         w.offsets.push(at);
+        w.styles.push(e.style);
+        w.colors.push(e.color.map_or(0, |c| 0x0100_0000 | c));
       }
     }
     w
@@ -251,11 +267,18 @@ mod tests {
       Cell::Text("é".into()),
       Cell::Bool(true),
     ];
-    let w = Window::encode(0, 0, 1, 3, |_, c| &cells[c as usize]);
+    let w = Window::encode(0, 0, 1, 3, |_, c| Entry {
+      cell: &cells[c as usize],
+      text: cells[c as usize].text(),
+      style: 0,
+      color: (c == 2).then_some(0),
+    });
     // An emoji is one char, four UTF-8 bytes and two UTF-16 units.
     assert_eq!(w.offsets, vec![0, 2, 3, 7]);
     assert_eq!(w.kinds, vec![2, 2, 3]);
     assert_eq!(w.numbers[2], 1.0);
     assert!(w.numbers[0].is_nan());
+    // Black is a colour, and distinct from none.
+    assert_eq!(w.colors, vec![0, 0, 0x0100_0000]);
   }
 }

@@ -24,6 +24,8 @@ function pack(
     numbers: new Float64Array(cells.map(([, n]) => n)),
     text,
     offsets: new Uint32Array(offsets),
+    styles: new Uint16Array(cells.map((_, i) => i)),
+    colors: new Uint32Array(cells.map((_, i) => (i === 1 ? 0x0100_0000 : 0))),
   };
 }
 
@@ -92,6 +94,28 @@ describe('CellWindow', () => {
       text: '36:00:00',
     });
     expect(rest.cell(0, 3)).toEqual({ kind: 'error', text: '#DIV/0!' });
+  });
+});
+
+describe('CellWindow styles', () => {
+  const window = new CellWindow(
+    pack(0, 0, 3, [
+      [1, 1, '1'],
+      [1, -1, '(1)'],
+      [0, Number.NaN, ''],
+    ]),
+  );
+
+  test('reads a style index per cell, and 0 outside the window', () => {
+    expect(window.style(0, 2)).toBe(2);
+    expect(window.style(5, 5)).toBe(0);
+  });
+
+  test('tells black apart from no colour', () => {
+    // The bindings set a high bit on a present colour; black is 0x000000.
+    expect(window.color(0, 1)).toBe(0);
+    expect(window.color(0, 0)).toBeUndefined();
+    expect(window.color(9, 9)).toBeUndefined();
   });
 });
 

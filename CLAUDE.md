@@ -211,12 +211,15 @@ The features beyond rendering follow the same split:
   encoding (BOM, then valid UTF-8, then chardetng) and the delimiter. Both produce the
   same `Sheet`. Cells cross the boundary a **window** at a time as four flat buffers —
   kind bytes, `f64`s, one string, UTF-16 offsets into it — because an object per cell
-  costs more than the parse; `cells.ts` decodes lazily. calamine reads no styles,
-  number formats or column widths, so those are ours to add by parsing
-  `xl/styles.xml` beside it. It ships in the same addon and wasm as the PDF stack,
-  by choice: that cost every PDF-only consumer +567 KB gzipped (1.77 → 2.34 MB),
-  mostly calamine, encoding_rs and a second deflate. Splitting it into its own
-  native package is the known way out if that stops being acceptable.
+  costs more than the parse; `cells.ts` decodes lazily. calamine reads no
+  formatting at all, so `styles.rs` opens the same zip itself for `xl/styles.xml`,
+  the theme, and a second attribute-only pass over each worksheet (a cell's `s`,
+  `<col>` widths, `<row>` heights). `numfmt.rs` is the Excel number-format engine.
+  Window `text` is already formatted, and the raw value travels beside it. All of
+  this is xlsx only. It ships in the same addon and wasm as the PDF stack, by choice:
+  every PDF-only consumer pays about +610 KB gzipped (1.77 → 2.38 MB), mostly
+  calamine, encoding_rs and a second deflate. Splitting it into its own native
+  package is the known way out if that stops being acceptable.
 - **Text and search.** `crates/papyra-hayro/src/text.rs` implements
   `hayro_interpret::Device` and collects glyphs, which is how encodings, `ToUnicode`
   cmaps, CID and Type3 fonts, and the graphics-state transform all arrive already
@@ -455,6 +458,16 @@ gate; CI needed no new job.
   test/unit` covers 6 of the 13 files in the wrapper, silently omitting `document.ts`.
   `packages/papyra/test/coverage-entry.ts` is preloaded solely to import the package
   entrypoint and drag the rest into the denominator. There is no `--coverage.all`.
+- **A workbook's colours assume white paper.** Nearly every xlsx writes its text
+  colour out as explicit black (theme `dk1`), so a dark-theme grid that takes styles
+  literally is unreadable. `textColor` in `file-preview-sheet-layout.ts` treats
+  near-black and near-white as "automatic" on a cell with no fill and keeps any
+  colour that means something, and borders follow the same rule. Do not "fix" this
+  by honouring every colour.
+- **Excel's column widths are measured in Calibri.** A sheet's own widths are
+  correct, but this UI's font runs wider, so the grid draws Excel-laid-out sheets
+  at 11px with about 3px of padding. At `text-xs` with `px-2`, the default 64px
+  column truncates `15-Mar-24`.
 
 ## Conventions
 

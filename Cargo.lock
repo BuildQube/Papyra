@@ -816,7 +816,9 @@ dependencies = [
  "chrono",
  "csv",
  "encoding_rs",
+ "quick-xml",
  "thiserror",
+ "zip",
 ]
 
 [[package]]

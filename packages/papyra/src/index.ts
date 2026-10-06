@@ -86,6 +86,17 @@ export {
   structuredPageString,
   walkStructTree,
 } from './structure.js';
+export type {
+  BorderEdge,
+  BorderStyle,
+  CellStyle,
+  ColumnSpan,
+  HorizontalAlign,
+  RowSize,
+  SheetLayout,
+  VerticalAlign,
+} from './styles.js';
+export { cssColor } from './styles.js';
 export type { PageText, Quad, Rect, TextLine } from './text.js';
 export {
   lineQuad,

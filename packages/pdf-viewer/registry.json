@@ -635,7 +635,7 @@
       "name": "file-preview-sheet",
       "type": "registry:component",
       "title": "Sheet view",
-      "description": "The grid the spreadsheet and CSV renderers share: opens a workbook through papyra, shows its sheets as tabs, and draws only the cells on screen, merged ones included.",
+      "description": "The grid the spreadsheet and CSV renderers share: opens a workbook through papyra, shows its sheets as tabs, and draws only the cells on screen — with xlsx column widths, row heights, fonts, fills, borders and alignment.",
       "dependencies": ["@build-qube/papyra@^0.4.0", "lucide-react"],
       "registryDependencies": [
         "empty",
@@ -647,6 +647,10 @@
         {
           "path": "src/components/file-preview-sheet.tsx",
           "type": "registry:component"
+        },
+        {
+          "path": "src/lib/file-preview-sheet-layout.ts",
+          "type": "registry:lib"
         }
       ]
     },

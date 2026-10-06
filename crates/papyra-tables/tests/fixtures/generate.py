@@ -55,6 +55,54 @@ def xlsx() -> None:
     wb.save(HERE / "sample.xlsx")
 
 
+def styled() -> None:
+    """Number formats, fonts, fills, borders, alignment and layout, one of each."""
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Report"
+    ws.sheet_view.showGridLines = False
+
+    ws["A1"] = "Quarterly report"
+    ws["A1"].font = Font(bold=True, size=22, color="FF1F4E79")
+    ws.merge_cells("A1:D1")
+    ws.row_dimensions[1].height = 30
+
+    header = ["Item", "Amount", "Share", "Due"]
+    thin = Side(style="thin", color="FF000000")
+    for c, text in enumerate(header, start=1):
+        cell = ws.cell(row=2, column=c, value=text)
+        cell.font = Font(bold=True, color="FFFFFFFF")
+        cell.fill = PatternFill("solid", fgColor="FF4472C4")
+        cell.alignment = Alignment(horizontal="center")
+        cell.border = Border(bottom=Side(style="double", color="FF0000FF"))
+
+    rows = [
+        ("Steel", 1234.5, 0.256, dt.date(2024, 3, 15)),
+        ("Concrete", -987.25, 0.5, dt.date(2024, 12, 1)),
+    ]
+    for r, (item, amount, share, due) in enumerate(rows, start=3):
+        ws.cell(row=r, column=1, value=item).font = Font(italic=True)
+        a = ws.cell(row=r, column=2, value=amount)
+        a.number_format = '#,##0.00;[Red](#,##0.00)'
+        s = ws.cell(row=r, column=3, value=share)
+        s.number_format = "0.0%"
+        d = ws.cell(row=r, column=4, value=due)
+        d.number_format = "d-mmm-yy"
+        for c in range(1, 5):
+            ws.cell(row=r, column=c).border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    note = ws.cell(row=5, column=1, value="A note long enough that it has to wrap")
+    note.alignment = Alignment(wrap_text=True, vertical="top")
+    ws.cell(row=5, column=5).fill = PatternFill("solid", fgColor="FFFFFF00")
+
+    ws.column_dimensions["A"].width = 20.7109375
+    ws.column_dimensions["F"].hidden = True
+    ws.row_dimensions[6].hidden = True
+    wb.save(HERE / "styled.xlsx")
+
+
 def encrypted() -> None:
     # Agile encryption, Excel's default since 2010. The result is a compound file, not
     # a zip, which is what makes it look like an `.xls` to a sniffer.
@@ -119,6 +167,7 @@ def ods() -> None:
 
 if __name__ == "__main__":
     xlsx()
+    styled()
     encrypted()
     xls()
     ods()

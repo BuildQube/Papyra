@@ -31,9 +31,16 @@ for.
 - **`EncryptedWorkbookError`** for a password-protected workbook. Not a
   `PasswordError`: there is no decryption to hand a password to.
 
-Number formats and cell styles are not applied yet — a currency cell shows
-`1234.5`. The raw value is always beside the text, so adding them changes only
-`text`.
+**xlsx formatting.** Number formats are applied, so `text` is what Excel shows:
+`$1,234.50`, `(987.25)`, `25.6%`, `15-Mar-24`. That covers sections, conditions,
+`[Red]`-style colours (`CellWindow.color`), percent, thousands scaling, scientific,
+fractions, the date and time tokens including elapsed `[h]`, and the 1900 leap-year
+bug. The value underneath is unchanged.
+`Sheet.styles` and `CellWindow.style` give fonts, fills, borders, alignment,
+wrapping and indent. `Sheet.layout` gives column widths and row heights in
+Excel's own pixels, hidden rows and columns, and whether gridlines are shown.
+`cssColor` turns a style's colour into CSS. Formatting is English-only: locale
+tags are ignored. The other formats read unformatted.
 
 The readers ship in the same native addon and wasm build as the PDF renderer, which
-grows the wasm by about 567 KB gzipped.
+grows the wasm by about 610 KB gzipped.
