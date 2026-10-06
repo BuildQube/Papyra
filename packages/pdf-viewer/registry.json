@@ -632,6 +632,81 @@
       ]
     },
     {
+      "name": "file-preview-sheet",
+      "type": "registry:component",
+      "title": "Sheet view",
+      "description": "The grid the spreadsheet and CSV renderers share: opens a workbook through papyra, shows its sheets as tabs, and draws only the cells on screen, merged ones included.",
+      "dependencies": ["@build-qube/papyra@^0.4.0", "lucide-react"],
+      "registryDependencies": [
+        "empty",
+        "spinner",
+        "tabs",
+        "{{REGISTRY}}/pdf-isolation-guard.json"
+      ],
+      "files": [
+        {
+          "path": "src/components/file-preview-sheet.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
+      "name": "file-preview-spreadsheet",
+      "type": "registry:component",
+      "title": "Spreadsheet renderer",
+      "meta": {
+        "fileRenderer": {
+          "id": "spreadsheet",
+          "export": "spreadsheetRenderer",
+          "label": "Spreadsheet",
+          "byName": true
+        }
+      },
+      "description": "Excel (xlsx, xlsm, xlsb, and legacy xls) and OpenDocument spreadsheets for the file preview, read by papyra in Rust and shown as a virtualised grid.",
+      "registryDependencies": [
+        "{{REGISTRY}}/file-preview-core.json",
+        "{{REGISTRY}}/file-preview-sheet.json"
+      ],
+      "files": [
+        {
+          "path": "src/components/file-preview-spreadsheet.ts",
+          "type": "registry:component"
+        },
+        {
+          "path": "src/components/file-preview-spreadsheet-view.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
+      "name": "file-preview-csv",
+      "type": "registry:component",
+      "title": "CSV renderer",
+      "meta": {
+        "fileRenderer": {
+          "id": "csv",
+          "export": "csvRenderer",
+          "label": "CSV",
+          "byName": true
+        }
+      },
+      "description": "CSV and TSV for the file preview, with the encoding and delimiter sniffed — so an Excel export in windows-1252, split by semicolons, reads correctly.",
+      "registryDependencies": [
+        "{{REGISTRY}}/file-preview-core.json",
+        "{{REGISTRY}}/file-preview-sheet.json"
+      ],
+      "files": [
+        {
+          "path": "src/components/file-preview-csv.ts",
+          "type": "registry:component"
+        },
+        {
+          "path": "src/components/file-preview-csv-view.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
       "name": "use-file-preview-media",
       "type": "registry:hook",
       "title": "Media source",
