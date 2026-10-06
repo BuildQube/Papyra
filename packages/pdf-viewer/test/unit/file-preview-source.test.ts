@@ -289,6 +289,53 @@ describe('inspectSource', () => {
   });
 });
 
+describe('minted URLs', () => {
+  test('inspecting and then downloading costs one signature', async () => {
+    const cache = new FileCache();
+    let minted = 0;
+    const source: RemoteFile = {
+      key: 'q',
+      name: 'q.pdf',
+      url: async () => `https://cdn.test/q.pdf?sig=${++minted}`,
+    };
+    await inspectSource(source, { cache, probe: true });
+    await resolveFile(source, { cache });
+    expect(minted).toBe(1);
+    expect(calls.map((c) => c.range)).toEqual(['bytes=0-511', null]);
+  });
+
+  test('a remembered URL that has since expired is replaced', async () => {
+    const cache = new FileCache();
+    let minted = 0;
+    const source: RemoteFile = {
+      key: 'q',
+      url: async () => `https://cdn.test/q.pdf?sig=${++minted}`,
+    };
+    await inspectSource(source, { cache, probe: true });
+    route = (url) =>
+      url.endsWith('sig=1')
+        ? new Response('expired', { status: 403 })
+        : new Response(PDF);
+    const f = await resolveFile(source, { cache });
+    expect(minted).toBe(2);
+    expect(f.size).toBe(PDF.length);
+  });
+
+  test("a stream reuses the inspection's URL, and fresh mints another", async () => {
+    const cache = new FileCache();
+    let minted = 0;
+    const source: RemoteFile = {
+      key: 'v',
+      url: async () => `https://cdn.test/v.webm?sig=${++minted}`,
+    };
+    await inspectSource(source, { cache, probe: true });
+    expect((await resolveUrl(source, { cache })).url).toEndWith('sig=1');
+    expect((await resolveUrl(source, { cache, fresh: true })).url).toEndWith(
+      'sig=2',
+    );
+  });
+});
+
 describe('resolveUrl', () => {
   test('a plain URL is used as it is', async () => {
     const { url } = await resolveUrl('https://cdn.test/v.mp4', {

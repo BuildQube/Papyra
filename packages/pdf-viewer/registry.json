@@ -612,6 +612,61 @@
           "type": "registry:component"
         }
       ]
+    },
+    {
+      "name": "use-file-preview-media",
+      "type": "registry:hook",
+      "title": "Media source",
+      "description": "A media element's src, refreshed once when playback fails, so a signed link that expires mid-video resumes where it was.",
+      "registryDependencies": ["{{REGISTRY}}/file-preview-core.json"],
+      "files": [
+        {
+          "path": "src/hooks/use-file-preview-media.ts",
+          "type": "registry:hook"
+        }
+      ]
+    },
+    {
+      "name": "file-preview-video",
+      "type": "registry:component",
+      "title": "Video renderer",
+      "description": "MP4, MOV, WebM and Ogg video for the file preview, played by the browser and streamed rather than downloaded. No dependencies.",
+      "registryDependencies": [
+        "{{REGISTRY}}/file-preview-core.json",
+        "{{REGISTRY}}/use-file-preview-media.json"
+      ],
+      "files": [
+        {
+          "path": "src/components/file-preview-video.ts",
+          "type": "registry:component"
+        },
+        {
+          "path": "src/components/file-preview-video-view.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
+      "name": "file-preview-audio",
+      "type": "registry:component",
+      "title": "Audio renderer",
+      "description": "MP3, AAC, M4A, WAV, FLAC and Ogg audio for the file preview, played by the browser and streamed rather than downloaded.",
+      "dependencies": ["lucide-react"],
+      "registryDependencies": [
+        "empty",
+        "{{REGISTRY}}/file-preview-core.json",
+        "{{REGISTRY}}/use-file-preview-media.json"
+      ],
+      "files": [
+        {
+          "path": "src/components/file-preview-audio.ts",
+          "type": "registry:component"
+        },
+        {
+          "path": "src/components/file-preview-audio-view.tsx",
+          "type": "registry:component"
+        }
+      ]
     }
   ]
 }

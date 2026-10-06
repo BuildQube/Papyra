@@ -36,8 +36,16 @@ new `file-preview-source.ts`, part of `file-preview-core`.
 
 **Streaming renderers.** A renderer declares `input: 'url'` to get a URL and a
 `refresh()` instead of a downloaded `File`, for media too large to fetch first.
-Its file is identified with a 512-byte `Range` request, not a download. None of
-the shipped renderers stream yet; this is the shape video and audio will use.
+Its file is identified with a 512-byte `Range` request, not a download. A URL a
+resolver has answered with is reused for the next request on that key, so
+inspecting a file and then fetching it costs one signature, not two.
+
+**Video and audio.** New `file-preview-video` (MP4, MOV, WebM, Ogg Theora) and
+`file-preview-audio` (MP3, AAC, M4A, WAV, FLAC, Ogg) items stream through the
+browser's own elements and need no dependencies. If playback fails,
+`use-file-preview-media` asks for a fresh URL once and resumes at the same
+position, because a media element reports an expired link and an unsupported
+codec as the same error. AVI is deliberately not claimed: no browser plays it.
 
 **Zoom without the engine, renamed.** `pdf-zoom`, `use-pdf-zoom` and
 `pdf-zoom-bar` are now `viewer-zoom`, `use-viewer-zoom` and `viewer-zoom-bar`,

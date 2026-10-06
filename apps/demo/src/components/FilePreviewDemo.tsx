@@ -10,15 +10,23 @@ import {
 } from '@workspace/ui/components/toggle-group';
 import { PlusIcon } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { audioRenderer } from '@/components/file-preview-audio';
 import { codeRenderer } from '@/components/file-preview-code';
 import { imageRenderer } from '@/components/file-preview-image';
 import { pdfRenderer } from '@/components/file-preview-pdf';
+import { videoRenderer } from '@/components/file-preview-video';
 import type { RendererId } from '@/lib/file-preview-core';
 import coreSource from '@/lib/file-preview-core?raw';
 import type { FileSource, RemoteFile } from '@/lib/file-preview-source';
 import { BlockPreview } from './BlockPreview.js';
 
-const RENDERERS = [pdfRenderer, imageRenderer, codeRenderer] as const;
+const RENDERERS = [
+  pdfRenderer,
+  imageRenderer,
+  videoRenderer,
+  audioRenderer,
+  codeRenderer,
+] as const;
 type Format = RendererId<typeof RENDERERS>;
 const FORMATS: readonly Format[] = RENDERERS.map((r) => r.id);
 
@@ -29,6 +37,40 @@ const LOGO = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
   <path d="M38 30h30a22 22 0 0 1 0 44H52v16H38z M52 44v16h16a8 8 0 0 0 0-16z" fill="#fff"/>
 </svg>
 `;
+
+/**
+ * A second of a rising tone, as a 16-bit mono WAV — synthesised rather than shipped,
+ * like the gradient, and handed over as a `File` so the audio renderer exercises the
+ * object-URL path while the video exercises streaming from a URL.
+ */
+function toneWav(): File {
+  const rate = 22050;
+  const samples = rate;
+  const view = new DataView(new ArrayBuffer(44 + samples * 2));
+  const text = (at: number, s: string) => {
+    for (let i = 0; i < s.length; i++) view.setUint8(at + i, s.charCodeAt(i));
+  };
+  text(0, 'RIFF');
+  view.setUint32(4, 36 + samples * 2, true);
+  text(8, 'WAVEfmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, 1, true); // mono
+  view.setUint32(24, rate, true);
+  view.setUint32(28, rate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  text(36, 'data');
+  view.setUint32(40, samples * 2, true);
+  let phase = 0;
+  for (let i = 0; i < samples; i++) {
+    const t = i / samples;
+    phase += (2 * Math.PI * (330 + 330 * t)) / rate;
+    const fade = Math.min(1, t * 20, (1 - t) * 20);
+    view.setInt16(44 + i * 2, Math.sin(phase) * fade * 0.3 * 32767, true);
+  }
+  return new File([view.buffer], 'tone.wav', { type: 'audio/wav' });
+}
 
 /** A gradient, drawn rather than shipped, so the demo carries no image asset. */
 async function gradientPng(): Promise<File> {
@@ -74,6 +116,7 @@ export function FilePreviewDemo() {
         setLocal([
           png,
           new File([LOGO], 'logo.svg', { type: 'image/svg+xml' }),
+          toneWav(),
           new File([coreSource], 'file-preview-core.ts', {
             type: 'text/plain',
           }),
@@ -111,6 +154,11 @@ export function FilePreviewDemo() {
   const files: FileSource[] = [
     `${base}sample.pdf`,
     signed,
+    // Four seconds of ffmpeg's test pattern and a tone, made with:
+    //   ffmpeg -f lavfi -i testsrc2=size=320x180:rate=24:duration=4 \
+    //     -f lavfi -i sine=frequency=440:duration=4 -c:v libvpx-vp9 -b:v 0 \
+    //     -crf 45 -c:a libopus -b:a 32k -shortest sample.webm
+    `${base}sample.webm`,
     ...local,
     // No CORS headers on that server, so the browser will not hand over the bytes.
     'https://example.com/report.pdf',

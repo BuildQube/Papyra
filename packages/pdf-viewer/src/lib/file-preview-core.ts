@@ -240,3 +240,20 @@ export function startsWithAscii(
   }
   return true;
 }
+
+/**
+ * The major brand of an ISO base media file — MP4, MOV, M4A, AVIF and HEIC are all
+ * this container, and the brand at bytes 8–11 is what tells them apart.
+ */
+export function isoBrand(head: Uint8Array): string | undefined {
+  if (!startsWithAscii(head, 'ftyp', 4) || head.length < 12) return undefined;
+  return String.fromCharCode(...head.subarray(8, 12));
+}
+
+/** `head` contains `text` as ASCII somewhere. */
+export function includesAscii(head: Uint8Array, text: string): boolean {
+  for (let i = 0; i <= head.length - text.length; i++) {
+    if (startsWithAscii(head, text, i)) return true;
+  }
+  return false;
+}

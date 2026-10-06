@@ -1,10 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { audioRenderer, sniffAudio } from '@/components/file-preview-audio';
 import { codeRenderer } from '@/components/file-preview-code';
 import { createFilePreview } from '@/components/file-preview-create';
 import { imageRenderer, sniffImage } from '@/components/file-preview-image';
 import { pdfRenderer, sniffPdf } from '@/components/file-preview-pdf';
+import { sniffVideo, videoRenderer } from '@/components/file-preview-video';
 import {
   acceptOf,
   defineRenderer,
@@ -68,6 +70,50 @@ describe('sniffPdf', () => {
   test('does not take a near miss', () => {
     expect(sniffPdf(ascii('% PDF-1.7 is a format'))).toBe(false);
     expect(sniffPdf(ascii('%PDF'))).toBe(false);
+  });
+});
+
+/** An ISO-BMFF head: a box size, `ftyp`, then the major brand. */
+const ftyp = (brand: string) =>
+  ascii(`\x00\x00\x00\x20ftyp${brand}\x00\x00\x00\x00`);
+const EBML = bytes(0x1a, 0x45, 0xdf, 0xa3, 0x9f, 0x42, 0x86, 0x81);
+const oggWith = (codec: string) =>
+  ascii(`OggS\x00\x02${'\x00'.repeat(22)}\x01${codec}`);
+
+describe('sniffVideo and sniffAudio', () => {
+  test.each([
+    ['mp4', ftyp('isom'), true, false],
+    ['quicktime', ftyp('qt  '), true, false],
+    ['webm', EBML, true, false],
+    ['ogg theora', oggWith('theora'), true, false],
+    ['m4a', ftyp('M4A '), false, true],
+    ['ogg opus', oggWith('OpusHead'), false, true],
+    ['mp3 with ID3', ascii('ID3\x04\x00'), false, true],
+    ['mp3 frame', bytes(0xff, 0xfb, 0x90, 0x00), false, true],
+    ['aac adts', bytes(0xff, 0xf1, 0x50, 0x80), false, true],
+    ['wav', ascii('RIFF\x00\x00\x00\x00WAVEfmt '), false, true],
+    ['flac', ascii('fLaC\x00\x00\x00\x22'), false, true],
+    // Formats sharing a container or a sync word with these must not be claimed.
+    ['avif', ftyp('avif'), false, false],
+    ['heic', ftyp('heic'), false, false],
+    ['jpeg', bytes(0xff, 0xd8, 0xff, 0xe0), false, false],
+    ['webp', ascii('RIFF\x00\x00\x00\x00WEBPVP8L'), false, false],
+    ['avi', ascii('RIFF\x00\x00\x00\x00AVI LIST'), false, false],
+    ['a reserved mpeg header', bytes(0xff, 0xe0, 0x00, 0x00), false, false],
+  ])('%s: video %p, audio %p', (_, head, video, audio) => {
+    expect(sniffVideo(head)).toBe(video);
+    expect(sniffAudio(head)).toBe(audio);
+  });
+
+  test('the image, video and audio renderers split one container between them', () => {
+    const all = [imageRenderer, videoRenderer, audioRenderer] as const;
+    const id = (head: Uint8Array) => {
+      const d = detectHead(named('x'), head, all);
+      return d.status === 'ok' ? d.renderer.id : d.status;
+    };
+    expect(id(ftyp('avif'))).toBe('image');
+    expect(id(ftyp('mp42'))).toBe('video');
+    expect(id(ftyp('M4A '))).toBe('audio');
   });
 });
 
@@ -161,6 +207,8 @@ describe('laziness', () => {
     'file-preview-pdf',
     'file-preview-image',
     'file-preview-code',
+    'file-preview-video',
+    'file-preview-audio',
   ])('%s imports only the core statically', async (name) => {
     const source = await readFile(
       join(import.meta.dir, '../../src/components', `${name}.ts`),

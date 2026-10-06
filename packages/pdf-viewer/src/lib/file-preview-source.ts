@@ -108,6 +108,7 @@ export class FileCache {
   readonly #files = new Map<string, File>();
   readonly #heads = new Map<string, Inspected>();
   readonly #pending = new Map<string, Pending>();
+  readonly #minted = new Map<string, string>();
   #bytes = 0;
 
   constructor({ maxBytes = 256 * 1024 * 1024 }: FileCacheOptions = {}) {
@@ -152,12 +153,14 @@ export class FileCache {
     if (file) this.#bytes -= file.size;
     this.#files.delete(key);
     this.#heads.delete(key);
+    this.#minted.delete(key);
   }
 
   /** Forget everything. Downloads in flight finish, but are not kept. */
   clear(): void {
     this.#files.clear();
     this.#heads.clear();
+    this.#minted.clear();
     this.#bytes = 0;
   }
 
@@ -213,6 +216,21 @@ export class FileCache {
   /** @internal What {@link inspectSource} learned, so it asks once per key. */
   inspected(key: string): Inspected | undefined {
     return this.#heads.get(key);
+  }
+
+  /** @internal The URL a resolver last answered with, for the next request. */
+  minted(key: string): string | undefined {
+    return this.#minted.get(key);
+  }
+
+  /** @internal */
+  mint(key: string, url: string): void {
+    this.#minted.delete(key);
+    this.#minted.set(key, url);
+    if (this.#minted.size > MAX_HEADS) {
+      const oldest = this.#minted.keys().next().value;
+      if (oldest !== undefined) this.#minted.delete(oldest);
+    }
   }
 
   /** @internal */
@@ -376,28 +394,37 @@ function checked(res: Response): Response {
 
 /**
  * Run `use` against what a source resolves to, giving a resolver one more call if
- * the first answer is refused — a signed URL that expired between being minted and
- * being fetched.
+ * the answer is refused — a signed URL that expired between being minted and being
+ * fetched.
+ *
+ * A URL a resolver already gave for this key is tried first, so inspecting a file
+ * and then downloading it costs one signature, not two. Reusing it is safe for the
+ * same reason the retry exists: if it has expired, the refusal mints a fresh one.
  */
 async function withTarget<T>(
   source: string | URL | RemoteFile,
+  cache: FileCache,
   use: (target: ResolvedSource) => Promise<T>,
 ): Promise<T> {
   if (!isRemote(source)) return use(source);
   const resolve = source.url;
   if (typeof resolve !== 'function') return use(resolve);
+  const fresh = async () => {
+    const target = await resolve();
+    if (typeof target === 'string' || target instanceof URL) {
+      cache.mint(source.key, String(target));
+    }
+    return target;
+  };
+  const reused = cache.minted(source.key);
   try {
-    return await use(await resolve());
+    return await use(reused ?? (await fresh()));
   } catch (error) {
     if (!(error instanceof SourceError) || error.kind !== 'denied') throw error;
-    return use(await resolve());
+    return use(await fresh());
   }
 }
 
-/**
- * A `File` named as the source says. A resolver that hands back a `File` keeps that
- * file's own name and type unless the source gave explicit ones.
- */
 function toFile(
   blob: Blob,
   info: SourceInfo,
@@ -444,7 +471,7 @@ export function resolveFile(
   return cache.load(
     sourceKey(source),
     (abort) =>
-      withTarget(source, async (target) => {
+      withTarget(source, cache, async (target) => {
         if (target instanceof Blob) return toFile(target, info, explicit);
         if (target instanceof Response) {
           return responseToFile(target, info, explicit);
@@ -523,7 +550,7 @@ export async function inspectSource(
   } else {
     const info = sourceInfo(source);
     const explicit = explicitOf(source);
-    inspected = await withTarget(source, async (target) => {
+    inspected = await withTarget(source, cache, async (target) => {
       // A resolver that handed over the content has already done the download.
       if (target instanceof Blob || target instanceof Response) {
         const file =
@@ -582,8 +609,15 @@ export async function resolveUrl(
   const held = fresh ? undefined : cache.get(sourceKey(source));
   if (held) return local(held);
   if (!isRemote(source)) return { url: absolute(source), release: () => {} };
-  const target =
-    typeof source.url === 'function' ? await source.url() : source.url;
+  let target: ResolvedSource;
+  if (typeof source.url !== 'function') target = source.url;
+  else {
+    const reused = fresh ? undefined : cache.minted(source.key);
+    target = reused ?? (await source.url());
+    if (typeof target === 'string' || target instanceof URL) {
+      cache.mint(source.key, String(target));
+    }
+  }
   if (target instanceof Blob) return local(target);
   if (target instanceof Response) {
     const file = await responseToFile(

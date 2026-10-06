@@ -1,4 +1,4 @@
-import { defineRenderer, startsWithAscii } from '@/lib/file-preview-core';
+import { defineRenderer, includesAscii } from '@/lib/file-preview-core';
 
 /**
  * `%PDF-` anywhere in the head, not only at byte 0.
@@ -7,10 +7,7 @@ import { defineRenderer, startsWithAscii } from '@/lib/file-preview-core';
  * and real files arrive with junk in front — a mail gateway's banner, a BOM.
  */
 export function sniffPdf(head: Uint8Array): boolean {
-  for (let i = 0; i <= head.length - 5; i++) {
-    if (startsWithAscii(head, '%PDF-', i)) return true;
-  }
-  return false;
+  return includesAscii(head, '%PDF-');
 }
 
 /**
