@@ -1,0 +1,19 @@
+[package]
+name = "papyra-tables"
+description = "Spreadsheet and delimited-text readers for papyra"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+# Read-only, pure Rust: xlsx/xlsm/xlsb, BIFF8 xls and ods. `chrono` is only for turning
+# a date serial into a calendar date — calamine owns the 1900 leap-year bug and the
+# 1904 epoch, and neither is something to reimplement beside it.
+calamine = { version = "0.36", features = ["chrono"] }
+chardetng = "0.1"
+chrono = { version = "0.4", default-features = false }
+csv = "1"
+encoding_rs = "0.8"
+thiserror = { workspace = true }

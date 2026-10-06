@@ -203,6 +203,20 @@ The features beyond rendering follow the same split:
   the id) and `BMC` (with `None`) — so `text.rs` tags each line with the id that
   produced it and nothing needs a second interpretation pass. Reading order is the
   point of all this, and it is the one ordering content-stream order cannot give.
+- **Spreadsheets.** `crates/papyra-tables` is a fifth crate beside the PDF stack, not
+  inside it: it depends on neither `papyra-core` nor hayro, and the `Engine`/`Document`
+  traits do not describe a workbook. Excel and OpenDocument go through calamine (pure
+  Rust, read-only, and the only reader of legacy `.xls` and `.xlsb` either ecosystem
+  has); CSV and TSV through the `csv` crate after `delimited.rs` has sniffed the
+  encoding (BOM, then valid UTF-8, then chardetng) and the delimiter. Both produce the
+  same `Sheet`. Cells cross the boundary a **window** at a time as four flat buffers —
+  kind bytes, `f64`s, one string, UTF-16 offsets into it — because an object per cell
+  costs more than the parse; `cells.ts` decodes lazily. calamine reads no styles,
+  number formats or column widths, so those are ours to add by parsing
+  `xl/styles.xml` beside it. It ships in the same addon and wasm as the PDF stack,
+  by choice: that cost every PDF-only consumer +567 KB gzipped (1.77 → 2.34 MB),
+  mostly calamine, encoding_rs and a second deflate. Splitting it into its own
+  native package is the known way out if that stops being acceptable.
 - **Text and search.** `crates/papyra-hayro/src/text.rs` implements
   `hayro_interpret::Device` and collects glyphs, which is how encodings, `ToUnicode`
   cmaps, CID and Type3 fonts, and the graphics-state transform all arrive already
