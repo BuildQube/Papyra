@@ -10,7 +10,7 @@ import type {
   PdfViewerState,
   PdfViewerStore,
 } from '@/lib/pdf-viewer-store';
-import type { ViewMode } from '@/lib/pdf-zoom';
+import type { ViewMode } from '@/lib/viewer-zoom';
 
 /**
  * The store itself.

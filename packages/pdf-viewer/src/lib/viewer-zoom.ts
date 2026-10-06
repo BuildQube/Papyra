@@ -1,4 +1,19 @@
-import type { PageSize } from '@build-qube/papyra';
+/**
+ * A width and a height in PDF points — a page's, or anything measured the same way.
+ *
+ * Structural rather than papyra's `PageSize`, which it matches: nothing in this file
+ * needs the engine, and importing it for a type alone made papyra an install-time
+ * dependency of every view that zooms, images included.
+ */
+export interface Size {
+  /** Width in points. */
+  readonly width: number;
+  /** Height in points. */
+  readonly height: number;
+}
+
+/** A view rotation in degrees clockwise. The same values as papyra's `Rotation`. */
+export type Rotation = 0 | 90 | 180 | 270;
 
 /**
  * CSS pixels per PDF point at 100%.
@@ -88,7 +103,7 @@ export interface Viewport {
  */
 export function resolveZoom(
   spec: ZoomSpec,
-  page: PageSize | null,
+  page: Size | null,
   viewport: Viewport,
 ): number {
   if (typeof spec === 'number') return clampZoom(spec);
@@ -104,7 +119,7 @@ export function resolveZoom(
 }
 
 /** The CSS box a page occupies at a given zoom. */
-export function pageBox(page: PageSize, zoom: number): Viewport {
+export function pageBox(page: Size, zoom: number): Viewport {
   return {
     width: Math.max(1, Math.round(page.width * CSS_UNITS * zoom)),
     height: Math.max(1, Math.round(page.height * CSS_UNITS * zoom)),
@@ -118,7 +133,7 @@ export function pageBox(page: PageSize, zoom: number): Viewport {
  * cost of a render tracks what is actually on screen, so a 42x30in drawing at 400%
  * costs the same as US Letter at 400% instead of two orders of magnitude more.
  */
-export function renderWidth(page: PageSize, zoom: number): number {
+export function renderWidth(page: Size, zoom: number): number {
   const dpr = Math.min(MAX_DPR, window.devicePixelRatio || 1);
   const want = Math.max(1, Math.round(page.width * CSS_UNITS * zoom * dpr));
   if (page.width <= 0 || page.height <= 0) return want;

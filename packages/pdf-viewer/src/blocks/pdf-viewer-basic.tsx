@@ -9,16 +9,16 @@ import {
 } from 'react';
 import { PdfIsolationGuard } from '@/components/pdf-isolation-guard';
 import { PageView, type PageViewHandle } from '@/components/pdf-page-view';
-import { ZoomBar } from '@/components/pdf-zoom-bar';
+import { ZoomBar } from '@/components/viewer-zoom-bar';
 import {
   labelsDiffer,
   pageLabel,
   usePageLabels,
 } from '@/hooks/use-pdf-page-labels';
-import { useZoom, type ZoomAnchor } from '@/hooks/use-pdf-zoom';
+import { useZoom, type ZoomAnchor } from '@/hooks/use-viewer-zoom';
 import { PAGE } from '@/lib/pdf-page-class';
-import { pageBox, renderWidth, type ZoomSpec } from '@/lib/pdf-zoom';
 import { cn } from '@/lib/utils';
+import { pageBox, renderWidth, type ZoomSpec } from '@/lib/viewer-zoom';
 
 /** Padding inside the scroll area, which content cannot use when fitting. */
 const GUTTER = 32;

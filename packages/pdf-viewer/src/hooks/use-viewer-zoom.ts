@@ -1,4 +1,3 @@
-import type { PageSize } from '@build-qube/papyra';
 import {
   type RefObject,
   useCallback,
@@ -11,11 +10,12 @@ import {
 import {
   clampZoom,
   resolveZoom,
+  type Size,
   type Viewport,
   type ZoomSpec,
   zoomIn,
   zoomOut,
-} from '@/lib/pdf-zoom';
+} from '@/lib/viewer-zoom';
 
 /**
  * How long after the last gesture frame the pages are re-rasterised.
@@ -60,7 +60,7 @@ export interface ZoomOptions {
   /** The scrolling element gestures are bound to and scroll is corrected on. */
   viewport: RefObject<HTMLElement | null>;
   /** The page the fit modes measure against — whichever one is on screen. */
-  page: PageSize | null;
+  page: Size | null;
   /** Padding inside the viewport that content cannot use. */
   gutter?: number;
   /** The zoom to start at. Defaults to `auto`. */

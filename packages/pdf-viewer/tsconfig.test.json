@@ -1,0 +1,9 @@
+{
+  // The unit tests carry `@ts-expect-error` assertions on the file preview's typed
+  // allowlist; those only assert anything if something compiles them.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["bun"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "test/unit/**/*.ts"]
+}

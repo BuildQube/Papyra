@@ -30,6 +30,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { BlockPreview } from '../components/BlockPreview.js';
 import { CommentBody } from '../components/docs/CommentBody.js';
 import { TypeSignature } from '../components/docs/TypeSignature.js';
+import { FilePreviewDemo } from '../components/FilePreviewDemo.js';
+import { FilePreviewPicker } from '../components/FilePreviewPicker.js';
 import { sourceUrl } from '../lib/apiModel.js';
 import { usePreviewDocument } from '../lib/previewDocument.js';
 import {
@@ -37,6 +39,9 @@ import {
   loadRegistry,
   type RegistryEntry,
   type RegistryIndex,
+  SETUP_ANCHOR,
+  SETUP_COMMAND,
+  siblingName,
 } from '../lib/registryModel.js';
 
 /** The order the groups read in: what a page is made of, then what drives it. */
@@ -167,16 +172,33 @@ export function ComponentsRoute() {
             as source, with its dependencies resolved for you. They are the same
             files this demo is built from.
           </p>
-          <Alert className="mt-4">
-            <TriangleAlertIcon />
-            <AlertTitle>These need papyra 0.2.0</AlertTitle>
-            <AlertDescription>
-              The components call <code>pageLabels()</code>,{' '}
-              <code>links()</code> and <code>fingerprint</code>, which the
-              published 0.1.0 does not have. Until 0.2.0 ships an install stops
-              at <code>notarget</code>.
-            </AlertDescription>
-          </Alert>
+
+          <section className="mt-4 scroll-mt-4" id={SETUP_ANCHOR}>
+            <h2 className="text-sm font-medium">Setup, once per project</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Registers the <code>@papyra</code> namespace in your{' '}
+              <code>components.json</code>, so every item below installs by
+              name.
+            </p>
+            <div className="mt-2 flex items-center gap-2 rounded-md border bg-muted/40 py-1 pr-1 pl-3">
+              <code className="min-w-0 flex-1 overflow-x-auto font-mono text-xs whitespace-nowrap">
+                {SETUP_COMMAND}
+              </code>
+              <CopyButton
+                label="Copy the registry setup command"
+                value={SETUP_COMMAND}
+              />
+            </div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">
+                Needs a Base UI project
+              </span>{' '}
+              — one whose <code>components.json</code> style is{' '}
+              <code>base-*</code>, as <code>shadcn init -b base</code> creates.
+              The items use Base UI props such as <code>render</code>, so in a
+              Radix project they install but do not compile.
+            </p>
+          </section>
         </div>
 
         {groups.map((group) => (
@@ -185,7 +207,7 @@ export function ComponentsRoute() {
               {group.title}
             </h2>
             {group.entries.map((entry) => (
-              <Item entry={entry} key={entry.item.name} />
+              <Item entry={entry} key={entry.item.name} registry={registry} />
             ))}
           </div>
         ))}
@@ -209,6 +231,9 @@ const noLinks = () => undefined;
  */
 function Preview({ name }: { name: string }) {
   const doc = usePreviewDocument();
+  // Brings its own files, so it does not wait on the sample document, and its own
+  // frame, so its controls can sit outside it.
+  if (name === 'file-preview') return <FilePreviewDemo />;
   if (!doc) return null;
 
   switch (name) {
@@ -265,7 +290,13 @@ function Preview({ name }: { name: string }) {
   }
 }
 
-function Item({ entry }: { entry: RegistryEntry }) {
+function Item({
+  entry,
+  registry,
+}: {
+  entry: RegistryEntry;
+  registry: RegistryIndex;
+}) {
   const { item, symbol, props } = entry;
   const source = symbol?.sources?.[0];
   const command = installCommand(item.name);
@@ -299,6 +330,9 @@ function Item({ entry }: { entry: RegistryEntry }) {
       )}
 
       {item.type === 'registry:block' && <Preview name={item.name} />}
+      {item.name === 'file-preview' && (
+        <FilePreviewPicker registry={registry} />
+      )}
 
       <div className="mt-3 flex max-w-[74ch] items-center gap-2 rounded-md border bg-muted/40 py-1 pr-1 pl-3">
         <code className="min-w-0 flex-1 overflow-x-auto font-mono text-xs whitespace-nowrap">
@@ -321,9 +355,7 @@ function Item({ entry }: { entry: RegistryEntry }) {
           {item.registryDependencies?.map((dep) => (
             <Badge key={dep} variant="outline">
               {/* A sibling is named by URL; show the item, not the address. */}
-              {dep.startsWith('http')
-                ? (dep.split('/').pop() ?? dep).replace('.json', '')
-                : dep}
+              {siblingName(dep) ?? dep}
             </Badge>
           ))}
         </div>

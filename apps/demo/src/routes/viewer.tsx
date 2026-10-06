@@ -10,7 +10,7 @@ import {
   type PageViewHandle,
 } from '@workspace/pdf-viewer/components/pdf-page-view';
 import { ViewerLayout } from '@workspace/pdf-viewer/components/pdf-viewer-layout';
-import { ZoomBar } from '@workspace/pdf-viewer/components/pdf-zoom-bar';
+import { ZoomBar } from '@workspace/pdf-viewer/components/viewer-zoom-bar';
 import {
   labelsDiffer,
   pageLabel,
@@ -29,7 +29,7 @@ import {
 import {
   useZoom,
   type ZoomAnchor,
-} from '@workspace/pdf-viewer/hooks/use-pdf-zoom';
+} from '@workspace/pdf-viewer/hooks/use-viewer-zoom';
 import { PAGE } from '@workspace/pdf-viewer/lib/pdf-page-class';
 import {
   formatZoom,
@@ -37,7 +37,7 @@ import {
   renderWidth,
   type ViewMode,
   type ZoomSpec,
-} from '@workspace/pdf-viewer/lib/pdf-zoom';
+} from '@workspace/pdf-viewer/lib/viewer-zoom';
 import { cn } from '@workspace/ui/lib/utils';
 import {
   useCallback,

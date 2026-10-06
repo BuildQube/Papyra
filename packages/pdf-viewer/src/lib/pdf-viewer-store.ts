@@ -6,7 +6,7 @@ import {
   type Rotation,
   type SearchMatch,
 } from '@build-qube/papyra';
-import type { ViewMode } from '@/lib/pdf-zoom';
+import type { ViewMode } from '@/lib/viewer-zoom';
 
 /** The open document, and the bytes it was opened from. */
 export interface PdfDocumentSlice {

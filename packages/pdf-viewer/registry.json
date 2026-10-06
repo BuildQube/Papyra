@@ -4,14 +4,13 @@
   "homepage": "https://buildqube.github.io/Papyra/",
   "items": [
     {
-      "name": "pdf-zoom",
+      "name": "viewer-zoom",
       "type": "registry:lib",
       "title": "Zoom",
       "description": "Zoom ladder, fit modes, and the page-box maths a viewer resolves them against.",
-      "dependencies": ["@build-qube/papyra@^0.3.0"],
       "files": [
         {
-          "path": "src/lib/pdf-zoom.ts",
+          "path": "src/lib/viewer-zoom.ts",
           "type": "registry:lib"
         }
       ]
@@ -34,7 +33,7 @@
       "title": "Viewer store",
       "description": "A subscribable store for the open document, page, view mode, rotation, annotation switch and search results, sliced so a page change does not re-render every panel.",
       "dependencies": ["@build-qube/papyra@^0.3.0"],
-      "registryDependencies": ["{{REGISTRY}}/pdf-zoom.json"],
+      "registryDependencies": ["{{REGISTRY}}/viewer-zoom.json"],
       "files": [
         {
           "path": "src/lib/pdf-viewer-store.ts",
@@ -72,15 +71,14 @@
       ]
     },
     {
-      "name": "use-pdf-zoom",
+      "name": "use-viewer-zoom",
       "type": "registry:hook",
       "title": "Zoom controller",
       "description": "Wheel, pinch and keyboard zoom bound to a scroll container, with the settled scale committed separately from the one the layout follows.",
-      "dependencies": ["@build-qube/papyra@^0.3.0"],
-      "registryDependencies": ["{{REGISTRY}}/pdf-zoom.json"],
+      "registryDependencies": ["{{REGISTRY}}/viewer-zoom.json"],
       "files": [
         {
-          "path": "src/hooks/use-pdf-zoom.ts",
+          "path": "src/hooks/use-viewer-zoom.ts",
           "type": "registry:hook"
         }
       ]
@@ -144,10 +142,10 @@
         "{{REGISTRY}}/pdf-isolation-guard.json",
         "{{REGISTRY}}/pdf-viewer-layout.json",
         "{{REGISTRY}}/pdf-viewer-provider.json",
-        "{{REGISTRY}}/pdf-zoom-bar.json",
+        "{{REGISTRY}}/viewer-zoom-bar.json",
         "{{REGISTRY}}/use-pdf-page-labels.json",
         "{{REGISTRY}}/use-pdf-viewer.json",
-        "{{REGISTRY}}/use-pdf-zoom.json"
+        "{{REGISTRY}}/use-viewer-zoom.json"
       ],
       "files": [
         {
@@ -166,9 +164,9 @@
         "{{REGISTRY}}/pdf-isolation-guard.json",
         "{{REGISTRY}}/pdf-page-class.json",
         "{{REGISTRY}}/pdf-page-view.json",
-        "{{REGISTRY}}/pdf-zoom-bar.json",
+        "{{REGISTRY}}/viewer-zoom-bar.json",
         "{{REGISTRY}}/use-pdf-page-labels.json",
-        "{{REGISTRY}}/use-pdf-zoom.json"
+        "{{REGISTRY}}/use-viewer-zoom.json"
       ],
       "files": [
         {
@@ -315,8 +313,8 @@
       "dependencies": ["@build-qube/papyra@^0.3.0"],
       "registryDependencies": [
         "{{REGISTRY}}/pdf-page-surface.json",
-        "{{REGISTRY}}/pdf-zoom.json",
-        "{{REGISTRY}}/use-pdf-zoom.json"
+        "{{REGISTRY}}/viewer-zoom.json",
+        "{{REGISTRY}}/use-viewer-zoom.json"
       ],
       "files": [
         {
@@ -447,11 +445,11 @@
       ]
     },
     {
-      "name": "pdf-zoom-bar",
+      "name": "viewer-zoom-bar",
       "type": "registry:component",
       "title": "Zoom bar",
       "description": "Pager, zoom steppers and fit-mode select for a viewer toolbar, with rotation, the annotation switch, the view mode and document properties behind a more menu.",
-      "dependencies": ["@build-qube/papyra@^0.3.0", "lucide-react"],
+      "dependencies": ["lucide-react"],
       "registryDependencies": [
         "badge",
         "button",
@@ -460,11 +458,11 @@
         "input-group",
         "kbd",
         "select",
-        "{{REGISTRY}}/pdf-zoom.json"
+        "{{REGISTRY}}/viewer-zoom.json"
       ],
       "files": [
         {
-          "path": "src/components/pdf-zoom-bar.tsx",
+          "path": "src/components/viewer-zoom-bar.tsx",
           "type": "registry:component"
         }
       ]
@@ -506,6 +504,198 @@
       "files": [
         {
           "path": "src/components/pdf-password-prompt.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
+      "name": "file-preview-core",
+      "type": "registry:lib",
+      "title": "File preview core",
+      "description": "Renderer descriptors, detection by bytes before names, the types that make an allow list name only installed formats, and sources: files, URLs and signed-URL resolvers, fetched once into a shared cache.",
+      "files": [
+        {
+          "path": "src/lib/file-preview-core.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "src/lib/file-preview-source.ts",
+          "type": "registry:lib"
+        }
+      ]
+    },
+    {
+      "name": "file-preview",
+      "type": "registry:block",
+      "title": "File preview",
+      "description": "Previews a list of mixed files one at a time, with a typed allow list. Formats are separate items: install only the ones you show.",
+      "dependencies": ["lucide-react"],
+      "registryDependencies": [
+        "button",
+        "empty",
+        "spinner",
+        "{{REGISTRY}}/file-preview-core.json"
+      ],
+      "files": [
+        {
+          "path": "src/blocks/file-preview.tsx",
+          "type": "registry:block"
+        },
+        {
+          "path": "src/blocks/file-preview-create.tsx",
+          "type": "registry:block"
+        }
+      ]
+    },
+    {
+      "name": "file-preview-image",
+      "type": "registry:component",
+      "title": "Image renderer",
+      "meta": {
+        "fileRenderer": {
+          "id": "image",
+          "export": "imageRenderer",
+          "label": "Image"
+        }
+      },
+      "description": "PNG, JPEG, GIF, WebP, AVIF, BMP, ICO and SVG for the file preview, drawn by the browser and zoomed like a page. No engine.",
+      "registryDependencies": [
+        "{{REGISTRY}}/file-preview-core.json",
+        "{{REGISTRY}}/viewer-zoom.json",
+        "{{REGISTRY}}/viewer-zoom-bar.json",
+        "{{REGISTRY}}/use-viewer-zoom.json"
+      ],
+      "files": [
+        {
+          "path": "src/components/file-preview-image.ts",
+          "type": "registry:component"
+        },
+        {
+          "path": "src/components/file-preview-image-view.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
+      "name": "file-preview-code",
+      "type": "registry:component",
+      "title": "Code renderer",
+      "meta": {
+        "fileRenderer": {
+          "id": "code",
+          "export": "codeRenderer",
+          "label": "Code",
+          "byName": true
+        }
+      },
+      "description": "Source and plain text for the file preview, highlighted by shiki. Grammars load one at a time, as files need them.",
+      "dependencies": ["shiki@^4.5.0"],
+      "registryDependencies": ["{{REGISTRY}}/file-preview-core.json"],
+      "files": [
+        {
+          "path": "src/components/file-preview-code.ts",
+          "type": "registry:component"
+        },
+        {
+          "path": "src/components/file-preview-code-view.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
+      "name": "file-preview-pdf",
+      "type": "registry:component",
+      "title": "PDF renderer",
+      "meta": {
+        "fileRenderer": { "id": "pdf", "export": "pdfRenderer", "label": "PDF" }
+      },
+      "description": "PDF for the file preview, through papyra: opens the file, asks for a password, and shows the one-page viewer.",
+      "dependencies": ["@build-qube/papyra@^0.3.0", "lucide-react"],
+      "registryDependencies": [
+        "button",
+        "empty",
+        "spinner",
+        "{{REGISTRY}}/file-preview-core.json",
+        "{{REGISTRY}}/pdf-isolation-guard.json",
+        "{{REGISTRY}}/pdf-password-prompt.json",
+        "{{REGISTRY}}/pdf-viewer-basic.json"
+      ],
+      "files": [
+        {
+          "path": "src/components/file-preview-pdf.ts",
+          "type": "registry:component"
+        },
+        {
+          "path": "src/components/file-preview-pdf-view.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
+      "name": "use-file-preview-media",
+      "type": "registry:hook",
+      "title": "Media source",
+      "description": "A media element's src, refreshed once when playback fails, so a signed link that expires mid-video resumes where it was.",
+      "registryDependencies": ["{{REGISTRY}}/file-preview-core.json"],
+      "files": [
+        {
+          "path": "src/hooks/use-file-preview-media.ts",
+          "type": "registry:hook"
+        }
+      ]
+    },
+    {
+      "name": "file-preview-video",
+      "type": "registry:component",
+      "title": "Video renderer",
+      "meta": {
+        "fileRenderer": {
+          "id": "video",
+          "export": "videoRenderer",
+          "label": "Video"
+        }
+      },
+      "description": "MP4, MOV, WebM and Ogg video for the file preview, played by the browser and streamed rather than downloaded. No dependencies.",
+      "registryDependencies": [
+        "{{REGISTRY}}/file-preview-core.json",
+        "{{REGISTRY}}/use-file-preview-media.json"
+      ],
+      "files": [
+        {
+          "path": "src/components/file-preview-video.ts",
+          "type": "registry:component"
+        },
+        {
+          "path": "src/components/file-preview-video-view.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
+      "name": "file-preview-audio",
+      "type": "registry:component",
+      "title": "Audio renderer",
+      "meta": {
+        "fileRenderer": {
+          "id": "audio",
+          "export": "audioRenderer",
+          "label": "Audio"
+        }
+      },
+      "description": "MP3, AAC, M4A, WAV, FLAC and Ogg audio for the file preview, played by the browser and streamed rather than downloaded.",
+      "dependencies": ["lucide-react"],
+      "registryDependencies": [
+        "empty",
+        "{{REGISTRY}}/file-preview-core.json",
+        "{{REGISTRY}}/use-file-preview-media.json"
+      ],
+      "files": [
+        {
+          "path": "src/components/file-preview-audio.ts",
+          "type": "registry:component"
+        },
+        {
+          "path": "src/components/file-preview-audio-view.tsx",
           "type": "registry:component"
         }
       ]

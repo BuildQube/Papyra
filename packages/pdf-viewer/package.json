@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build:registry": "bun run scripts/build-registry.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "test": "bun test test/unit",
     "test:integration": "bun test test/integration",
     "clean": "rm -rf .turbo registry.generated.json ../../apps/demo/public/r *.tsbuildinfo"
   },
@@ -21,6 +22,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.35.0",
+    "shiki": "^4.5.0",
     "tailwind-merge": "^3.6.0"
   },
   "peerDependencies": {
