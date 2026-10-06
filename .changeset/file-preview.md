@@ -33,7 +33,7 @@ They no longer depend on `@build-qube/papyra`. They imported only its
 `Size` and `Rotation`, and papyra's values still fit.
 
 **Images** get the page viewer's zoom (⌘/ctrl-scroll, pinch, the keyboard, the
-fit modes). They open at 100% when they fit and at "Image fit"
+fit modes) and rotation. They open at 100% when they fit and at "Image fit"
 when they do not. An SVG is sized from its own `width`/`height` or `viewBox`,
 not the browser's 150px default.
 

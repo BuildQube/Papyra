@@ -2,8 +2,8 @@ import { useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { ZoomBar } from '@/components/viewer-zoom-bar';
 import { useZoom, type ZoomAnchor } from '@/hooks/use-viewer-zoom';
 import { extensionOf, type FileViewProps } from '@/lib/file-preview-core';
-import { pageBox, type Size } from '@/lib/viewer-zoom';
 import { cn } from '@/lib/utils';
+import { pageBox, type Rotation, type Size } from '@/lib/viewer-zoom';
 
 /** Padding inside the scroll area, which content cannot use when fitting. */
 const GUTTER = 32;
@@ -115,10 +115,15 @@ function ZoomedImage({
   const stack = useRef<HTMLDivElement>(null);
   const anchor = useRef<ZoomAnchor | null>(null);
 
+  const [rotation, setRotation] = useState<Rotation>(0);
   const size: Size = { width: width * PT_PER_PX, height: height * PT_PER_PX };
+  // The image as shown: what the fit modes and the box measure. A quarter turn swaps
+  // the sides, so "image fit" refits a portrait photo turned landscape.
+  const shown: Size =
+    rotation % 180 === 0 ? size : { width: size.height, height: size.width };
   const zoom = useZoom({
     viewport,
-    page: size,
+    page: shown,
     gutter: GUTTER,
     initial: 'page-fit',
     anchor,
@@ -130,7 +135,7 @@ function ZoomedImage({
   const [placed, setPlaced] = useState(false);
   useEffect(() => {
     if (placed || zoom.viewport.width <= 0) return;
-    const actual = pageBox(size, 1);
+    const actual = pageBox(shown, 1);
     if (
       actual.width <= zoom.viewport.width &&
       actual.height <= zoom.viewport.height
@@ -168,7 +173,8 @@ function ZoomedImage({
     },
   }));
 
-  const box = pageBox(size, zoom.scale);
+  const box = pageBox(shown, zoom.scale);
+  const upright = pageBox(size, zoom.scale);
   const vector = isVector(file);
 
   return (
@@ -182,6 +188,12 @@ function ZoomedImage({
           settling={false}
           spec={zoom.spec}
           subject="Image"
+          rotation={rotation}
+          onRotate={(quarters) =>
+            setRotation(
+              ((((rotation + quarters * 90) % 360) + 360) % 360) as Rotation,
+            )
+          }
         />
       </div>
       {/*
@@ -195,7 +207,7 @@ function ZoomedImage({
       >
         <div
           className={cn(
-            'm-auto leading-[0] shadow-sm',
+            'relative m-auto leading-[0] shadow-sm',
             // Transparency shown as a checkerboard, as image tools do — against a
             // plain fill, a transparent logo and a white one look the same.
             'bg-[repeating-conic-gradient(var(--color-muted)_0%_25%,var(--color-background)_0%_50%)] bg-size-[16px_16px]',
@@ -207,7 +219,7 @@ function ZoomedImage({
           <img
             alt={file.name}
             className={cn(
-              'size-full',
+              'absolute top-1/2 left-1/2 max-w-none',
               // Past 2x a photo's pixels are the information; smoothing them away
               // is what makes a zoomed screenshot unreadable. Vectors stay sharp.
               !vector && zoom.scale >= 2 && '[image-rendering:pixelated]',
@@ -215,6 +227,13 @@ function ZoomedImage({
             draggable={false}
             height={height}
             src={url}
+            // Turned by a transform, not re-encoded: the box above takes the
+            // rotated footprint, and the image is centred in it at its upright size.
+            style={{
+              width: upright.width,
+              height: upright.height,
+              transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
+            }}
             width={width}
           />
         </div>
