@@ -30,6 +30,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { BlockPreview } from '../components/BlockPreview.js';
 import { CommentBody } from '../components/docs/CommentBody.js';
 import { TypeSignature } from '../components/docs/TypeSignature.js';
+import { FilePreviewDemo } from '../components/FilePreviewDemo.js';
 import { sourceUrl } from '../lib/apiModel.js';
 import { usePreviewDocument } from '../lib/previewDocument.js';
 import {
@@ -209,6 +210,14 @@ const noLinks = () => undefined;
  */
 function Preview({ name }: { name: string }) {
   const doc = usePreviewDocument();
+  // Brings its own files, so it does not wait on the sample document.
+  if (name === 'file-preview') {
+    return (
+      <BlockPreview>
+        <FilePreviewDemo />
+      </BlockPreview>
+    );
+  }
   if (!doc) return null;
 
   switch (name) {

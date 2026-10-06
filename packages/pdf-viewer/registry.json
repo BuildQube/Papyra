@@ -509,6 +509,102 @@
           "type": "registry:component"
         }
       ]
+    },
+    {
+      "name": "file-preview-core",
+      "type": "registry:lib",
+      "title": "File preview core",
+      "description": "Renderer descriptors, detection by bytes before names, and the types that make an allow list name only installed formats.",
+      "files": [
+        {
+          "path": "src/lib/file-preview-core.ts",
+          "type": "registry:lib"
+        }
+      ]
+    },
+    {
+      "name": "file-preview",
+      "type": "registry:block",
+      "title": "File preview",
+      "description": "Previews a list of mixed files one at a time, with a typed allow list. Formats are separate items: install only the ones you show.",
+      "dependencies": ["lucide-react"],
+      "registryDependencies": [
+        "button",
+        "empty",
+        "spinner",
+        "{{REGISTRY}}/file-preview-core.json"
+      ],
+      "files": [
+        {
+          "path": "src/blocks/file-preview.tsx",
+          "type": "registry:block"
+        },
+        {
+          "path": "src/blocks/file-preview-create.tsx",
+          "type": "registry:block"
+        }
+      ]
+    },
+    {
+      "name": "file-preview-image",
+      "type": "registry:component",
+      "title": "Image renderer",
+      "description": "PNG, JPEG, GIF, WebP, AVIF, BMP, ICO and SVG for the file preview, drawn by the browser. No dependencies.",
+      "registryDependencies": ["{{REGISTRY}}/file-preview-core.json"],
+      "files": [
+        {
+          "path": "src/components/file-preview-image.ts",
+          "type": "registry:component"
+        },
+        {
+          "path": "src/components/file-preview-image-view.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
+      "name": "file-preview-code",
+      "type": "registry:component",
+      "title": "Code renderer",
+      "description": "Source and plain text for the file preview, highlighted by shiki. Grammars load one at a time, as files need them.",
+      "dependencies": ["shiki@^4.5.0"],
+      "registryDependencies": ["{{REGISTRY}}/file-preview-core.json"],
+      "files": [
+        {
+          "path": "src/components/file-preview-code.ts",
+          "type": "registry:component"
+        },
+        {
+          "path": "src/components/file-preview-code-view.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
+      "name": "file-preview-pdf",
+      "type": "registry:component",
+      "title": "PDF renderer",
+      "description": "PDF for the file preview, through papyra: opens the file, asks for a password, and shows the one-page viewer.",
+      "dependencies": ["@build-qube/papyra@^0.3.0", "lucide-react"],
+      "registryDependencies": [
+        "button",
+        "empty",
+        "spinner",
+        "{{REGISTRY}}/file-preview-core.json",
+        "{{REGISTRY}}/pdf-isolation-guard.json",
+        "{{REGISTRY}}/pdf-password-prompt.json",
+        "{{REGISTRY}}/pdf-viewer-basic.json"
+      ],
+      "files": [
+        {
+          "path": "src/components/file-preview-pdf.ts",
+          "type": "registry:component"
+        },
+        {
+          "path": "src/components/file-preview-pdf-view.tsx",
+          "type": "registry:component"
+        }
+      ]
     }
   ]
 }
