@@ -172,16 +172,6 @@ export function ComponentsRoute() {
             as source, with its dependencies resolved for you. They are the same
             files this demo is built from.
           </p>
-          <Alert className="mt-4">
-            <TriangleAlertIcon />
-            <AlertTitle>These need papyra 0.2.0</AlertTitle>
-            <AlertDescription>
-              The components call <code>pageLabels()</code>,{' '}
-              <code>links()</code> and <code>fingerprint</code>, which the
-              published 0.1.0 does not have. Until 0.2.0 ships an install stops
-              at <code>notarget</code>.
-            </AlertDescription>
-          </Alert>
 
           <section className="mt-4 scroll-mt-4" id={SETUP_ANCHOR}>
             <h2 className="text-sm font-medium">Setup, once per project</h2>
@@ -199,6 +189,15 @@ export function ComponentsRoute() {
                 value={SETUP_COMMAND}
               />
             </div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">
+                Needs a Base UI project
+              </span>{' '}
+              — one whose <code>components.json</code> style is{' '}
+              <code>base-*</code>, as <code>shadcn init -b base</code> creates.
+              The items use Base UI props such as <code>render</code>, so in a
+              Radix project they install but do not compile.
+            </p>
           </section>
         </div>
 

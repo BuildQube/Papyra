@@ -135,6 +135,15 @@ Siblings stay named by absolute URL *inside* the items, for that reason: an
 item must install in a project that never registered the namespace, and
 `registryDependencies` resolve in the consumer's configuration, not ours.
 
+**The items need a Base UI project** — a `components.json` style of `base-*`,
+which is what `shadcn init -b base` creates. They are written against Base UI's
+API (`render`, `keepMounted`, the drawer's `showSwipeHandle`), and in a Radix
+project they install without complaint and then fail the consumer's typecheck.
+Both halves were checked against fresh `shadcn init -t vite` projects on
+shadcn 4.19.0: on Base UI every file-preview item and the full viewer build
+clean; on Radix the sidebar, outline, structure, search, layout and zoom bar do
+not. Supporting Radix would mean rewriting those call sites, not adding an item.
+
 **Renderers carry `meta.fileRenderer`** — their id, export name, label, and
 whether they match by name. The demo's file preview picker reads it from the
 built index to list formats, so a new renderer appears there without the page
@@ -155,12 +164,13 @@ a base derived from `PAPYRA_BASE` would let a local build emit items pointing at
 host that does not serve them — a failure only the person installing them would ever
 see.
 
-**The items declare `@build-qube/papyra@^0.2.0`, which is not published yet.** They
-use `doc.pageLabels()`, `doc.links()` and `doc.fingerprint`, none of which exist in
-the published 0.1.0; the queued changeset that adds them makes the next release 0.2.0.
-Until it ships, an install stops at `npm error notarget No matching version found`,
-which is the honest failure — an unversioned dependency would instead install 0.1.0
-and fail later, inside the consumer's build, with a type error about a property that
+**The items declare `@build-qube/papyra@^0.3.0`, and keep it current.** They call
+APIs older releases lack — `doc.pageLabels()`, `doc.links()` and `doc.fingerprint`
+arrived in 0.2.0 — so the range is the oldest release that has everything they use.
+An item that needs something newer should raise it in the same change, ahead of the
+release if need be: an install then stops at `npm error notarget`, which is the
+honest failure. An unversioned dependency would install whatever is published and
+fail later, inside the consumer's build, with a type error about a property that
 does not exist.
 
 ## Adding a shadcn primitive
