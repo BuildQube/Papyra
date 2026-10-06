@@ -4,7 +4,10 @@ import {
   createRoute,
   createRouter,
 } from '@tanstack/react-router';
-import { parseZoom, type ZoomSpec } from '@workspace/pdf-viewer/lib/pdf-zoom';
+import {
+  parseZoom,
+  type ZoomSpec,
+} from '@workspace/pdf-viewer/lib/viewer-zoom';
 import { BenchRoute } from './routes/bench.js';
 import { ComponentsRoute } from './routes/components.js';
 import { DocsRoute } from './routes/docs.js';

@@ -11,9 +11,9 @@ import {
   useRef,
 } from 'react';
 import { PageSurface } from '@/components/pdf-page-surface';
-import type { ZoomAnchor } from '@/hooks/use-pdf-zoom';
+import type { ZoomAnchor } from '@/hooks/use-viewer-zoom';
 import type { PdfStructureSlice } from '@/lib/pdf-viewer-store';
-import { CSS_UNITS, renderWidth } from '@/lib/pdf-zoom';
+import { CSS_UNITS, renderWidth } from '@/lib/viewer-zoom';
 
 /** Gap between pages, in CSS pixels. Fixed, so it does not balloon at 800%. */
 const GAP = 16;

@@ -40,6 +40,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 import {
   FIT_MODES,
   type FitMode,
@@ -51,8 +52,7 @@ import {
   type ViewMode,
   ZOOM_STEPS,
   type ZoomSpec,
-} from '@/lib/pdf-zoom';
-import { cn } from '@/lib/utils';
+} from '@/lib/viewer-zoom';
 
 /** Props for {@link ZoomBar}. */
 export interface ZoomBarProps {

@@ -5,7 +5,7 @@ import {
   usePdfView,
   usePdfViewerActions,
 } from '@workspace/pdf-viewer/hooks/use-pdf-viewer';
-import type { ViewMode } from '@workspace/pdf-viewer/lib/pdf-zoom';
+import type { ViewMode } from '@workspace/pdf-viewer/lib/viewer-zoom';
 import { useEffect, useRef } from 'react';
 
 /**

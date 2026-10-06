@@ -12,7 +12,7 @@ Every file here imports through shadcn's canonical aliases:
 ```tsx
 import { Button } from '@/components/ui/button';   // a shadcn primitive
 import { Outline } from '@/components/pdf-outline'; // a sibling in this registry
-import { formatZoom } from '@/lib/pdf-zoom';
+import { formatZoom } from '@/lib/viewer-zoom';
 import { usePageLabels } from '@/hooks/use-pdf-page-labels';
 import { cn } from '@/lib/utils';
 ```

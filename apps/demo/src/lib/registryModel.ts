@@ -41,7 +41,7 @@ export interface RegistryEntry {
  * The registry index and the TypeDoc model are two views of the same 21 items, and
  * neither alone is enough: the index knows what to install and what it depends on,
  * the model knows what the props are. They are joined on the file path rather than on
- * the name, because an item is named `pdf-zoom-bar` and its component is `ZoomBar`.
+ * the name, because an item is named `viewer-zoom-bar` and its component is `ZoomBar`.
  */
 export interface RegistryIndex {
   entries: RegistryEntry[];

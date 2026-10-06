@@ -24,16 +24,19 @@ such as source code, match by extension or MIME type, and are refused when the
 file's head contains a NUL byte. `acceptOf()` builds a file input's `accept` from
 the same list.
 
-**Zoom without the engine.** `pdf-zoom`, `use-pdf-zoom` and `pdf-zoom-bar` no
-longer depend on `@build-qube/papyra`. They imported only its `PageSize` and
-`Rotation` types, which `pdf-zoom` now declares itself as `Size` and `Rotation`
-(the same shapes, so papyra's values still fit). That lets the image renderer
-reuse ⌘/ctrl-scroll, pinch, the keyboard shortcuts and the fit modes without
-installing a PDF engine. Images open at 100% when they fit and at "Image fit"
-when they do not; an SVG is sized from its own `width`/`height` or `viewBox`
-rather than the browser's 150px default.
+**Zoom without the engine, renamed.** `pdf-zoom`, `use-pdf-zoom` and
+`pdf-zoom-bar` are now `viewer-zoom`, `use-viewer-zoom` and `viewer-zoom-bar`,
+since images use them too. Their exports are unchanged, but their install
+URLs are not, so anything installed under the old names should be re-added.
+They no longer depend on `@build-qube/papyra`. They imported only its
+`PageSize` and `Rotation` types, which `viewer-zoom` now declares itself as
+`Size` and `Rotation`, and papyra's values still fit.
+
+**Images** get the page viewer's zoom (⌘/ctrl-scroll, pinch, the keyboard, the
+fit modes). They open at 100% when they fit and at "Image fit"
+when they do not. An SVG is sized from its own `width`/`height` or `viewBox`,
+not the browser's 150px default.
 
 `ZoomBar`'s `page`, `pageCount`, `label` and `onPage` are now optional. Leave
 out `onPage` and the pager is not rendered. `subject` renames the fit modes,
 so "Page fit" can read "Image fit".
-

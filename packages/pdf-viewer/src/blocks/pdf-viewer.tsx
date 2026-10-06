@@ -6,7 +6,7 @@ import { FindBar } from '@/components/pdf-find-bar';
 import { PdfIsolationGuard } from '@/components/pdf-isolation-guard';
 import { ViewerLayout } from '@/components/pdf-viewer-layout';
 import { PdfViewerProvider } from '@/components/pdf-viewer-provider';
-import { ZoomBar } from '@/components/pdf-zoom-bar';
+import { ZoomBar } from '@/components/viewer-zoom-bar';
 import {
   labelsDiffer,
   pageLabel,
@@ -21,9 +21,9 @@ import {
   usePdfStructure,
   usePdfViewerActions,
 } from '@/hooks/use-pdf-viewer';
-import { useZoom, type ZoomAnchor } from '@/hooks/use-pdf-zoom';
+import { useZoom, type ZoomAnchor } from '@/hooks/use-viewer-zoom';
 import type { PdfViewerStore } from '@/lib/pdf-viewer-store';
-import type { ZoomSpec } from '@/lib/pdf-zoom';
+import type { ZoomSpec } from '@/lib/viewer-zoom';
 
 /** The padding inside the scroll area, which content cannot use when fitting. */
 const GUTTER = 48;

@@ -1,8 +1,8 @@
 import { useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { ZoomBar } from '@/components/pdf-zoom-bar';
-import { useZoom, type ZoomAnchor } from '@/hooks/use-pdf-zoom';
+import { ZoomBar } from '@/components/viewer-zoom-bar';
+import { useZoom, type ZoomAnchor } from '@/hooks/use-viewer-zoom';
 import { extensionOf, type FileViewProps } from '@/lib/file-preview-core';
-import { pageBox, type Size } from '@/lib/pdf-zoom';
+import { pageBox, type Size } from '@/lib/viewer-zoom';
 import { cn } from '@/lib/utils';
 
 /** Padding inside the scroll area, which content cannot use when fitting. */
