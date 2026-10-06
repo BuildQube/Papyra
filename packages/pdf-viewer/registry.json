@@ -512,10 +512,14 @@
       "name": "file-preview-core",
       "type": "registry:lib",
       "title": "File preview core",
-      "description": "Renderer descriptors, detection by bytes before names, and the types that make an allow list name only installed formats.",
+      "description": "Renderer descriptors, detection by bytes before names, the types that make an allow list name only installed formats, and sources: files, URLs and signed-URL resolvers, fetched once into a shared cache.",
       "files": [
         {
           "path": "src/lib/file-preview-core.ts",
+          "type": "registry:lib"
+        },
+        {
+          "path": "src/lib/file-preview-source.ts",
           "type": "registry:lib"
         }
       ]

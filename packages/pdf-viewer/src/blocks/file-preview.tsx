@@ -2,10 +2,13 @@ import {
   BanIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  CloudOffIcon,
   DownloadIcon,
   FileQuestionIcon,
   FilesIcon,
   FileWarningIcon,
+  RotateCwIcon,
+  ShieldXIcon,
 } from 'lucide-react';
 import {
   Component,
@@ -17,6 +20,7 @@ import {
   type ReactNode,
   Suspense,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 import { Button } from '@/components/ui/button';
@@ -30,18 +34,37 @@ import {
 } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
 import {
-  type Detection,
-  detect,
+  detectHead,
+  type FileInputRenderer,
   type FileRenderer,
   type FileViewProps,
   type RendererId,
+  type UrlInputRenderer,
+  type UrlViewProps,
 } from '@/lib/file-preview-core';
+import {
+  defaultFileCache,
+  downloadSource,
+  type FileCache,
+  type FileSource,
+  inspectSource,
+  resolveFile,
+  resolveUrl,
+  SourceError,
+  type SourceInfo,
+  sourceInfo,
+  sourceKey,
+} from '@/lib/file-preview-source';
 import { cn } from '@/lib/utils';
 
 /** Props for {@link FilePreview}, less the renderer list. */
 export interface FilePreviewProps<Id extends string = string> {
-  /** The files to page through, shown one at a time. */
-  files: readonly File[];
+  /**
+   * The files to page through, shown one at a time: `File`s, URLs, or
+   * `{ key, url }` sources whose `url` may be a function that mints a signed link.
+   * Remote files are fetched when shown, kept in the cache, and never fetched twice.
+   */
+  files: readonly FileSource[];
   /**
    * The formats this preview may show, by renderer id. Leave it out to allow every
    * renderer given. A file of any other format gets a card saying so, and a download.
@@ -53,6 +76,11 @@ export interface FilePreviewProps<Id extends string = string> {
   defaultIndex?: number;
   /** Called with the new index, 0-based. */
   onIndexChange?: (index: number) => void;
+  /**
+   * Where downloaded files are kept. Defaults to one cache shared by every preview
+   * on the page, bounded at 256 MiB; pass a `FileCache` to size or clear your own.
+   */
+  cache?: FileCache;
   /** Classes for the outermost element. */
   className?: string;
 }
@@ -65,6 +93,11 @@ export interface FilePreviewProps<Id extends string = string> {
  * no dependency, and one you do costs nothing until a file of that type is opened.
  * Files are recognised by their bytes before their names.
  *
+ * Remote files download when shown, and the next one in the list is fetched while
+ * the reader looks at the current one, so paging forward does not wait. Leaving a
+ * file does not cancel its download — it finishes into the cache — but unmounting
+ * the preview does.
+ *
  * `allow` is typed from `renderers`: an id no renderer has is a type error. Usually
  * reached through `createFilePreview`, which binds the list once.
  */
@@ -75,6 +108,7 @@ export function FilePreview<const R extends readonly FileRenderer[]>({
   index,
   defaultIndex = 0,
   onIndexChange,
+  cache = defaultFileCache,
   className,
 }: FilePreviewProps<RendererId<R>> & {
   /** The formats this preview knows, in priority order. */
@@ -83,7 +117,18 @@ export function FilePreview<const R extends readonly FileRenderer[]>({
   const [own, setOwn] = useState(defaultIndex);
   const count = files.length;
   const at = Math.max(0, Math.min(index ?? own, count - 1));
-  const file = files[at];
+  const source = files[at];
+  const key = source === undefined ? '' : sourceKey(source);
+  const signal = useUnmountSignal();
+
+  // A name or size only the response knew — a `Content-Disposition`, a length.
+  const [learned, setLearned] = useState<{ key: string; info: SourceInfo }>();
+  const info =
+    learned?.key === key
+      ? learned.info
+      : source === undefined
+        ? undefined
+        : sourceInfo(source);
 
   const go = (next: number) => {
     if (next < 0 || next >= count || next === at) return;
@@ -102,13 +147,20 @@ export function FilePreview<const R extends readonly FileRenderer[]>({
     event.preventDefault();
   };
 
+  const next = files[at + 1];
+  const onReady = () => {
+    if (next !== undefined) {
+      void prefetch(next, renderers, allow, cache, signal());
+    }
+  };
+
   return (
     <section
       aria-label="File preview"
       className={cn('flex min-h-0 min-w-0 flex-col', className)}
       onKeyDown={onKeyDown}
     >
-      {file ? (
+      {source !== undefined && info ? (
         <>
           <header className="flex items-center gap-2 border-b px-2 py-1.5">
             {count > 1 && (
@@ -123,15 +175,16 @@ export function FilePreview<const R extends readonly FileRenderer[]>({
               </Button>
             )}
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{file.name}</p>
+              <p className="truncate text-sm font-medium">{info.name}</p>
               <p className="text-xs text-muted-foreground tabular-nums">
-                {count > 1 && `${at + 1} of ${count} · `}
-                {formatBytes(file.size)}
+                {count > 1 && `${at + 1} of ${count}`}
+                {count > 1 && info.size !== undefined && ' · '}
+                {info.size !== undefined && formatBytes(info.size)}
               </p>
             </div>
             <Button
-              aria-label={`Download ${file.name}`}
-              onClick={() => download(file)}
+              aria-label={`Download ${info.name}`}
+              onClick={() => void downloadSource(source, { cache })}
               size="icon-sm"
               variant="ghost"
             >
@@ -151,9 +204,13 @@ export function FilePreview<const R extends readonly FileRenderer[]>({
           </header>
           <FileBody
             allow={allow}
-            file={file}
-            key={keyOf(file)}
+            cache={cache}
+            key={key}
+            onInfo={(i) => setLearned({ key, info: i })}
+            onReady={onReady}
             renderers={renderers}
+            signal={signal}
+            source={source}
           />
         </>
       ) : (
@@ -163,37 +220,157 @@ export function FilePreview<const R extends readonly FileRenderer[]>({
   );
 }
 
+/**
+ * A signal that aborts when the preview unmounts — and only then.
+ *
+ * Made lazily and remade once aborted, rather than created in an effect: a child's
+ * effects run before its parent's, so the first file's download would start before
+ * a parent effect had made the controller. Remaking it is also what survives React's
+ * development double-mount, which aborts the first one on purpose.
+ */
+function useUnmountSignal(): () => AbortSignal {
+  const control = useRef<AbortController | null>(null);
+  useEffect(() => () => control.current?.abort(), []);
+  return () => {
+    if (!control.current || control.current.signal.aborted) {
+      control.current = new AbortController();
+    }
+    return control.current.signal;
+  };
+}
+
+/** Only worth a `Range` request when some renderer might stream the file. */
+function probes(renderers: readonly FileRenderer[]): boolean {
+  return renderers.some((r) => r.input === 'url');
+}
+
+/**
+ * Fetch the next file into the cache while the current one is being read.
+ *
+ * Only what it would actually need: a file that will be refused, or that streams,
+ * stops at the inspection.
+ */
+async function prefetch(
+  source: FileSource,
+  renderers: readonly FileRenderer[],
+  allow: readonly string[] | undefined,
+  cache: FileCache,
+  signal: AbortSignal,
+): Promise<void> {
+  try {
+    const inspected = await inspectSource(source, {
+      cache,
+      signal,
+      probe: probes(renderers),
+    });
+    const found = detectHead(inspected, inspected.head, renderers, allow);
+    if (found.status === 'ok' && found.renderer.input !== 'url') {
+      await resolveFile(source, { cache, signal });
+    }
+  } catch {
+    /* Showing it will try again, and say what went wrong. */
+  }
+}
+
+type Body =
+  | { status: 'inspecting' }
+  | { status: 'unsupported' }
+  | { status: 'blocked'; renderer: FileRenderer }
+  | { status: 'loading'; renderer: FileRenderer }
+  | { status: 'file'; renderer: FileInputRenderer; file: File }
+  | { status: 'url'; renderer: UrlInputRenderer; url: string; info: SourceInfo }
+  | { status: 'failed'; error: unknown };
+
 function FileBody({
-  file,
+  source,
   renderers,
   allow,
+  cache,
+  signal,
+  onInfo,
+  onReady,
 }: {
-  file: File;
+  source: FileSource;
   renderers: readonly FileRenderer[];
   allow: readonly string[] | undefined;
+  cache: FileCache;
+  signal: () => AbortSignal;
+  onInfo: (info: SourceInfo) => void;
+  onReady: () => void;
 }) {
-  const [found, setFound] = useState<Detection>();
+  const [body, setBody] = useState<Body>({ status: 'inspecting' });
+  const [attempt, setAttempt] = useState(0);
+  // Object URLs handed to a streaming view, its refreshes included.
+  const releases = useRef<(() => void)[]>([]);
 
   useEffect(() => {
     let live = true;
-    detect(file, renderers, allow).then(
-      (d) => live && setFound(d),
-      () => live && setFound({ status: 'unsupported' }),
-    );
+    const options = { cache, signal: signal() };
+    setBody({ status: 'inspecting' });
+
+    (async () => {
+      const inspected = await inspectSource(source, {
+        ...options,
+        probe: probes(renderers),
+      });
+      if (!live) return;
+      onInfo({
+        name: inspected.name,
+        type: inspected.type,
+        size: inspected.size,
+      });
+      const found = detectHead(inspected, inspected.head, renderers, allow);
+      if (found.status !== 'ok') {
+        setBody(found);
+        return;
+      }
+      const { renderer } = found;
+      setBody({ status: 'loading', renderer });
+
+      if (renderer.input === 'url') {
+        const { url, release } = await resolveUrl(source, options);
+        releases.current.push(release);
+        if (live) setBody({ status: 'url', renderer, url, info: inspected });
+      } else {
+        const file = await resolveFile(source, options);
+        if (!live) return;
+        onInfo({ name: file.name, type: file.type, size: file.size });
+        setBody({ status: 'file', renderer, file });
+      }
+      if (live) onReady();
+    })().catch((error: unknown) => {
+      if (live) setBody({ status: 'failed', error });
+    });
+
     return () => {
       live = false;
+      for (const release of releases.current.splice(0)) release();
     };
-    // `allow` by content: an inline array literal is a new array every render.
-  }, [file, renderers, allow?.join('\0')]);
+    // `allow` by content: an inline array literal is a new array every render. The
+    // source by key, for the same reason — the key is what identifies it.
+  }, [renderers, allow?.join('\0'), cache, attempt]);
 
-  if (!found) return <Loading />;
+  const name = sourceInfo(source).name;
+  const download = <DownloadButton cache={cache} source={source} />;
 
-  switch (found.status) {
+  switch (body.status) {
+    case 'inspecting':
+      return <Loading />;
+    case 'loading':
+      return (
+        <Loading
+          label={
+            source instanceof Blob || cache.get(sourceKey(source))
+              ? undefined
+              : 'Downloading…'
+          }
+        />
+      );
     case 'unsupported':
       return (
         <Notice
-          action={<DownloadButton file={file} />}
-          description={file.name}
+          action={download}
+          description={name}
           icon={<FileQuestionIcon />}
           title="No preview for this file"
         />
@@ -201,19 +378,49 @@ function FileBody({
     case 'blocked':
       return (
         <Notice
-          action={<DownloadButton file={file} />}
-          description={file.name}
+          action={download}
+          description={name}
           icon={<BanIcon />}
-          title={`${found.renderer.label} files are not previewed here`}
+          title={`${body.renderer.label} files are not previewed here`}
         />
       );
-    case 'ok': {
-      const View = viewOf(found.renderer);
+    case 'failed':
       return (
-        <ViewBoundary file={file}>
+        <FailedNotice
+          download={download}
+          error={body.error}
+          onRetry={() => setAttempt((n) => n + 1)}
+        />
+      );
+    case 'file': {
+      const View = fileViewOf(body.renderer);
+      return (
+        <ViewBoundary download={download}>
           <Suspense fallback={<Loading />}>
             <div className="flex min-h-0 flex-1 flex-col">
-              <View file={file} />
+              <View file={body.file} />
+            </div>
+          </Suspense>
+        </ViewBoundary>
+      );
+    }
+    case 'url': {
+      const View = urlViewOf(body.renderer);
+      const refresh = async () => {
+        const fresh = await resolveUrl(source, { cache, fresh: true });
+        releases.current.push(fresh.release);
+        return fresh.url;
+      };
+      return (
+        <ViewBoundary download={download}>
+          <Suspense fallback={<Loading />}>
+            <div className="flex min-h-0 flex-1 flex-col">
+              <View
+                name={body.info.name}
+                refresh={refresh}
+                type={body.info.type}
+                url={body.url}
+              />
             </div>
           </Suspense>
         </ViewBoundary>
@@ -222,9 +429,58 @@ function FileBody({
   }
 }
 
-const views = new WeakMap<
-  FileRenderer,
+/** A download that failed, said in terms of what the reader can do about it. */
+function FailedNotice({
+  error,
+  download,
+  onRetry,
+}: {
+  error: unknown;
+  download: ReactNode;
+  onRetry: () => void;
+}) {
+  const kind = error instanceof SourceError ? error.kind : undefined;
+  const title =
+    kind === 'network'
+      ? 'This file could not be downloaded'
+      : kind === 'denied'
+        ? 'Access to this file was refused'
+        : kind === 'http'
+          ? 'The server could not provide this file'
+          : 'This file could not be opened';
+  return (
+    <Notice
+      action={
+        <>
+          <Button onClick={onRetry} variant="outline">
+            <RotateCwIcon />
+            Try again
+          </Button>
+          {kind === undefined && download}
+        </>
+      }
+      description={error instanceof Error ? error.message : String(error)}
+      icon={
+        kind === 'network' ? (
+          <CloudOffIcon />
+        ) : kind === 'denied' ? (
+          <ShieldXIcon />
+        ) : (
+          <FileWarningIcon />
+        )
+      }
+      title={title}
+    />
+  );
+}
+
+const fileViews = new WeakMap<
+  FileInputRenderer,
   LazyExoticComponent<ComponentType<FileViewProps>>
+>();
+const urlViews = new WeakMap<
+  UrlInputRenderer,
+  LazyExoticComponent<ComponentType<UrlViewProps>>
 >();
 
 /**
@@ -233,12 +489,23 @@ const views = new WeakMap<
  * `lazy` caches its promise on the component it returns, so making a new one per
  * render would mean a new import, and a new suspense, every time a file is shown.
  */
-function viewOf(renderer: FileRenderer) {
-  let view = views.get(renderer);
+function fileViewOf(renderer: FileInputRenderer) {
+  let view = fileViews.get(renderer);
   if (!view) {
     const load = renderer.load;
     view = lazy(() => load().then((c) => ({ default: c })));
-    views.set(renderer, view);
+    fileViews.set(renderer, view);
+  }
+  return view;
+}
+
+/** {@link fileViewOf}, for streaming views. */
+function urlViewOf(renderer: UrlInputRenderer) {
+  let view = urlViews.get(renderer);
+  if (!view) {
+    const load = renderer.load;
+    view = lazy(() => load().then((c) => ({ default: c })));
+    urlViews.set(renderer, view);
   }
   return view;
 }
@@ -248,7 +515,7 @@ function viewOf(renderer: FileRenderer) {
  * card for that one file, so the pager still works and the next file still opens.
  */
 class ViewBoundary extends Component<
-  { file: File; children: ReactNode },
+  { download: ReactNode; children: ReactNode },
   { error: unknown }
 > {
   override state: { error: unknown } = { error: undefined };
@@ -266,7 +533,7 @@ class ViewBoundary extends Component<
     if (error === undefined) return this.props.children;
     return (
       <Notice
-        action={<DownloadButton file={this.props.file} />}
+        action={this.props.download}
         description={error instanceof Error ? error.message : String(error)}
         icon={<FileWarningIcon />}
         title="This file could not be opened"
@@ -297,53 +564,40 @@ function Notice({
           </EmptyDescription>
         )}
       </EmptyHeader>
-      {action && <EmptyContent>{action}</EmptyContent>}
+      {action && (
+        <EmptyContent className="flex-row justify-center">
+          {action}
+        </EmptyContent>
+      )}
     </Empty>
   );
 }
 
-function Loading() {
+function Loading({ label }: { label?: string }) {
   return (
-    <div className="grid flex-1 place-items-center">
+    <div className="flex flex-1 flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
       <Spinner />
+      {label}
     </div>
   );
 }
 
-function DownloadButton({ file }: { file: File }) {
+function DownloadButton({
+  source,
+  cache,
+}: {
+  source: FileSource;
+  cache: FileCache;
+}) {
   return (
-    <Button onClick={() => download(file)} variant="outline">
+    <Button
+      onClick={() => void downloadSource(source, { cache })}
+      variant="outline"
+    >
       <DownloadIcon />
       Download
     </Button>
   );
-}
-
-function download(file: File) {
-  const url = URL.createObjectURL(file);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = file.name;
-  a.click();
-  // Revoked on the next task, not now: the click starts the download asynchronously
-  // and a URL revoked under it fails in Firefox.
-  setTimeout(() => URL.revokeObjectURL(url));
-}
-
-const keys = new WeakMap<File, number>();
-let nextKey = 0;
-
-/**
- * A stable key per file object. Not the index — replacing the list puts a different
- * file at the same position, and its view must start fresh, error state included.
- */
-function keyOf(file: File): number {
-  let key = keys.get(file);
-  if (key === undefined) {
-    key = nextKey++;
-    keys.set(file, key);
-  }
-  return key;
 }
 
 function isEditable(target: EventTarget): boolean {

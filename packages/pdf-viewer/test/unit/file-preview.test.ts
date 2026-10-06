@@ -235,6 +235,28 @@ const typeChecks = () => {
   WithCsv({ ...props, allow: ['csv'] });
   // @ts-expect-error -- 'pdf' is not in this preview
   WithCsv({ ...props, allow: ['pdf'] });
+
+  // A streaming renderer's view takes a URL, not a File, and mixes into one list.
+  const video = defineRenderer({
+    id: 'video',
+    label: 'Video',
+    extensions: ['.mp4'],
+    mimes: ['video/*'],
+    input: 'url',
+    load: async () => (p: { url: string; refresh: () => Promise<string> }) =>
+      void p,
+  });
+  const Mixed = createFilePreview([video, imageRenderer]);
+  Mixed({ ...props, allow: ['video', 'image'] });
+  // @ts-expect-error -- a URL view cannot ask for a File
+  defineRenderer({
+    id: 'bad',
+    label: 'Bad',
+    extensions: [],
+    mimes: [],
+    input: 'url',
+    load: async () => (p: { file: File }) => void p,
+  });
 };
 
 test('the allow list is typed from the renderers (see typecheck)', () => {

@@ -1,28 +1,46 @@
 import type { ComponentType } from 'react';
 
-/** Props every format's view receives. */
+/** Props a view that takes the whole file receives. */
 export interface FileViewProps {
-  /** The file to show. */
+  /** The file to show, downloaded and held in the cache. */
   file: File;
 }
 
+/** Props a view that streams from a URL receives. */
+export interface UrlViewProps {
+  /**
+   * Something the browser can fetch: the source's own URL, a freshly resolved
+   * signed one, or an object URL for a file already in hand.
+   */
+  url: string;
+  /** The file name. */
+  name: string;
+  /** The MIME type, or `''` when nothing says. */
+  type: string;
+  /**
+   * Resolve the URL again, for a stream whose signed link expired part-way — call it
+   * when the element reports an error, and point it at the answer.
+   */
+  refresh: () => Promise<string>;
+}
+
 /**
- * One file format: how to recognise it, and where its view is.
+ * What every renderer declares: how to recognise its format.
  *
- * Deliberately two halves. Everything here is a few strings and a byte check, so
- * holding a renderer costs nothing; the view, and whatever it depends on — a PDF
- * engine, a syntax highlighter — arrives through {@link FileRenderer.load} only when
- * a file of this type is actually shown. A descriptor must therefore never import
- * its view statically, or the split is gone.
+ * A renderer is deliberately two halves. Everything here is a few strings and a byte
+ * check, so holding one costs nothing; the view, and whatever it depends on — a PDF
+ * engine, a syntax highlighter — arrives through `load` only when a file of this type
+ * is actually shown. A descriptor must therefore never import its view statically,
+ * or the split is gone.
  */
-export interface FileRenderer<Id extends string = string> {
+export interface RendererBase<Id extends string = string> {
   /** The name an `allow` list uses for this format. Unique within one preview. */
   readonly id: Id;
   /** What a person calls it — "PDF", "Image". Shown when a file is refused. */
   readonly label: string;
   /**
    * Extensions, lower-case, with the dot. For a renderer with no
-   * {@link FileRenderer.sniff} this is how a file is recognised; for every renderer
+   * {@link RendererBase.sniff} this is how a file is recognised; for every renderer
    * it is what {@link acceptOf} puts on a file input.
    */
   readonly extensions: readonly string[];
@@ -42,9 +60,33 @@ export interface FileRenderer<Id extends string = string> {
    * is binary, and is not handed to this renderer.
    */
   readonly text?: boolean;
+}
+
+/** A renderer whose view needs the whole file: a PDF, an image, source code. */
+export interface FileInputRenderer<Id extends string = string>
+  extends RendererBase<Id> {
+  /** Omitted or `'file'`: the file is downloaded, cached, then shown. */
+  readonly input?: 'file';
   /** The view. Called once, the first time a file of this type is shown. */
   readonly load: () => Promise<ComponentType<FileViewProps>>;
 }
+
+/**
+ * A renderer whose view streams from a URL: audio, video — anything an element can
+ * play while it downloads, and that is too large to download first.
+ */
+export interface UrlInputRenderer<Id extends string = string>
+  extends RendererBase<Id> {
+  /** `'url'`: the view gets a URL, and the file is never downloaded whole. */
+  readonly input: 'url';
+  /** The view. Called once, the first time a file of this type is shown. */
+  readonly load: () => Promise<ComponentType<UrlViewProps>>;
+}
+
+/** One file format: how to recognise it, and where its view is. */
+export type FileRenderer<Id extends string = string> =
+  | FileInputRenderer<Id>
+  | UrlInputRenderer<Id>;
 
 /**
  * Declare a renderer, keeping its `id` as a literal type.
@@ -62,7 +104,7 @@ export function defineRenderer<const Id extends string>(
 export type RendererId<R extends readonly FileRenderer[]> = R[number]['id'];
 
 /**
- * How many leading bytes {@link FileRenderer.sniff} sees.
+ * How many leading bytes {@link RendererBase.sniff} sees.
  *
  * Every binary signature in use fits in 16; the rest is for SVG, whose `<svg` can sit
  * behind an XML prolog, a doctype and a licence comment.

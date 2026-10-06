@@ -9,12 +9,14 @@ import {
   ToggleGroupItem,
 } from '@workspace/ui/components/toggle-group';
 import { PlusIcon } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { codeRenderer } from '@/components/file-preview-code';
 import { imageRenderer } from '@/components/file-preview-image';
 import { pdfRenderer } from '@/components/file-preview-pdf';
 import type { RendererId } from '@/lib/file-preview-core';
 import coreSource from '@/lib/file-preview-core?raw';
+import type { FileSource, RemoteFile } from '@/lib/file-preview-source';
+import { BlockPreview } from './BlockPreview.js';
 
 const RENDERERS = [pdfRenderer, imageRenderer, codeRenderer] as const;
 type Format = RendererId<typeof RENDERERS>;
@@ -47,45 +49,78 @@ async function gradientPng(): Promise<File> {
   return new File([blob ?? new Blob()], 'gradient.png', { type: 'image/png' });
 }
 
-async function sampleFiles(): Promise<File[]> {
-  const pdf = await fetch(`${import.meta.env.BASE_URL}sample.pdf`)
-    .then((res) => res.blob())
-    .then((b) => new File([b], 'sample.pdf', { type: 'application/pdf' }));
-  return [
-    pdf,
-    await gradientPng(),
-    new File([LOGO], 'logo.svg', { type: 'image/svg+xml' }),
-    new File([coreSource], 'file-preview-core.ts', { type: 'text/plain' }),
-    // An HTML page with an image's name and MIME type: the sniffer refuses it.
-    new File(['<!doctype html><h1>not a picture</h1>'], 'not-really.png', {
-      type: 'image/png',
-    }),
-  ];
-}
-
 /**
- * The file preview over a mixed set: a PDF, two images, source code and an HTML
- * page posing as a PNG. Toggling a format off shows the refusal card; files dropped
- * or picked here join the list.
+ * The file preview over every kind of source: a plain URL, a signed URL minted on
+ * demand, `File`s of several formats, an HTML page posing as a PNG, and a
+ * cross-origin URL whose server does not allow CORS.
+ *
+ * The controls sit above the frame because they are this page's, not the block's —
+ * an app decides `allow` in code and owns its own way of adding files.
  */
 export function FilePreviewDemo() {
-  const [files, setFiles] = useState<File[]>([]);
+  const base = import.meta.env.BASE_URL;
+  const [minted, setMinted] = useState(0);
+  const [local, setLocal] = useState<File[]>([]);
+  const [added, setAdded] = useState<File[]>([]);
   const [allow, setAllow] = useState<Format[]>([...FORMATS]);
   const [index, setIndex] = useState(0);
   const input = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let live = true;
-    void sampleFiles().then((f) => live && setFiles(f));
+    void gradientPng().then(
+      (png) =>
+        live &&
+        setLocal([
+          png,
+          new File([LOGO], 'logo.svg', { type: 'image/svg+xml' }),
+          new File([coreSource], 'file-preview-core.ts', {
+            type: 'text/plain',
+          }),
+          // An HTML page with an image's name and MIME type: the sniffer refuses it.
+          new File(
+            ['<!doctype html><h1>not a picture</h1>'],
+            'not-really.png',
+            {
+              type: 'image/png',
+            },
+          ),
+        ]),
+    );
     return () => {
       live = false;
     };
   }, []);
 
+  // Stable across renders by `key`, which is what the cache recognises — the
+  // resolver itself could be a new function every time and nothing would refetch.
+  const signed = useMemo<RemoteFile>(
+    () => ({
+      key: 'demo:signed-sample',
+      name: 'signed-sample.pdf',
+      url: async () => {
+        setMinted((n) => n + 1);
+        // A real one would ask a backend for a fresh signature.
+        await new Promise((r) => setTimeout(r, 300));
+        return `${base}sample.pdf?expires=${Date.now() + 60_000}&sig=demo`;
+      },
+    }),
+    [base],
+  );
+
+  const files: FileSource[] = [
+    `${base}sample.pdf`,
+    signed,
+    ...local,
+    // No CORS headers on that server, so the browser will not hand over the bytes.
+    'https://example.com/report.pdf',
+    ...added,
+  ];
+
   const add = (more: FileList | null) => {
     if (!more?.length) return;
     setIndex(files.length);
-    setFiles([...files, ...more]);
+    setAdded([...added, ...more]);
   };
 
   return (
@@ -93,15 +128,16 @@ export function FilePreviewDemo() {
     // keyboard route to the same place.
     <section
       aria-label="Drop files to preview them"
-      className="flex min-w-0 flex-1 flex-col"
+      className="mt-3"
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         e.preventDefault();
         add(e.dataTransfer.files);
       }}
     >
-      <div className="flex flex-wrap items-center gap-2 border-b bg-muted/30 px-2 py-1.5">
-        <span className="text-xs text-muted-foreground">Allow</span>
+      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <span className="font-medium text-foreground">Demo controls</span>
+        <span>· allow</span>
         <ToggleGroup
           multiple
           onValueChange={(value) => setAllow(value as Format[])}
@@ -115,11 +151,14 @@ export function FilePreviewDemo() {
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
+        <span className="tabular-nums">
+          · signed link minted {minted} {minted === 1 ? 'time' : 'times'}
+        </span>
         <Button
           className="ml-auto"
           onClick={() => input.current?.click()}
           size="sm"
-          variant="ghost"
+          variant="outline"
         >
           <PlusIcon />
           Add files
@@ -133,13 +172,15 @@ export function FilePreviewDemo() {
           type="file"
         />
       </div>
-      <Preview
-        allow={allow}
-        className="min-h-0 flex-1"
-        files={files}
-        index={index}
-        onIndexChange={setIndex}
-      />
+      <BlockPreview>
+        <Preview
+          allow={allow}
+          className="min-h-0 flex-1"
+          files={files}
+          index={index}
+          onIndexChange={setIndex}
+        />
+      </BlockPreview>
     </section>
   );
 }

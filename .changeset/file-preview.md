@@ -24,6 +24,21 @@ such as source code, match by extension or MIME type, and are refused when the
 file's head contains a NUL byte. `acceptOf()` builds a file input's `accept` from
 the same list.
 
+**Sources.** `files` takes `File`s, URLs, and `{ key, url }` sources whose `url`
+may be an async function returning a URL, a `Blob` or a `Response`, for signed
+links that expire. A remote file is fetched when shown, kept in a byte-bounded
+LRU cache shared by every preview (256 MiB; pass `cache` for your own
+`FileCache`), and never fetched twice. A resolver is called only when the file
+is needed, and once more if the server answers 401 or 403. The next file is
+prefetched while the current one is read. A failed download says why: a
+network or CORS failure, a refused link, or a status. All of this lives in the
+new `file-preview-source.ts`, part of `file-preview-core`.
+
+**Streaming renderers.** A renderer declares `input: 'url'` to get a URL and a
+`refresh()` instead of a downloaded `File`, for media too large to fetch first.
+Its file is identified with a 512-byte `Range` request, not a download. None of
+the shipped renderers stream yet; this is the shape video and audio will use.
+
 **Zoom without the engine, renamed.** `pdf-zoom`, `use-pdf-zoom` and
 `pdf-zoom-bar` are now `viewer-zoom`, `use-viewer-zoom` and `viewer-zoom-bar`,
 since images use them too. Their exports are unchanged, but their install

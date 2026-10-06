@@ -210,14 +210,9 @@ const noLinks = () => undefined;
  */
 function Preview({ name }: { name: string }) {
   const doc = usePreviewDocument();
-  // Brings its own files, so it does not wait on the sample document.
-  if (name === 'file-preview') {
-    return (
-      <BlockPreview>
-        <FilePreviewDemo />
-      </BlockPreview>
-    );
-  }
+  // Brings its own files, so it does not wait on the sample document, and its own
+  // frame, so its controls can sit outside it.
+  if (name === 'file-preview') return <FilePreviewDemo />;
   if (!doc) return null;
 
   switch (name) {
