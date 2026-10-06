@@ -63,3 +63,10 @@ not the browser's 150px default.
 `ZoomBar`'s `page`, `pageCount`, `label` and `onPage` are now optional. Leave
 out `onPage` and the pager is not rendered. `subject` renames the fit modes,
 so "Page fit" can read "Image fit".
+
+**Namespace.** Items install as `@papyra/<name>` after a one-time
+`npx shadcn@latest registry add @papyra=https://buildqube.github.io/Papyra/r/{name}.json`.
+Full URLs still work without it. Renderer items carry `meta.fileRenderer`
+(their id, export, label, and whether they match by name), which the docs
+site's format picker reads to build the install command, the dependency list
+and the `createFilePreview` setup file.

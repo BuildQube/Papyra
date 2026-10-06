@@ -15,6 +15,19 @@ export interface RegistryItem {
   dependencies?: string[];
   registryDependencies?: string[];
   files?: { path: string; type: string }[];
+  /** Set on renderers, so the file preview picker can list them without a list. */
+  meta?: {
+    fileRenderer?: {
+      /** The renderer's id: what an `allow` list names it by. */
+      id: string;
+      /** The descriptor's export name, for the generated setup file. */
+      export: string;
+      /** What the format is called. */
+      label: string;
+      /** Matches by name rather than bytes, so it belongs last in the list. */
+      byName?: boolean;
+    };
+  };
 }
 
 /** A single documented prop, flattened for the table. */
@@ -119,7 +132,72 @@ export async function loadRegistry(): Promise<RegistryIndex> {
   };
 }
 
-/** The one-liner that installs an item. */
-export function installCommand(name: string): string {
-  return `npx shadcn@latest add https://buildqube.github.io/Papyra/r/${name}.json`;
+/** The page anchor of the setup step, which the file preview picker links back to. */
+export const SETUP_ANCHOR = 'setup';
+
+/** The namespace this registry is installed under. */
+export const NAMESPACE = '@papyra';
+
+/** Where the built items are served. `{name}` is shadcn's placeholder for an item. */
+export const REGISTRY_URL = 'https://buildqube.github.io/Papyra/r/{name}.json';
+
+/**
+ * The one-time setup that makes `@papyra/<item>` resolvable: it writes the namespace
+ * into the project's `components.json`. Until the namespace is listed in shadcn's
+ * own directory, this step is what the short names cost.
+ */
+export const SETUP_COMMAND = `npx shadcn@latest registry add ${NAMESPACE}=${REGISTRY_URL}`;
+
+/** The one-liner that installs one or more items by namespaced name. */
+export function installCommand(...names: string[]): string {
+  return `npx shadcn@latest add ${names.map((n) => `${NAMESPACE}/${n}`).join(' ')}`;
+}
+
+/** An item name from a sibling dependency URL, or `undefined` for an official one. */
+export function siblingName(dep: string): string | undefined {
+  if (!dep.startsWith('http')) return undefined;
+  return (dep.split('/').pop() ?? dep).replace(/\.json$/, '');
+}
+
+/** Everything an install of these items brings with it. */
+export interface Footprint {
+  /** npm packages, across every item installed. */
+  npm: string[];
+  /** Official shadcn components, by name. */
+  shadcn: string[];
+  /** Items from this registry, the named ones included. */
+  items: string[];
+}
+
+/**
+ * Walk `registryDependencies` from `names` to everything `shadcn add` would install,
+ * which is what a reader choosing formats actually wants to know — `file-preview-pdf`
+ * declares papyra itself, but `file-preview-image` gets lucide only through the zoom
+ * bar it depends on.
+ */
+export function footprint(
+  names: readonly string[],
+  byName: ReadonlyMap<string, RegistryEntry>,
+): Footprint {
+  const items = new Set<string>();
+  const npm = new Set<string>();
+  const shadcn = new Set<string>();
+  const queue = [...names];
+  for (let name = queue.pop(); name !== undefined; name = queue.pop()) {
+    if (items.has(name)) continue;
+    const item = byName.get(name)?.item;
+    if (!item) continue;
+    items.add(name);
+    // `@build-qube/papyra@^0.3.0` is the package `@build-qube/papyra`.
+    for (const dep of item.dependencies ?? []) {
+      npm.add(dep.replace(/(.)@[^@/]*$/, '$1'));
+    }
+    for (const dep of item.registryDependencies ?? []) {
+      const sibling = siblingName(dep);
+      if (sibling) queue.push(sibling);
+      else shadcn.add(dep);
+    }
+  }
+  const sorted = (set: Set<string>) => [...set].sort();
+  return { npm: sorted(npm), shadcn: sorted(shadcn), items: sorted(items) };
 }

@@ -31,6 +31,7 @@ import { BlockPreview } from '../components/BlockPreview.js';
 import { CommentBody } from '../components/docs/CommentBody.js';
 import { TypeSignature } from '../components/docs/TypeSignature.js';
 import { FilePreviewDemo } from '../components/FilePreviewDemo.js';
+import { FilePreviewPicker } from '../components/FilePreviewPicker.js';
 import { sourceUrl } from '../lib/apiModel.js';
 import { usePreviewDocument } from '../lib/previewDocument.js';
 import {
@@ -38,6 +39,9 @@ import {
   loadRegistry,
   type RegistryEntry,
   type RegistryIndex,
+  SETUP_ANCHOR,
+  SETUP_COMMAND,
+  siblingName,
 } from '../lib/registryModel.js';
 
 /** The order the groups read in: what a page is made of, then what drives it. */
@@ -178,6 +182,24 @@ export function ComponentsRoute() {
               at <code>notarget</code>.
             </AlertDescription>
           </Alert>
+
+          <section className="mt-4 scroll-mt-4" id={SETUP_ANCHOR}>
+            <h2 className="text-sm font-medium">Setup, once per project</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Registers the <code>@papyra</code> namespace in your{' '}
+              <code>components.json</code>, so every item below installs by
+              name.
+            </p>
+            <div className="mt-2 flex items-center gap-2 rounded-md border bg-muted/40 py-1 pr-1 pl-3">
+              <code className="min-w-0 flex-1 overflow-x-auto font-mono text-xs whitespace-nowrap">
+                {SETUP_COMMAND}
+              </code>
+              <CopyButton
+                label="Copy the registry setup command"
+                value={SETUP_COMMAND}
+              />
+            </div>
+          </section>
         </div>
 
         {groups.map((group) => (
@@ -186,7 +208,7 @@ export function ComponentsRoute() {
               {group.title}
             </h2>
             {group.entries.map((entry) => (
-              <Item entry={entry} key={entry.item.name} />
+              <Item entry={entry} key={entry.item.name} registry={registry} />
             ))}
           </div>
         ))}
@@ -269,7 +291,13 @@ function Preview({ name }: { name: string }) {
   }
 }
 
-function Item({ entry }: { entry: RegistryEntry }) {
+function Item({
+  entry,
+  registry,
+}: {
+  entry: RegistryEntry;
+  registry: RegistryIndex;
+}) {
   const { item, symbol, props } = entry;
   const source = symbol?.sources?.[0];
   const command = installCommand(item.name);
@@ -303,6 +331,9 @@ function Item({ entry }: { entry: RegistryEntry }) {
       )}
 
       {item.type === 'registry:block' && <Preview name={item.name} />}
+      {item.name === 'file-preview' && (
+        <FilePreviewPicker registry={registry} />
+      )}
 
       <div className="mt-3 flex max-w-[74ch] items-center gap-2 rounded-md border bg-muted/40 py-1 pr-1 pl-3">
         <code className="min-w-0 flex-1 overflow-x-auto font-mono text-xs whitespace-nowrap">
@@ -325,9 +356,7 @@ function Item({ entry }: { entry: RegistryEntry }) {
           {item.registryDependencies?.map((dep) => (
             <Badge key={dep} variant="outline">
               {/* A sibling is named by URL; show the item, not the address. */}
-              {dep.startsWith('http')
-                ? (dep.split('/').pop() ?? dep).replace('.json', '')
-                : dep}
+              {siblingName(dep) ?? dep}
             </Badge>
           ))}
         </div>

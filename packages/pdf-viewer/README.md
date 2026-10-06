@@ -124,8 +124,21 @@ navigation aid with no overlay of its own, which is the case the switch exists f
 before the demo's build, so the items ship with the site.
 
 ```bash
-npx shadcn@latest add https://buildqube.github.io/Papyra/r/pdf-sidebar.json
+# once per project: register the namespace in components.json
+npx shadcn@latest registry add @papyra=https://buildqube.github.io/Papyra/r/{name}.json
+# then any item by name
+npx shadcn@latest add @papyra/pdf-sidebar
 ```
+
+The full URL (`…/r/pdf-sidebar.json`) still works without the setup step.
+Siblings stay named by absolute URL *inside* the items, for that reason: an
+item must install in a project that never registered the namespace, and
+`registryDependencies` resolve in the consumer's configuration, not ours.
+
+**Renderers carry `meta.fileRenderer`** — their id, export name, label, and
+whether they match by name. The demo's file preview picker reads it from the
+built index to list formats, so a new renderer appears there without the page
+being edited. `shadcn build` keeps `meta` in both the index and the item files.
 
 **This package is versioned even though it is never published.** An item installed by
 URL carries no version with it, so `package.json` and `CHANGELOG.md` here are the only

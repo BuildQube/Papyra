@@ -551,6 +551,13 @@
       "name": "file-preview-image",
       "type": "registry:component",
       "title": "Image renderer",
+      "meta": {
+        "fileRenderer": {
+          "id": "image",
+          "export": "imageRenderer",
+          "label": "Image"
+        }
+      },
       "description": "PNG, JPEG, GIF, WebP, AVIF, BMP, ICO and SVG for the file preview, drawn by the browser and zoomed like a page. No engine.",
       "registryDependencies": [
         "{{REGISTRY}}/file-preview-core.json",
@@ -573,6 +580,14 @@
       "name": "file-preview-code",
       "type": "registry:component",
       "title": "Code renderer",
+      "meta": {
+        "fileRenderer": {
+          "id": "code",
+          "export": "codeRenderer",
+          "label": "Code",
+          "byName": true
+        }
+      },
       "description": "Source and plain text for the file preview, highlighted by shiki. Grammars load one at a time, as files need them.",
       "dependencies": ["shiki@^4.5.0"],
       "registryDependencies": ["{{REGISTRY}}/file-preview-core.json"],
@@ -591,6 +606,9 @@
       "name": "file-preview-pdf",
       "type": "registry:component",
       "title": "PDF renderer",
+      "meta": {
+        "fileRenderer": { "id": "pdf", "export": "pdfRenderer", "label": "PDF" }
+      },
       "description": "PDF for the file preview, through papyra: opens the file, asks for a password, and shows the one-page viewer.",
       "dependencies": ["@build-qube/papyra@^0.3.0", "lucide-react"],
       "registryDependencies": [
@@ -630,6 +648,13 @@
       "name": "file-preview-video",
       "type": "registry:component",
       "title": "Video renderer",
+      "meta": {
+        "fileRenderer": {
+          "id": "video",
+          "export": "videoRenderer",
+          "label": "Video"
+        }
+      },
       "description": "MP4, MOV, WebM and Ogg video for the file preview, played by the browser and streamed rather than downloaded. No dependencies.",
       "registryDependencies": [
         "{{REGISTRY}}/file-preview-core.json",
@@ -650,6 +675,13 @@
       "name": "file-preview-audio",
       "type": "registry:component",
       "title": "Audio renderer",
+      "meta": {
+        "fileRenderer": {
+          "id": "audio",
+          "export": "audioRenderer",
+          "label": "Audio"
+        }
+      },
       "description": "MP3, AAC, M4A, WAV, FLAC and Ogg audio for the file preview, played by the browser and streamed rather than downloaded.",
       "dependencies": ["lucide-react"],
       "registryDependencies": [
