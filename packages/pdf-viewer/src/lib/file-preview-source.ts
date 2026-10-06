@@ -59,19 +59,27 @@ export class SourceError extends Error {
   override readonly name = 'SourceError';
 
   /**
-   * @param kind `network` when the request never got an answer — offline, or a
-   *   cross-origin server that does not allow CORS, which a browser reports
-   *   identically. `denied` for 401 and 403, after a resolver had its retry.
-   *   `http` for any other failing status.
-   * @param message What went wrong.
-   * @param status The HTTP status, when there was one.
+   * `network` when the request never got an answer — offline, or a cross-origin
+   * server that does not allow CORS, which a browser reports identically. `denied`
+   * for 401 and 403, after a resolver had its retry. `http` for any other failing
+   * status.
    */
-  constructor(
-    readonly kind: SourceErrorKind,
-    message: string,
-    readonly status?: number,
-  ) {
+  readonly kind: SourceErrorKind;
+  /** The HTTP status, when there was one. */
+  readonly status?: number;
+
+  // Assigned by hand rather than as parameter properties: those are not erasable
+  // syntax, and Vite's project template turns on `erasableSyntaxOnly`, so this
+  // file would not compile in a freshly created app.
+  /**
+   * @param kind See {@link SourceError.kind}.
+   * @param message What went wrong.
+   * @param status See {@link SourceError.status}.
+   */
+  constructor(kind: SourceErrorKind, message: string, status?: number) {
     super(message);
+    this.kind = kind;
+    this.status = status;
   }
 }
 
