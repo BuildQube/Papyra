@@ -8,6 +8,7 @@ import { csvRenderer } from '@/components/file-preview-csv';
 import { imageRenderer, sniffImage } from '@/components/file-preview-image';
 import { pdfRenderer, sniffPdf } from '@/components/file-preview-pdf';
 import { spreadsheetRenderer } from '@/components/file-preview-spreadsheet';
+import { sniffTiff, tiffRenderer } from '@/components/file-preview-tiff';
 import { sniffVideo, videoRenderer } from '@/components/file-preview-video';
 import {
   acceptOf,
@@ -58,6 +59,55 @@ describe('sniffImage', () => {
     ['a PDF', ascii('%PDF-1.7\n')],
   ])('rejects %s', (_, head) => {
     expect(sniffImage(head)).toBe(false);
+  });
+});
+
+describe('sniffTiff', () => {
+  test.each([
+    ['little-endian', bytes(0x49, 0x49, 0x2a, 0x00, 8, 0, 0, 0)],
+    ['big-endian', bytes(0x4d, 0x4d, 0x00, 0x2a, 0, 0, 0, 8)],
+    ['BigTIFF, little-endian', bytes(0x49, 0x49, 0x2b, 0x00, 8, 0, 0, 0)],
+    ['BigTIFF, big-endian', bytes(0x4d, 0x4d, 0x00, 0x2b, 0, 8, 0, 0)],
+  ])('recognises %s', (_, head) => {
+    expect(sniffTiff(head)).toBe(true);
+  });
+
+  test.each([
+    // Mixed byte orders are not a TIFF, whatever the magic number.
+    ['mixed byte order', bytes(0x49, 0x49, 0x00, 0x2a)],
+    ['text that happens to start with II', ascii('II* is not an asterisk')],
+    ['a truncated header', bytes(0x49, 0x49, 0x2a)],
+    ['a PNG', PNG],
+  ])('rejects %s', (_, head) => {
+    expect(sniffTiff(head)).toBe(false);
+  });
+
+  test('a TIFF is not an image to the image renderer, whatever its MIME type', () => {
+    const head = bytes(0x49, 0x49, 0x2a, 0x00, 8, 0, 0, 0);
+    // The browser cannot draw it, so `image/*` must not claim it.
+    const alone = detectHead(named('scan.tif', 'image/tiff'), head, [
+      imageRenderer,
+    ]);
+    expect(alone.status).toBe('unsupported');
+    // With the TIFF renderer listed anywhere, it wins on the bytes.
+    const both = detectHead(named('scan.tif', 'image/tiff'), head, [
+      imageRenderer,
+      tiffRenderer,
+    ]);
+    expect(both.status === 'ok' && both.renderer.id).toBe('tiff');
+  });
+
+  test('bytes win over the name in both directions', () => {
+    const tiff = bytes(0x4d, 0x4d, 0x00, 0x2a, 0, 0, 0, 8);
+    const renamed = detectHead(named('scan.pdf'), tiff, [
+      pdfRenderer,
+      tiffRenderer,
+    ]);
+    expect(renamed.status === 'ok' && renamed.renderer.id).toBe('tiff');
+    const fake = detectHead(named('scan.tiff', 'image/tiff'), PNG, [
+      tiffRenderer,
+    ]);
+    expect(fake.status).toBe('unsupported');
   });
 });
 
@@ -274,6 +324,7 @@ describe('laziness', () => {
     'file-preview-audio',
     'file-preview-spreadsheet',
     'file-preview-csv',
+    'file-preview-tiff',
     'file-preview-markdown',
   ])('%s imports only the core statically', async (name) => {
     const source = await readFile(

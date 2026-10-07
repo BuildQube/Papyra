@@ -14,6 +14,7 @@ use papyra_hayro::{HayroDocument, HayroEngine};
 use std::sync::Arc;
 
 pub mod tables;
+pub mod tiff;
 
 /// Default wasm heap pre-reservation in MiB — roughly 30 letter pages at 150 DPI.
 #[cfg(target_family = "wasm")]

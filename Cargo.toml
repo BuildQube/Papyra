@@ -4,6 +4,7 @@ members = [
   "crates/papyra-encode",
   "crates/papyra-hayro",
   "crates/papyra-tables",
+  "crates/papyra-tiff",
   "packages/bindings",
 ]
 resolver = "2"
@@ -20,6 +21,7 @@ papyra-core = { path = "crates/papyra-core" }
 papyra-encode = { path = "crates/papyra-encode" }
 papyra-hayro = { path = "crates/papyra-hayro" }
 papyra-tables = { path = "crates/papyra-tables" }
+papyra-tiff = { path = "crates/papyra-tiff" }
 
 hayro = "0.7.1"
 hayro-interpret = "0.7.0"

@@ -577,6 +577,39 @@
       ]
     },
     {
+      "name": "file-preview-tiff",
+      "type": "registry:component",
+      "title": "TIFF renderer",
+      "meta": {
+        "fileRenderer": {
+          "id": "tiff",
+          "export": "tiffRenderer",
+          "label": "TIFF"
+        }
+      },
+      "description": "TIFF for the file preview — scanned drawings and faxes, one page or many — decoded by papyra in Rust, CCITT Group 4 included, and reduced while it decodes so a sheet of hundreds of megapixels still opens. Zoomed and rotated like an image.",
+      "dependencies": ["@build-qube/papyra@^0.4.0", "lucide-react"],
+      "registryDependencies": [
+        "empty",
+        "spinner",
+        "{{REGISTRY}}/file-preview-core.json",
+        "{{REGISTRY}}/pdf-isolation-guard.json",
+        "{{REGISTRY}}/viewer-zoom.json",
+        "{{REGISTRY}}/viewer-zoom-bar.json",
+        "{{REGISTRY}}/use-viewer-zoom.json"
+      ],
+      "files": [
+        {
+          "path": "src/components/file-preview-tiff.ts",
+          "type": "registry:component"
+        },
+        {
+          "path": "src/components/file-preview-tiff-view.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
       "name": "file-preview-code",
       "type": "registry:component",
       "title": "Code renderer",

@@ -1,0 +1,25 @@
+[package]
+name = "papyra-tiff"
+description = "TIFF reader for papyra, decoding at a capped size"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+papyra-core = { workspace = true }
+# Already in the tree through hayro, which uses it for CCITTFaxDecode. It reads
+# Group 3 1D, Group 3 2D and Group 4, where `tiff`'s own `fax` feature reads only
+# Group 4 — and it pushes pixels, which is what lets a scan be reduced while it is
+# decoded rather than after.
+hayro-ccitt = "0.3"
+thiserror = { workspace = true }
+# Not `fax` (see above), not `webp` and not `zstd`, which a scan never uses and the
+# last of which is C. `deflate` and `jpeg` resolve to the flate2 and zune-jpeg hayro
+# already pulls in; `lzw` adds weezl.
+tiff = { version = "0.11.3", default-features = false, features = [
+  "deflate",
+  "jpeg",
+  "lzw",
+] }
