@@ -13,6 +13,116 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Decides which of the expensive jobs a pull request needs. lint, typecheck and
+  # unit-test always run; everything that compiles Rust or runs a compiled addon is
+  # gated on its outputs. Pushes to main run everything, unconditionally: main is
+  # what coverage baselines and the badges come from, and a filter that turns out
+  # to be missing a path should cost one PR a skipped job, not leave main untested.
+  #
+  # Gating is done per job with `if:` rather than with `on.pull_request.paths`.
+  # A workflow that never starts leaves its checks "Expected — waiting" forever, so
+  # a required check could never be satisfied; a job skipped by `if:` reports as
+  # skipped, which GitHub counts as passing. `ci-ok` at the bottom is the single
+  # check branch protection should require.
+  #
+  # When in doubt a path belongs under `full`: a needless full run costs minutes, a
+  # missing path ships an untested addon.
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      # paths-filter lists a PR's files through the API, so no checkout is needed.
+      pull-requests: read
+    outputs:
+      full: ${{ steps.plan.outputs.full }}
+      coverage: ${{ steps.plan.outputs.coverage }}
+      registry: ${{ steps.plan.outputs.registry }}
+      smoke: ${{ steps.plan.outputs.smoke }}
+      demo: ${{ steps.plan.outputs.demo }}
+      build: ${{ steps.plan.outputs.build }}
+      build-exclude: ${{ steps.plan.outputs.build-exclude }}
+    steps:
+      - uses: dorny/paths-filter@v4
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            # Everything the Rust jobs consume. The root manifest and lockfile are
+            # here because they pin @napi-rs/cli, emnapi and @napi-rs/wasm-runtime,
+            # which generate the loader and wasm glue every binding test runs; the
+            # corpus script because every addon-backed job reads its output.
+            full:
+              - 'crates/**'
+              - 'packages/bindings/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'rust-toolchain.toml'
+              - '.cargo/**'
+              - '.github/workflows/CI.yml'
+              - 'package.json'
+              - 'bun.lock'
+              - 'turbo.json'
+              - 'tsconfig.base.json'
+              - 'scripts/fetch-corpus.ts'
+            # The coverage job's TypeScript half runs the wrapper's own suites, so
+            # a wrapper change moves its numbers without touching any Rust.
+            coverage:
+              - 'packages/papyra/**'
+              - 'scripts/coverage.ts'
+              - 'scripts/coverage-report.ts'
+            registry:
+              - 'packages/papyra/**'
+              - 'packages/pdf-viewer/**'
+              - 'packages/ui/**'
+            smoke:
+              - 'packages/papyra/**'
+              - 'apps/bench/**'
+            demo:
+              - 'packages/papyra/**'
+              - 'packages/pdf-viewer/**'
+              - 'packages/ui/**'
+              - 'packages/docs-gen/**'
+              - 'apps/demo/**'
+      # smoke needs the linux-x64 addon and demo the wasm one, so a TypeScript-only
+      # PR still builds those two targets — and only those. The four others exist
+      # for test-binding, which only a Rust change runs.
+      - id: plan
+        env:
+          PUSH: ${{ github.event_name != 'pull_request' }}
+          FULL: ${{ steps.filter.outputs.full }}
+          COVERAGE: ${{ steps.filter.outputs.coverage }}
+          REGISTRY: ${{ steps.filter.outputs.registry }}
+          SMOKE: ${{ steps.filter.outputs.smoke }}
+          DEMO: ${{ steps.filter.outputs.demo }}
+        run: |
+          full=false
+          if [ "$PUSH" = true ] || [ "$FULL" = true ]; then full=true; fi
+          either() { if [ "$full" = true ] || [ "$1" = true ]; then echo true; else echo false; fi; }
+          smoke=$(either "$SMOKE")
+          demo=$(either "$DEMO")
+
+          exclude='[]'
+          if [ "$full" != true ]; then
+            exclude=$(jq -nc --argjson smoke "$smoke" --argjson demo "$demo" '
+              ["aarch64-apple-darwin", "x86_64-apple-darwin",
+               "aarch64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
+              + (if $smoke then [] else ["x86_64-unknown-linux-gnu"] end)
+              + (if $demo then [] else ["wasm32-wasip1-threads"] end)
+              | map({target: .})')
+          fi
+
+          build=false
+          if [ "$full" = true ] || [ "$smoke" = true ] || [ "$demo" = true ]; then build=true; fi
+
+          {
+            echo "full=$full"
+            echo "coverage=$(either "$COVERAGE")"
+            echo "registry=$(either "$REGISTRY")"
+            echo "smoke=$smoke"
+            echo "demo=$demo"
+            echo "build=$build"
+            echo "build-exclude=$exclude"
+          } | tee -a "$GITHUB_OUTPUT"
+
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -51,6 +161,8 @@ jobs:
   # API radix.ts has no rule for. The fixtures link the workspace's papyra, which is
   # why the bindings (and so the toolchain) have to be built first.
   registry:
+    needs: changes
+    if: needs.changes.outputs.registry == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -63,6 +175,8 @@ jobs:
       - run: bun run check:registry
 
   rust-test:
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -98,7 +212,13 @@ jobs:
   # badge SVGs and the PR comment itself, so the whole thing runs on GITHUB_TOKEN
   # with no account, no repo activation and no secret to configure. What that gives
   # up is trend history and line-level annotations in the Files-changed view.
+  #
+  # Skipped on a PR that touches neither Rust nor the wrapper, which then gets no
+  # coverage comment. The baseline is unaffected: it comes from main, where this
+  # always runs.
   coverage:
+    needs: changes
+    if: needs.changes.outputs.coverage == 'true'
     runs-on: ubuntu-latest
     permissions:
       # Force-pushing the badge branch, and posting the PR comment. Both are scoped
@@ -192,18 +312,32 @@ jobs:
 
   build:
     name: build ${{ matrix.target }}
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
     strategy:
       fail-fast: false
+      # `target` is a real matrix key, with `host` attached by `include`, because
+      # `exclude` only removes base combinations — it cannot touch entries that a
+      # pure-`include` matrix adds afterwards. `changes` excludes every target the
+      # run has no job for; an empty list builds all six.
       matrix:
+        target:
+          - aarch64-apple-darwin
+          - x86_64-apple-darwin
+          - x86_64-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
+          - x86_64-pc-windows-msvc
+          - wasm32-wasip1-threads
         include:
-          - { host: macos-latest, target: aarch64-apple-darwin }
-          - { host: macos-latest, target: x86_64-apple-darwin }
-          - { host: ubuntu-latest, target: x86_64-unknown-linux-gnu }
+          - { target: aarch64-apple-darwin, host: macos-latest }
+          - { target: x86_64-apple-darwin, host: macos-latest }
+          - { target: x86_64-unknown-linux-gnu, host: ubuntu-latest }
           # Built natively on an arm64 runner: cross-linking aarch64 from the
           # x64 host picks up the host linker, which rejects AArch64-only flags.
-          - { host: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu }
-          - { host: windows-latest, target: x86_64-pc-windows-msvc }
-          - { host: ubuntu-latest, target: wasm32-wasip1-threads }
+          - { target: aarch64-unknown-linux-gnu, host: ubuntu-24.04-arm }
+          - { target: x86_64-pc-windows-msvc, host: windows-latest }
+          - { target: wasm32-wasip1-threads, host: ubuntu-latest }
+        exclude: ${{ fromJSON(needs.changes.outputs.build-exclude) }}
     runs-on: ${{ matrix.host }}
     steps:
       - uses: actions/checkout@v7
@@ -253,7 +387,8 @@ jobs:
   # runs, with the environment as the only difference.
   test-binding:
     name: test ${{ matrix.target }} - node@${{ matrix.node }}
-    needs: build
+    needs: [changes, build]
+    if: needs.changes.outputs.full == 'true'
     strategy:
       fail-fast: false
       # `target` and `node` must both be real matrix keys so the product expands to
@@ -311,7 +446,8 @@ jobs:
   # Identical command to test-binding above; only the environment differs.
   test-wasi:
     name: test wasm32-wasip1-threads - node@${{ matrix.node }}
-    needs: build
+    needs: [changes, build]
+    if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -348,7 +484,8 @@ jobs:
   # Exercises the wider surface (streaming, priorities, Blob input) against a real
   # artifact, without the per-target matrix cost.
   smoke:
-    needs: build
+    needs: [changes, build]
+    if: needs.changes.outputs.smoke == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -372,7 +509,8 @@ jobs:
   # artifact — the demo runs papyra's wasm flavour and never loads a native addon —
   # so no Rust toolchain is needed here.
   demo:
-    needs: build
+    needs: [changes, build]
+    if: needs.changes.outputs.demo == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -389,3 +527,35 @@ jobs:
         env:
           # Same prefix the Pages deploy uses, so a base-path regression fails here.
           PAPYRA_BASE: /${{ github.event.repository.name }}/
+
+  # The one check branch protection should require. Matrix jobs that `if:` skips
+  # report under their unexpanded names ("build ${{ matrix.target }}"), and jobs that
+  # never ran on a PR cannot be required at all, so requiring the jobs themselves
+  # would block merges whenever the filter did its job. This passes when everything
+  # it depends on succeeded or was skipped, and fails on any failure or
+  # cancellation — including `changes` itself failing, which skips everything else.
+  ci-ok:
+    if: always()
+    needs:
+      - changes
+      - lint
+      - typecheck
+      - registry
+      - rust-test
+      - unit-test
+      - coverage
+      - build
+      - test-binding
+      - test-wasi
+      - smoke
+      - demo
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check every job passed or was skipped
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "::error::a required job failed or was cancelled: $RESULTS"
+          exit 1
+      - run: echo "all jobs passed or were skipped by the path filter"
