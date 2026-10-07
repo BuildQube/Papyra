@@ -38,8 +38,7 @@ jobs:
       registry: ${{ steps.plan.outputs.registry }}
       smoke: ${{ steps.plan.outputs.smoke }}
       demo: ${{ steps.plan.outputs.demo }}
-      build: ${{ steps.plan.outputs.build }}
-      build-exclude: ${{ steps.plan.outputs.build-exclude }}
+      build-matrix: ${{ steps.plan.outputs.build-matrix }}
     steps:
       - uses: dorny/paths-filter@v4
         id: filter
@@ -82,9 +81,15 @@ jobs:
               - 'packages/ui/**'
               - 'packages/docs-gen/**'
               - 'apps/demo/**'
+      # The build matrix is assembled here rather than written in the build job,
+      # because subsetting it there does not work: GitHub applies `exclude` before
+      # `include`, so a target excluded from the base matrix comes straight back as
+      # a new combination from its `include` entry. Emitting the finished list is
+      # the one form that cannot resurrect anything.
+      #
       # smoke needs the linux-x64 addon and demo the wasm one, so a TypeScript-only
       # PR still builds those two targets — and only those. The four others exist
-      # for test-binding, which only a Rust change runs.
+      # for test-binding, which only a `full` run has.
       - id: plan
         env:
           PUSH: ${{ github.event_name != 'pull_request' }}
@@ -93,6 +98,18 @@ jobs:
           REGISTRY: ${{ steps.filter.outputs.registry }}
           SMOKE: ${{ steps.filter.outputs.smoke }}
           DEMO: ${{ steps.filter.outputs.demo }}
+          # aarch64 Linux is built natively on an arm64 runner: cross-linking it
+          # from the x64 host picks up the host linker, which rejects AArch64-only
+          # flags.
+          TARGETS: |
+            [
+              { "target": "aarch64-apple-darwin", "host": "macos-latest" },
+              { "target": "x86_64-apple-darwin", "host": "macos-latest" },
+              { "target": "x86_64-unknown-linux-gnu", "host": "ubuntu-latest" },
+              { "target": "aarch64-unknown-linux-gnu", "host": "ubuntu-24.04-arm" },
+              { "target": "x86_64-pc-windows-msvc", "host": "windows-latest" },
+              { "target": "wasm32-wasip1-threads", "host": "ubuntu-latest" }
+            ]
         run: |
           full=false
           if [ "$PUSH" = true ] || [ "$FULL" = true ]; then full=true; fi
@@ -100,18 +117,10 @@ jobs:
           smoke=$(either "$SMOKE")
           demo=$(either "$DEMO")
 
-          exclude='[]'
-          if [ "$full" != true ]; then
-            exclude=$(jq -nc --argjson smoke "$smoke" --argjson demo "$demo" '
-              ["aarch64-apple-darwin", "x86_64-apple-darwin",
-               "aarch64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
-              + (if $smoke then [] else ["x86_64-unknown-linux-gnu"] end)
-              + (if $demo then [] else ["wasm32-wasip1-threads"] end)
-              | map({target: .})')
-          fi
-
-          build=false
-          if [ "$full" = true ] || [ "$smoke" = true ] || [ "$demo" = true ]; then build=true; fi
+          matrix=$(jq -c --argjson full "$full" --argjson smoke "$smoke" --argjson demo "$demo" '
+            map(select($full
+              or ($smoke and .target == "x86_64-unknown-linux-gnu")
+              or ($demo and .target == "wasm32-wasip1-threads")))' <<<"$TARGETS")
 
           {
             echo "full=$full"
@@ -119,8 +128,7 @@ jobs:
             echo "registry=$(either "$REGISTRY")"
             echo "smoke=$smoke"
             echo "demo=$demo"
-            echo "build=$build"
-            echo "build-exclude=$exclude"
+            echo "build-matrix=$matrix"
           } | tee -a "$GITHUB_OUTPUT"
 
   lint:
@@ -313,31 +321,14 @@ jobs:
   build:
     name: build ${{ matrix.target }}
     needs: changes
-    if: needs.changes.outputs.build == 'true'
+    # An empty matrix is an error rather than a no-op, hence the guard.
+    if: needs.changes.outputs.build-matrix != '[]'
     strategy:
       fail-fast: false
-      # `target` is a real matrix key, with `host` attached by `include`, because
-      # `exclude` only removes base combinations — it cannot touch entries that a
-      # pure-`include` matrix adds afterwards. `changes` excludes every target the
-      # run has no job for; an empty list builds all six.
+      # Targets and their runners are listed in `changes`, which drops the ones
+      # this run has no job for. On main and on any `full` PR that is none of them.
       matrix:
-        target:
-          - aarch64-apple-darwin
-          - x86_64-apple-darwin
-          - x86_64-unknown-linux-gnu
-          - aarch64-unknown-linux-gnu
-          - x86_64-pc-windows-msvc
-          - wasm32-wasip1-threads
-        include:
-          - { target: aarch64-apple-darwin, host: macos-latest }
-          - { target: x86_64-apple-darwin, host: macos-latest }
-          - { target: x86_64-unknown-linux-gnu, host: ubuntu-latest }
-          # Built natively on an arm64 runner: cross-linking aarch64 from the
-          # x64 host picks up the host linker, which rejects AArch64-only flags.
-          - { target: aarch64-unknown-linux-gnu, host: ubuntu-24.04-arm }
-          - { target: x86_64-pc-windows-msvc, host: windows-latest }
-          - { target: wasm32-wasip1-threads, host: ubuntu-latest }
-        exclude: ${{ fromJSON(needs.changes.outputs.build-exclude) }}
+        include: ${{ fromJSON(needs.changes.outputs.build-matrix) }}
     runs-on: ${{ matrix.host }}
     steps:
       - uses: actions/checkout@v7
