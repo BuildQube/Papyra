@@ -28,6 +28,12 @@ for.
   semicolon-separated file from a decimal-comma locale splits correctly. A field
   that is plainly a number is typed as one and keeps its text (`2.50` stays
   `2.50`); `007` stays text.
+- **Bounded, whatever the file says.** A sheet holds at most `maxCells` cells
+  (default 8 million), and past that it is its first whole rows, with
+  `sheet.truncated` set. xlsx and xlsb are streamed into sparse storage, so a file
+  with values at opposite corners costs two cells, not the 17 billion between them.
+  Zip parts are read by bytes actually inflated, never by their declared size, and
+  a decompression bomb is refused rather than read until memory runs out.
 - **`EncryptedWorkbookError`** for a password-protected workbook. Not a
   `PasswordError`: there is no decryption to hand a password to.
 

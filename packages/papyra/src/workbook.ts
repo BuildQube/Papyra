@@ -38,6 +38,12 @@ export interface WorkbookOptions {
    * statistical guess.
    */
   encoding?: string;
+  /**
+   * Cells to hold per sheet before truncating it to its first whole rows. Defaults
+   * to 8 million — about 400 MB, which a browser tab survives. A sheet that hits it
+   * reports {@link Sheet.truncated}.
+   */
+  maxCells?: number;
 }
 
 /** Whether a sheet shows in the application's tab bar. */
@@ -185,6 +191,11 @@ export class Sheet {
   readonly name: string;
   /** One past the last row holding a value or covered by a merge. */
   readonly rows: number;
+  /**
+   * The sheet held more cells than {@link WorkbookOptions.maxCells}, and this is
+   * its first whole rows. Worth saying on screen: the rest of the file is not here.
+   */
+  readonly truncated: boolean;
   /** One past the last column holding a value or covered by a merge. */
   readonly cols: number;
   /**
@@ -210,6 +221,7 @@ export class Sheet {
     this.#native = native;
     this.name = native.name;
     this.rows = native.rows;
+    this.truncated = native.truncated;
     this.cols = native.cols;
     this.merges = toMergedRanges(native.merges);
     this.styles = native.styles.map(toCellStyle);

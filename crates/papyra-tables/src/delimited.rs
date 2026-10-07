@@ -5,7 +5,7 @@
 //! Windows-1252, not UTF-8, and one saved in a locale with a decimal comma is
 //! separated by semicolons. Neither is announced anywhere in the file.
 
-use crate::{Cell, Merge, Result, Sheet, TableError};
+use crate::{Cell, Cells, Result, Sheet, TableError};
 use encoding_rs::{Encoding, UTF_8};
 use std::borrow::Cow;
 
@@ -35,7 +35,7 @@ const SNIFF_BYTES: usize = 64 * 1024;
 /// file name and is welcome to show that instead.
 const SHEET_NAME: &str = "Sheet1";
 
-pub(crate) fn read(bytes: &[u8], opts: &DelimitedOptions) -> Result<Delimited> {
+pub(crate) fn read(bytes: &[u8], opts: &DelimitedOptions, max_cells: usize) -> Result<Delimited> {
   let (text, encoding) = decode(bytes, opts.encoding.as_deref())?;
   let delimiter = match opts.delimiter {
     Some(d) => d,
@@ -44,34 +44,37 @@ pub(crate) fn read(bytes: &[u8], opts: &DelimitedOptions) -> Result<Delimited> {
 
   let mut reader = csv::ReaderBuilder::new()
     .has_headers(false)
-    // Ragged rows are normal — a trailing note, a short summary line — and padding
-    // them is a better preview than refusing the file.
+    // Ragged rows are normal — a trailing note, a short summary line — and the grid
+    // draws a short row as one with empty cells at the end, which is what it is.
     .flexible(true)
     .delimiter(delimiter)
     .from_reader(text.as_bytes());
 
-  let mut rows: Vec<Vec<Cell>> = Vec::new();
-  let mut width = 0usize;
+  let mut cells = Cells::new(max_cells);
   let mut record = csv::StringRecord::new();
-  loop {
+  let mut rows = 0u32;
+  let mut width = 0u32;
+  'records: loop {
     match reader.read_record(&mut record) {
       Ok(true) => {}
       Ok(false) => break,
       Err(e) => return Err(TableError::Parse(e.to_string())),
     }
-    let row: Vec<Cell> = record.iter().map(to_cell).collect();
-    width = width.max(row.len());
-    rows.push(row);
+    for (col, field) in record.iter().enumerate() {
+      if !cells.push(rows, col as u32, to_cell(field)) {
+        break 'records;
+      }
+    }
+    width = width.max(record.len() as u32);
+    rows += 1;
   }
-
-  let mut cells = Vec::with_capacity(rows.len() * width);
-  for mut row in rows {
-    row.resize(width, Cell::Empty);
-    cells.extend(row);
+  // A row or column of empty fields is still part of the file. Sizing from the cells
+  // alone would drop a trailing blank column, and with it the header that names it.
+  if !cells.truncated() {
+    cells.extend_to(rows, width);
   }
-  let merges: Vec<Merge> = Vec::new();
   Ok(Delimited {
-    sheet: Sheet::new(SHEET_NAME.to_string(), (0, 0), width as u32, cells, merges),
+    sheet: Sheet::new(SHEET_NAME.to_string(), cells, Vec::new()),
     encoding: encoding.name(),
     delimiter,
   })
@@ -199,7 +202,7 @@ mod tests {
   use super::*;
 
   fn read_default(bytes: &[u8]) -> Delimited {
-    read(bytes, &DelimitedOptions::default()).unwrap()
+    read(bytes, &DelimitedOptions::default(), usize::MAX).unwrap()
   }
 
   #[test]
@@ -268,7 +271,7 @@ mod tests {
       ..Default::default()
     };
     // 0xE1 is α in Greek and á in Latin-1.
-    let d = read(b"\xE1,b\n", &opts).unwrap();
+    let d = read(b"\xE1,b\n", &opts, usize::MAX).unwrap();
     assert_eq!(d.sheet.cell(0, 0), &Cell::Text("α".into()));
     assert!(
       read(
@@ -276,10 +279,29 @@ mod tests {
         &DelimitedOptions {
           encoding: Some("klingon".into()),
           ..Default::default()
-        }
+        },
+        usize::MAX
       )
       .is_err()
     );
+  }
+
+  #[test]
+  fn past_the_cap_a_csv_is_its_first_whole_rows() {
+    let d = read(b"a,b,c\n1,2,3\n4,5,6\n", &DelimitedOptions::default(), 7).unwrap();
+    // Seven cells fit two whole rows and one cell of the third; the third goes.
+    assert!(d.sheet.truncated);
+    assert_eq!((d.sheet.rows, d.sheet.cols), (2, 3));
+    assert_eq!(d.sheet.cell(2, 0), &Cell::Empty);
+
+    let all = read(b"a,b,c\n1,2,3\n", &DelimitedOptions::default(), 6).unwrap();
+    assert!(!all.sheet.truncated);
+  }
+
+  #[test]
+  fn a_blank_last_column_still_counts() {
+    let d = read_default(b"a,b,\n1,2,\n");
+    assert_eq!(d.sheet.cols, 3);
   }
 
   #[test]

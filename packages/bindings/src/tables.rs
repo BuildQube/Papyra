@@ -30,6 +30,8 @@ pub struct WorkbookOptions {
   pub delimiter: Option<String>,
   /// CSV and TSV only: a WHATWG encoding label such as `"windows-1252"`.
   pub encoding: Option<String>,
+  /// Cells held per sheet before it is truncated to its first whole rows.
+  pub max_cells: Option<u32>,
 }
 
 fn load_options(options: Option<WorkbookOptions>) -> Result<LoadOptions> {
@@ -59,6 +61,9 @@ fn load_options(options: Option<WorkbookOptions>) -> Result<LoadOptions> {
       delimiter,
       encoding: o.encoding,
     },
+    max_cells: o
+      .max_cells
+      .map_or(papyra_tables::DEFAULT_MAX_CELLS, |n| n as usize),
   })
 }
 
@@ -329,6 +334,12 @@ impl Sheet {
   #[napi(getter)]
   pub fn name(&self) -> String {
     self.inner.name.clone()
+  }
+
+  /// The sheet held more cells than `maxCells`, and this is its first whole rows.
+  #[napi(getter)]
+  pub fn truncated(&self) -> bool {
+    self.inner.truncated
   }
 
   /// One past the last used row, counting from the sheet's first row.

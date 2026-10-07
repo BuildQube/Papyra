@@ -245,7 +245,9 @@ function describe(
   const parts: string[] = [];
   if (sheet) {
     parts.push(
-      `${sheet.rows.toLocaleString()} × ${sheet.cols.toLocaleString()}`,
+      sheet.truncated
+        ? `first ${sheet.rows.toLocaleString()} rows × ${sheet.cols.toLocaleString()}`
+        : `${sheet.rows.toLocaleString()} × ${sheet.cols.toLocaleString()}`,
     );
   }
   if (book.encoding) parts.push(book.encoding);

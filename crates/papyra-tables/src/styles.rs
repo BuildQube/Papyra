@@ -10,10 +10,11 @@
 //! entirely, and show unformatted.
 
 use crate::numfmt::{NumberFormat, builtin};
+use crate::{Result, TableError};
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::{Reader, XmlVersion};
 use std::collections::HashMap;
-use std::io::{Cursor, Read};
+use std::io::{BufRead, BufReader, Cursor, Read};
 use std::sync::Arc;
 
 /// How one edge of a cell's border is drawn.
@@ -166,9 +167,45 @@ const DEFAULT_THEME: [u32; 12] = [
 
 // ------------------------------------------------------------------ the zip
 
+/// The most a small part — the workbook, its relationships, the style sheet, the
+/// theme — may inflate to. Real ones are kilobytes; a few megabytes is a workbook
+/// with tens of thousands of styles.
+const PART_LIMIT: u64 = 64 << 20;
+
+/// The most the shared-string table may inflate to. calamine holds it whole, so this
+/// bounds memory directly: a large real export is tens of megabytes.
+const SHARED_STRINGS_LIMIT: u64 = 256 << 20;
+
+/// The most a worksheet may inflate to. It is streamed, never held, so this bounds
+/// time rather than memory: a gigabyte of XML is millions of rows, and past that a
+/// zip entry is a bomb, not a spreadsheet.
+const WORKSHEET_LIMIT: u64 = 1 << 30;
+
 /// The xlsx package, opened a second time beside calamine's reader.
+///
+/// Every read here is bounded by bytes actually inflated, never by the size a zip
+/// entry declares. The declared size is the file author's to choose, and trusting
+/// it — `Vec::with_capacity(file.size())` — lets a forged one demand an allocation
+/// that aborts the process rather than failing the load.
 pub(crate) struct Package {
   zip: zip::ZipArchive<Cursor<Arc<[u8]>>>,
+}
+
+fn too_large(path: &str) -> TableError {
+  TableError::TooLarge(path.to_string())
+}
+
+/// Read all of `r`, refusing past `limit` bytes. No capacity is reserved up front,
+/// so what is allocated follows what arrives.
+pub(crate) fn read_bounded(r: impl Read, limit: u64, path: &str) -> Result<Vec<u8>> {
+  let mut out = Vec::new();
+  r.take(limit + 1)
+    .read_to_end(&mut out)
+    .map_err(|e| TableError::Parse(format!("{path}: {e}")))?;
+  if out.len() as u64 > limit {
+    return Err(too_large(path));
+  }
+  Ok(out)
 }
 
 impl Package {
@@ -178,21 +215,49 @@ impl Package {
       .map(|zip| Self { zip })
   }
 
-  fn read(&mut self, path: &str) -> Option<Vec<u8>> {
-    let mut file = self.zip.by_name(path).ok()?;
-    let mut out = Vec::with_capacity(file.size() as usize);
-    file.read_to_end(&mut out).ok()?;
-    Some(out)
+  /// A part's bytes, or `None` when the package has no such part.
+  fn read(&mut self, path: &str) -> Result<Option<Vec<u8>>> {
+    let Ok(file) = self.zip.by_name(path) else {
+      return Ok(None);
+    };
+    read_bounded(file, PART_LIMIT, path).map(Some)
+  }
+
+  /// Refuse a shared-string table that inflates past [`SHARED_STRINGS_LIMIT`].
+  ///
+  /// Inflates it once into nothing, before calamine inflates it for real — time
+  /// spent so that a bomb is caught while it is still only bytes.
+  pub(crate) fn check_shared_strings(&mut self) -> Result<()> {
+    let names: Vec<String> = self
+      .zip
+      .file_names()
+      .filter(|n| n.to_ascii_lowercase().ends_with("sharedstrings.xml"))
+      .map(str::to_string)
+      .collect();
+    for name in names {
+      let Ok(file) = self.zip.by_name(&name) else {
+        continue;
+      };
+      let seen = std::io::copy(
+        &mut file.take(SHARED_STRINGS_LIMIT + 1),
+        &mut std::io::sink(),
+      )
+      .map_err(|e| TableError::Parse(format!("{name}: {e}")))?;
+      if seen > SHARED_STRINGS_LIMIT {
+        return Err(too_large(&name));
+      }
+    }
+    Ok(())
   }
 
   /// Worksheet part paths, in workbook order — the order calamine's sheet list uses.
-  pub(crate) fn sheet_paths(&mut self) -> Vec<Option<String>> {
+  pub(crate) fn sheet_paths(&mut self) -> Result<Vec<Option<String>>> {
     let rels = self
-      .read("xl/_rels/workbook.xml.rels")
+      .read("xl/_rels/workbook.xml.rels")?
       .map(|x| relationships(&x))
       .unwrap_or_default();
-    let Some(workbook) = self.read("xl/workbook.xml") else {
-      return Vec::new();
+    let Some(workbook) = self.read("xl/workbook.xml")? else {
+      return Ok(Vec::new());
     };
     let mut out = Vec::new();
     each_element(&workbook, |e| {
@@ -203,15 +268,15 @@ impl Package {
         out.push(path);
       }
     });
-    out
+    Ok(out)
   }
 
-  pub(crate) fn style_sheet(&mut self) -> StyleSheet {
+  pub(crate) fn style_sheet(&mut self) -> Result<StyleSheet> {
     let theme = self
-      .read("xl/theme/theme1.xml")
+      .read("xl/theme/theme1.xml")?
       .map(|x| theme_colors(&x))
       .unwrap_or(DEFAULT_THEME.to_vec());
-    match self.read("xl/styles.xml") {
+    Ok(match self.read("xl/styles.xml")? {
       Some(xml) => parse_styles(&xml, &theme),
       None => StyleSheet {
         styles: vec![CellStyle {
@@ -220,14 +285,26 @@ impl Package {
         }],
         formats: vec![NumberFormat::parse("General")],
       },
-    }
+    })
   }
 
-  pub(crate) fn sheet_meta(&mut self, path: &str, styles: &StyleSheet) -> SheetMeta {
-    self
-      .read(path)
-      .map(|x| parse_sheet(&x, styles))
-      .unwrap_or_default()
+  /// The attribute pass over one worksheet, streamed from the zip rather than read
+  /// whole — a worksheet is the one part that is routinely hundreds of megabytes.
+  pub(crate) fn sheet_meta(
+    &mut self,
+    path: &str,
+    styles: &StyleSheet,
+    max_cells: usize,
+  ) -> Result<SheetMeta> {
+    let Ok(file) = self.zip.by_name(path) else {
+      return Ok(SheetMeta::default());
+    };
+    let mut reader = Reader::from_reader(BufReader::new(file.take(WORKSHEET_LIMIT + 1)));
+    let meta = parse_sheet(&mut reader, styles, max_cells);
+    if reader.into_inner().into_inner().limit() == 0 {
+      return Err(too_large(path));
+    }
+    Ok(meta)
   }
 }
 
@@ -666,7 +743,11 @@ fn points_px(pt: f32) -> f32 {
   pt * 96.0 / 72.0
 }
 
-fn parse_sheet(xml: &[u8], styles: &StyleSheet) -> SheetMeta {
+fn parse_sheet<R: BufRead>(
+  reader: &mut Reader<R>,
+  styles: &StyleSheet,
+  max_cells: usize,
+) -> SheetMeta {
   let mut meta = SheetMeta::default();
   let mut layout = Layout {
     default_col_width: 64.0,
@@ -677,7 +758,6 @@ fn parse_sheet(xml: &[u8], styles: &StyleSheet) -> SheetMeta {
   };
   let mut row = 0u32;
   let mut col = 0u32;
-  let mut reader = Reader::from_reader(xml);
   let mut buf = Vec::new();
   loop {
     match reader.read_event_into(&mut buf) {
@@ -737,9 +817,12 @@ fn parse_sheet(xml: &[u8], styles: &StyleSheet) -> SheetMeta {
             .unwrap_or((row, col));
           row = r;
           col = c + 1;
+          // Capped like the values are: a sheet of styled-but-empty cells is a
+          // bomb of another kind, and costs 12 bytes a cell here.
           if let Some(s) = attr_u32(&e, b"s")
             && s > 0
             && (s as usize) < styles.styles.len()
+            && meta.cells.len() < max_cells
           {
             meta.cells.push((r, c, s as u16));
           }
@@ -761,6 +844,30 @@ fn parse_sheet(xml: &[u8], styles: &StyleSheet) -> SheetMeta {
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  /// A reader that yields a few bytes, whatever size anyone claims for it.
+  struct Small;
+  impl Read for Small {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+      let n = buf.len().min(4);
+      buf[..n].fill(b'x');
+      Ok(n)
+    }
+  }
+
+  #[test]
+  fn reads_are_bounded_by_what_inflates() {
+    // `Small` never ends, as a decompression bomb effectively does not; the read
+    // stops one byte past the limit and refuses.
+    assert!(matches!(
+      read_bounded(Small, 1024, "bomb.xml"),
+      Err(TableError::TooLarge(_))
+    ));
+    let ok = read_bounded(&b"<x/>"[..], 1024, "fine.xml").unwrap();
+    assert_eq!(ok, b"<x/>");
+    // Nothing was reserved on anyone's say-so.
+    assert!(ok.capacity() < 1024);
+  }
 
   #[test]
   fn cell_refs() {
@@ -871,7 +978,7 @@ mod tests {
       styles: vec![CellStyle::default(), CellStyle::default()],
       formats: vec![NumberFormat::parse("General")],
     };
-    let meta = parse_sheet(xml, &styles);
+    let meta = parse_sheet(&mut Reader::from_reader(&xml[..]), &styles, usize::MAX);
     // The second cell has no `r`, so it is the one after A1.
     assert_eq!(meta.cells, vec![(0, 0, 1), (0, 1, 1)]);
     let layout = meta.layout.unwrap();

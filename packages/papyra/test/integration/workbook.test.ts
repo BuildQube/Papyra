@@ -141,6 +141,29 @@ describe('openWorkbook, formatting', () => {
   });
 });
 
+describe('openWorkbook, limits', () => {
+  test('a sheet past maxCells is its first whole rows, and says so', async () => {
+    const text = new TextEncoder().encode('a,b\n1,2\n3,4\n5,6\n');
+    const sheet = await (await openWorkbook(text, { maxCells: 5 })).sheet(0);
+    expect(sheet.truncated).toBe(true);
+    expect(sheet.rows).toBe(2);
+    const whole = await (await openWorkbook(text)).sheet(0);
+    expect(whole.truncated).toBe(false);
+    expect(whole.rows).toBe(4);
+  });
+
+  test('cells at opposite corners cost two cells, not the box between', async () => {
+    const sheet = await (await openWorkbook(fixture('extent.xlsx'))).sheet(0);
+    expect([sheet.rows, sheet.cols]).toEqual([1_048_576, 16_384]);
+    const corner = sheet.window({
+      rowStart: 1_048_575,
+      rowEnd: 1_048_576,
+      colStart: 16_383,
+    });
+    expect(corner.text(1_048_575, 16_383)).toBe('bottom');
+  });
+});
+
 describe('openWorkbook, delimited text', () => {
   test('sniffs the encoding and delimiter of an Excel-on-Windows CSV', async () => {
     // Semicolons because the locale writes 1,5 for one and a half; windows-1252

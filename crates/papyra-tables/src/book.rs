@@ -1,8 +1,10 @@
 //! Excel and OpenDocument, through calamine.
 
 use crate::styles::{Package, StyleSheet};
-use crate::{Format, Merge, Result, Sheet, SheetInfo, SheetKind, TableError, Visibility};
-use calamine::{Dimensions, Ods, Reader as _, Sheets, Xls, Xlsb, Xlsx};
+use crate::{
+  Cell, Cells, Format, Merge, Result, Sheet, SheetInfo, SheetKind, TableError, Visibility,
+};
+use calamine::{Data, DataRef, Dimensions, Ods, Reader as _, Sheets, Xls, Xlsb, Xlsx};
 use std::io::Cursor;
 use std::sync::Arc;
 
@@ -11,6 +13,7 @@ type Bytes = Cursor<Arc<[u8]>>;
 
 pub(crate) struct Reader {
   sheets: Sheets<Bytes>,
+  max_cells: usize,
   /// What calamine does not read, for xlsx only.
   xlsx: Option<XlsxFormatting>,
 }
@@ -31,7 +34,7 @@ impl Reader {
   /// failure worth reporting — that the file is encrypted. An encrypted xlsx is not a
   /// zip at all but a compound file, the same container as an `.xls`, so it is the xls
   /// attempt that sees it and the xlsx reader that recognises it.
-  pub(crate) fn open(bytes: Vec<u8>, hint: Format) -> Result<(Self, Format)> {
+  pub(crate) fn open(bytes: Vec<u8>, hint: Format, max_cells: usize) -> Result<(Self, Format)> {
     let order: &[Format] = match hint {
       Format::Xls => &[Format::Xls, Format::Xlsx, Format::Xlsb],
       Format::Xlsb => &[Format::Xlsb, Format::Xlsx, Format::Ods],
@@ -39,6 +42,11 @@ impl Reader {
       _ => &[Format::Xlsx, Format::Xlsb, Format::Ods],
     };
     let bytes: Arc<[u8]> = bytes.into();
+    // calamine inflates the shared-string table whole while opening an xlsx, so a
+    // bomb there has to be caught before it gets the chance.
+    if let Some(mut package) = Package::open(bytes.clone()) {
+      package.check_shared_strings()?;
+    }
     let mut encrypted = false;
     for &format in order {
       let data = Cursor::new(bytes.clone());
@@ -60,15 +68,25 @@ impl Reader {
       match opened {
         Ok(sheets) => {
           let xlsx = match &sheets {
-            Sheets::Xlsx(x) => Package::open(bytes.clone()).map(|mut package| XlsxFormatting {
-              paths: package.sheet_paths(),
-              styles: Arc::new(package.style_sheet()),
-              date1904: x.has_1904_epoch(),
-              package,
+            Sheets::Xlsx(x) => Package::open(bytes.clone()).map(|mut package| {
+              Ok(XlsxFormatting {
+                paths: package.sheet_paths()?,
+                styles: Arc::new(package.style_sheet()?),
+                date1904: x.has_1904_epoch(),
+                package,
+              })
             }),
             _ => None,
           };
-          return Ok((Self { sheets, xlsx }, format));
+          let xlsx = xlsx.transpose()?;
+          return Ok((
+            Self {
+              sheets,
+              max_cells,
+              xlsx,
+            },
+            format,
+          ));
         }
         Err(is_password) => encrypted |= is_password,
       }
@@ -104,27 +122,69 @@ impl Reader {
   }
 
   pub(crate) fn read_sheet(&mut self, index: usize, name: &str) -> Result<Sheet> {
-    let range = match self.sheets.worksheet_range_at(index) {
-      Some(range) => range.map_err(parse)?,
-      // A chartsheet has a slot in the list and no cells; an empty sheet is the
-      // honest answer for it.
-      None => Default::default(),
+    // The attribute pass runs first: it is bounded in what it will inflate, so a
+    // worksheet bomb is refused here before calamine streams through it.
+    let meta = match &mut self.xlsx {
+      Some(x) => match x.paths.get(index).cloned().flatten() {
+        Some(path) => Some(x.package.sheet_meta(&path, &x.styles, self.max_cells)?),
+        None => Some(Default::default()),
+      },
+      None => None,
     };
+    let cells = self.cells(index, name)?;
     let merges = self.merges(index)?;
-    let origin = range.start().unwrap_or((0, 0));
-    let width = range.width() as u32;
-    let cells = range.cells().map(|(_, _, d)| d.clone().into()).collect();
-    let sheet = Sheet::new(name.to_string(), origin, width, cells, merges);
-    Ok(match &mut self.xlsx {
-      Some(x) => {
-        let meta = match x.paths.get(index).cloned().flatten() {
-          Some(path) => x.package.sheet_meta(&path, &x.styles),
-          None => Default::default(),
-        };
-        sheet.with_formatting(x.styles.clone(), meta, x.date1904)
-      }
-      None => sheet,
+    let sheet = Sheet::new(name.to_string(), cells, merges);
+    Ok(match (&self.xlsx, meta) {
+      (Some(x), Some(meta)) => sheet.with_formatting(x.styles.clone(), meta, x.date1904),
+      _ => sheet,
     })
+  }
+
+  /// Read a sheet's cells, up to the cap.
+  ///
+  /// xlsx and xlsb go through calamine's streaming reader rather than
+  /// `worksheet_range`, which allocates a dense grid over the bounding box of
+  /// whatever cells are present: a sheet with values in A1 and XFD1048576 asks for
+  /// seventeen billion cells, and an allocation that size aborts the process — no
+  /// unwinding, so no rejected promise. Streaming holds only the cells there are,
+  /// and can stop at the cap. xls and ods have no streaming reader, but both are
+  /// bounded already: BIFF8 at 65,536 × 256, and calamine caps ods repeats itself.
+  fn cells(&mut self, index: usize, name: &str) -> Result<Cells> {
+    let mut cells = Cells::new(self.max_cells);
+    macro_rules! stream {
+      ($reader:expr) => {{
+        match $reader {
+          Ok(mut reader) => {
+            while let Some(cell) = reader.next_cell().map_err(parse)? {
+              let (row, col) = cell.get_position();
+              if !cells.push(row, col, to_cell(cell.get_value())) {
+                break;
+              }
+            }
+          }
+          // A chartsheet has a slot in the list and no worksheet part; an empty
+          // sheet is the honest answer for it.
+          Err(_) => {}
+        }
+      }};
+    }
+    match &mut self.sheets {
+      Sheets::Xlsx(x) => stream!(x.worksheet_cells_reader(name)),
+      Sheets::Xlsb(x) => stream!(x.worksheet_cells_reader(name)),
+      sheets => {
+        if let Some(range) = sheets.worksheet_range_at(index) {
+          let range = range.map_err(parse)?;
+          // `used_cells` counts from the range's corner, not from A1.
+          let (r0, c0) = range.start().unwrap_or((0, 0));
+          for (row, col, value) in range.used_cells() {
+            if !cells.push(r0 + row as u32, c0 + col as u32, value.clone().into()) {
+              break;
+            }
+          }
+        }
+      }
+    }
+    Ok(cells)
   }
 
   /// Merged regions. calamine reads them for xlsx and xls; xlsb and ods have none to
@@ -138,6 +198,10 @@ impl Reader {
     };
     Ok(dims.into_iter().map(to_merge).collect())
   }
+}
+
+fn to_cell(value: &DataRef<'_>) -> Cell {
+  Data::from(value.clone()).into()
 }
 
 fn to_merge(d: Dimensions) -> Merge {

@@ -103,6 +103,15 @@ def styled() -> None:
     wb.save(HERE / "styled.xlsx")
 
 
+def extent() -> None:
+    """Two cells at opposite corners of the sheet: tiny file, enormous bounding box."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws["A1"] = "top"
+    ws["XFD1048576"] = "bottom"
+    wb.save(HERE / "extent.xlsx")
+
+
 def encrypted() -> None:
     # Agile encryption, Excel's default since 2010. The result is a compound file, not
     # a zip, which is what makes it look like an `.xls` to a sniffer.
@@ -168,6 +177,7 @@ def ods() -> None:
 if __name__ == "__main__":
     xlsx()
     styled()
+    extent()
     encrypted()
     xls()
     ods()

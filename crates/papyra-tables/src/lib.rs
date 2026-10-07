@@ -34,6 +34,79 @@ pub enum TableError {
   SheetOutOfRange(usize),
   #[error("{0}")]
   Parse(String),
+  /// A part of the file inflates past what papyra will hold, which is how a
+  /// decompression bomb presents. Refused rather than read until memory runs out —
+  /// on wasm that traps the instance, and every other view on the page with it.
+  #[error("{0} is larger than papyra will read")]
+  TooLarge(String),
+}
+
+/// The default cap on cells held per sheet. At roughly 48 bytes a cell that is
+/// about 400 MB, which a browser tab survives; past it a sheet is truncated to its
+/// first whole rows and says so. [`LoadOptions::max_cells`] moves it.
+pub const DEFAULT_MAX_CELLS: usize = 8_000_000;
+
+/// Collects a sheet's non-empty cells, up to a cap.
+pub(crate) struct Cells {
+  cells: Vec<(u32, u32, Cell)>,
+  limit: usize,
+  truncated: bool,
+  /// An extent the reader knows of beyond the last value, as `(rows, cols)`.
+  extent: (u32, u32),
+}
+
+impl Cells {
+  pub(crate) fn new(limit: usize) -> Self {
+    Self {
+      cells: Vec::new(),
+      limit,
+      truncated: false,
+      extent: (0, 0),
+    }
+  }
+
+  /// Make the sheet at least `rows` by `cols`, values or not.
+  pub(crate) fn extend_to(&mut self, rows: u32, cols: u32) {
+    self.extent = (self.extent.0.max(rows), self.extent.1.max(cols));
+  }
+
+  /// Add a cell. `false` once the cap is reached, and reading should stop.
+  pub(crate) fn push(&mut self, row: u32, col: u32, cell: Cell) -> bool {
+    if cell == Cell::Empty {
+      return true;
+    }
+    if self.cells.len() >= self.limit {
+      // End on a whole row: half a row reads as data that is not there. Unless
+      // the row is all there is — one row wider than the cap — in which case its
+      // first part is better than nothing.
+      self.truncated = true;
+      if self.cells.iter().any(|&(r, ..)| r < row) {
+        self.cells.retain(|&(r, ..)| r < row);
+      }
+      return false;
+    }
+    self.cells.push((row, col, cell));
+    true
+  }
+
+  pub(crate) fn truncated(&self) -> bool {
+    self.truncated
+  }
+
+  /// Sorted, for lookup. Readers emit cells in row order, so this is a check more
+  /// than a sort — but nothing in the formats promises it.
+  pub(crate) fn finish(mut self) -> Self {
+    self.cells.sort_by_key(|&(r, c, _)| (r, c));
+    // A cell written twice keeps its last value, as a reader replaying the file would.
+    self.cells.dedup_by(|later, earlier| {
+      let same = (later.0, later.1) == (earlier.0, earlier.1);
+      if same {
+        std::mem::swap(later, earlier);
+      }
+      same
+    });
+    self
+  }
 }
 
 pub type Result<T> = std::result::Result<T, TableError>;
@@ -137,11 +210,15 @@ pub struct Merge {
   pub col_end: u32,
 }
 
-/// One sheet's cells, fully read.
+/// One sheet's cells, read.
 ///
 /// Coordinates are the sheet's own: row 0 is the row Excel calls 1, whatever row the
 /// data starts on. A sheet whose only value is in F10 is ten rows by six columns with
 /// one cell set, so a grid draws it where the author put it.
+///
+/// Cells are held sparsely — only the ones with a value — so memory follows what
+/// the file contains and not its bounding box. A sheet with values in A1 and
+/// XFD1048576 is two cells, not seventeen billion.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Sheet {
   pub name: String,
@@ -153,11 +230,10 @@ pub struct Sheet {
   /// Column widths and row heights, for xlsx. `None` for every other format, which
   /// leaves sizing to whoever draws the sheet.
   pub layout: Option<Layout>,
-  /// Where `cells` starts. Everything above and to the left of it is empty.
-  origin: (u32, u32),
-  /// Row-major over the used range, `width` cells to a row.
-  cells: Vec<Cell>,
-  width: u32,
+  /// The sheet held more cells than the cap, and this is its first whole rows.
+  pub truncated: bool,
+  /// `(row, col, value)` for every non-empty cell, row-major.
+  cells: Vec<(u32, u32, Cell)>,
   formatting: Option<Formatting>,
 }
 
@@ -179,23 +255,32 @@ impl PartialEq for Formatting {
 }
 
 impl Sheet {
-  pub(crate) fn new(
-    name: String,
-    origin: (u32, u32),
-    width: u32,
-    cells: Vec<Cell>,
-    merges: Vec<Merge>,
-  ) -> Self {
-    let height = (cells.len() as u32).checked_div(width).unwrap_or(0);
-    let (mut rows, mut cols) = if cells.is_empty() {
-      (0, 0)
-    } else {
-      (origin.0 + height, origin.1 + width)
-    };
+  pub(crate) fn new(name: String, cells: Cells, merges: Vec<Merge>) -> Self {
+    let Cells {
+      cells,
+      truncated,
+      extent,
+      ..
+    } = cells.finish();
+    let rows = cells.last().map_or(0, |&(r, ..)| r + 1).max(extent.0);
+    let cols = cells
+      .iter()
+      .map(|&(_, c, _)| c + 1)
+      .max()
+      .unwrap_or(0)
+      .max(extent.1);
     // A merge can reach past the last value — a title spanning empty columns — and
-    // the grid has to be wide enough to draw it.
+    // the grid has to be wide enough to draw it. On a truncated sheet only the merges
+    // that start in the rows kept are kept.
+    let merges: Vec<Merge> = merges
+      .into_iter()
+      .filter(|m| !truncated || m.row_start < rows)
+      .collect();
+    let (mut rows, mut cols) = (rows, cols);
     for m in &merges {
-      rows = rows.max(m.row_end + 1);
+      if !truncated {
+        rows = rows.max(m.row_end + 1);
+      }
       cols = cols.max(m.col_end + 1);
     }
     Self {
@@ -204,9 +289,8 @@ impl Sheet {
       cols,
       merges,
       layout: None,
-      origin,
+      truncated,
       cells,
-      width,
       formatting: None,
     }
   }
@@ -221,10 +305,12 @@ impl Sheet {
     // A fill or a border shows on an empty cell, so the grid has to reach it — a
     // coloured header band often runs past the last column with a value in it.
     for &(r, c, s) in &meta.cells {
-      if styles
-        .styles
-        .get(s as usize)
-        .is_some_and(|s| s.is_visible_when_empty())
+      // A truncated sheet ends where its cells were cut, fills or not.
+      if (!self.truncated || r < self.rows)
+        && styles
+          .styles
+          .get(s as usize)
+          .is_some_and(|s| s.is_visible_when_empty())
       {
         self.rows = self.rows.max(r + 1);
         self.cols = self.cols.max(c + 1);
@@ -284,15 +370,13 @@ impl Sheet {
     }
   }
 
-  /// The cell at `(row, col)`. Anything outside the used range is empty.
+  /// The cell at `(row, col)`. Anything without a value is empty.
   pub fn cell(&self, row: u32, col: u32) -> &Cell {
     static EMPTY: Cell = Cell::Empty;
-    let (r0, c0) = self.origin;
-    if row < r0 || col < c0 || col - c0 >= self.width {
-      return &EMPTY;
-    }
-    let index = (row - r0) as usize * self.width as usize + (col - c0) as usize;
-    self.cells.get(index).unwrap_or(&EMPTY)
+    self
+      .cells
+      .binary_search_by_key(&(row, col), |&(r, c, _)| (r, c))
+      .map_or(&EMPTY, |i| &self.cells[i].2)
   }
 
   /// Encode `[row_start, row_end) x [col_start, col_end)` for transfer, clamped to
@@ -321,12 +405,24 @@ impl Sheet {
 }
 
 /// Options for [`Workbook::load`].
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct LoadOptions {
   /// Skip sniffing. Needed to tell a TSV from a CSV, which share every byte but one.
   pub format: Option<Format>,
   /// Applies to CSV and TSV only.
   pub delimited: DelimitedOptions,
+  /// Cells held per sheet before it is truncated. See [`DEFAULT_MAX_CELLS`].
+  pub max_cells: usize,
+}
+
+impl Default for LoadOptions {
+  fn default() -> Self {
+    Self {
+      format: None,
+      delimited: DelimitedOptions::default(),
+      max_cells: DEFAULT_MAX_CELLS,
+    }
+  }
 }
 
 enum Source {
@@ -359,7 +455,7 @@ impl Workbook {
       if format == Format::Tsv && opts.delimiter.is_none() {
         opts.delimiter = Some(b'\t');
       }
-      let text = delimited::read(&bytes, &opts)?;
+      let text = delimited::read(&bytes, &opts, options.max_cells)?;
       let format = if text.delimiter == b'\t' {
         Format::Tsv
       } else {
@@ -380,7 +476,7 @@ impl Workbook {
       });
     }
 
-    let (reader, format) = book::Reader::open(bytes, format)?;
+    let (reader, format) = book::Reader::open(bytes, format, options.max_cells)?;
     let sheets = reader.sheets();
     Ok(Self {
       format,
@@ -575,6 +671,90 @@ mod tests {
   }
 
   #[test]
+  fn far_apart_cells_cost_two_cells_not_their_bounding_box() {
+    // A1 and XFD1048576: through calamine's dense `worksheet_range` this is a
+    // seventeen-billion-cell allocation — a hung process natively, and a usize
+    // overflow and an abort on wasm32. Streamed, it is two cells.
+    let book = Workbook::load(sample("extent.xlsx"), &LoadOptions::default()).unwrap();
+    let s = book.sheet(0).unwrap();
+    assert_eq!((s.rows, s.cols), (1_048_576, 16_384));
+    assert_eq!(s.cells.len(), 2);
+    assert_eq!(s.cell(1_048_575, 16_383), &Cell::Text("bottom".into()));
+    let w = s.window(1_048_570, 1_048_576, 16_380, 16_384);
+    assert!(w.text.ends_with("bottom"));
+  }
+
+  /// Rewrite the uncompressed size `name` declares, in both the local header and the
+  /// central directory, leaving the data alone.
+  fn forge_declared_size(mut zip: Vec<u8>, name: &str, size: u32) -> Vec<u8> {
+    let name = name.as_bytes();
+    let mut patched = 0;
+    let mut i = 0;
+    while i + 46 <= zip.len() {
+      let sig = u32::from_le_bytes(zip[i..i + 4].try_into().unwrap());
+      let (size_at, name_len_at, name_at) = match sig {
+        0x0403_4b50 => (22, 26, 30),
+        0x0201_4b50 => (24, 28, 46),
+        _ => {
+          i += 1;
+          continue;
+        }
+      };
+      let len = u16::from_le_bytes(
+        zip[i + name_len_at..i + name_len_at + 2]
+          .try_into()
+          .unwrap(),
+      );
+      if zip.get(i + name_at..i + name_at + len as usize) == Some(name) {
+        zip[i + size_at..i + size_at + 4].copy_from_slice(&size.to_le_bytes());
+        patched += 1;
+      }
+      i += 4;
+    }
+    assert_eq!(patched, 2, "both headers");
+    zip
+  }
+
+  #[test]
+  fn a_forged_entry_size_is_never_allocated() {
+    // 4 GB declared for a few-kilobyte part. Reserved up front, that is an abort on
+    // wasm32 and a 4 GB allocation natively, for a file smaller than this comment.
+    for part in [
+      "xl/styles.xml",
+      "xl/worksheets/sheet1.xml",
+      "xl/workbook.xml",
+    ] {
+      let bytes = forge_declared_size(sample("styled.xlsx"), part, 0xFFFF_FFF0);
+      // Whether the zip reader then notices the lie is its business; the load must
+      // end in a result either way, never in a dead process.
+      if let Ok(book) = Workbook::load(bytes, &LoadOptions::default()) {
+        let _ = book.sheet(0);
+      }
+    }
+  }
+
+  #[test]
+  fn past_the_cap_a_workbook_is_its_first_whole_rows() {
+    let opts = LoadOptions {
+      max_cells: 5,
+      ..Default::default()
+    };
+    // The summary sheet has four values a row: five cells is one whole row and one
+    // more, so the sheet is the header row alone.
+    let book = Workbook::load(sample("sample.xlsx"), &opts).unwrap();
+    let s = book.sheet(0).unwrap();
+    assert!(s.truncated);
+    assert_eq!(s.rows, 1);
+    assert_eq!(s.cell(0, 3), &Cell::Text("Due".into()));
+    assert_eq!(s.cell(1, 0), &Cell::Empty);
+    // The merge on row 4 started past the cut, so it went with the rows.
+    assert!(s.merges.is_empty());
+
+    let whole = Workbook::load(sample("sample.xlsx"), &LoadOptions::default()).unwrap();
+    assert!(!whole.sheet(0).unwrap().truncated);
+  }
+
+  #[test]
   fn other_formats_carry_no_styles() {
     for name in ["sample.xls", "sample.ods"] {
       let book = Workbook::load(sample(name), &LoadOptions::default()).unwrap();
@@ -615,7 +795,9 @@ mod tests {
       row_end: 0,
       col_end: 7,
     };
-    let s = Sheet::new("s".into(), (0, 0), 1, vec![Cell::Number(1.0)], vec![merge]);
+    let mut cells = Cells::new(10);
+    cells.push(0, 0, Cell::Number(1.0));
+    let s = Sheet::new("s".into(), cells, vec![merge]);
     assert_eq!((s.rows, s.cols), (1, 8));
   }
 
