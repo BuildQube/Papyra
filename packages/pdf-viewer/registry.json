@@ -778,6 +778,37 @@
           "type": "registry:component"
         }
       ]
+    },
+    {
+      "name": "file-preview-markdown",
+      "type": "registry:component",
+      "title": "Markdown renderer",
+      "meta": {
+        "fileRenderer": {
+          "id": "markdown",
+          "export": "markdownRenderer",
+          "label": "Markdown",
+          "byName": true
+        }
+      },
+      "description": "Markdown for the file preview, GitHub-flavoured and rendered as React elements: raw HTML is dropped and remote images wait for the reader to allow them.",
+      "dependencies": ["lucide-react", "react-markdown", "remark-gfm"],
+      "registryDependencies": [
+        "button",
+        "table",
+        "toggle-group",
+        "{{REGISTRY}}/file-preview-core.json"
+      ],
+      "files": [
+        {
+          "path": "src/components/file-preview-markdown.ts",
+          "type": "registry:component"
+        },
+        {
+          "path": "src/components/file-preview-markdown-view.tsx",
+          "type": "registry:component"
+        }
+      ]
     }
   ]
 }

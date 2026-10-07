@@ -3,10 +3,11 @@ import { defineRenderer } from '@/lib/file-preview-core';
 /**
  * Source code and plain text, syntax-highlighted.
  *
- * The only one of the three with no signature to sniff, so it matches by name or
- * MIME type, and `text` keeps it from being handed a binary that merely has the
- * right extension. Put it **last** in a renderer list: anything that can be
- * recognised by its bytes should be, before a name gets a say.
+ * Text has no signature to sniff, so it matches by name or MIME type, and `text`
+ * keeps it from being handed a binary that merely has the right extension. It is a
+ * `fallback`: a Markdown or CSV renderer takes `.md` or `.csv` wherever it sits in
+ * the list, and this one shows them as source only when no such renderer is
+ * installed.
  */
 export const codeRenderer = defineRenderer({
   id: 'code',
@@ -15,6 +16,8 @@ export const codeRenderer = defineRenderer({
     '.txt',
     '.log',
     '.md',
+    '.csv',
+    '.tsv',
     '.json',
     '.jsonc',
     '.yaml',
@@ -62,5 +65,6 @@ export const codeRenderer = defineRenderer({
     'application/x-sh',
   ],
   text: true,
+  fallback: true,
   load: () => import('./file-preview-code-view').then((m) => m.CodeFileView),
 });
