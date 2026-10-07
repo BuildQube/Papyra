@@ -191,12 +191,12 @@ export function ComponentsRoute() {
             </div>
             <p className="mt-2 text-sm text-muted-foreground">
               <span className="font-medium text-foreground">
-                Needs a Base UI project
+                Base UI or Radix
               </span>{' '}
-              — one whose <code>components.json</code> style is{' '}
-              <code>base-*</code>, as <code>shadcn init -b base</code> creates.
-              The items use Base UI props such as <code>render</code>, so in a
-              Radix project they install but do not compile.
+              — the CLI fills <code>{'{style}'}</code> from your{' '}
+              <code>components.json</code>, so a <code>base-*</code> project
+              gets the Base UI version and a <code>radix-*</code> one the Radix
+              version. React Aria projects are not supported.
             </p>
           </section>
         </div>

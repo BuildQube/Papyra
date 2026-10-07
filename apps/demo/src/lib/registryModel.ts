@@ -138,8 +138,13 @@ export const SETUP_ANCHOR = 'setup';
 /** The namespace this registry is installed under. */
 export const NAMESPACE = '@papyra';
 
-/** Where the built items are served. `{name}` is shadcn's placeholder for an item. */
-export const REGISTRY_URL = 'https://buildqube.github.io/Papyra/r/{name}.json';
+/**
+ * Where the built items are served. `{name}` is shadcn's placeholder for an item and
+ * `{style}` for the project's style, which is what picks the Base UI or the Radix
+ * build — see `build-registry.ts`, which writes a directory per style.
+ */
+export const REGISTRY_URL =
+  'https://buildqube.github.io/Papyra/r/{style}/{name}.json';
 
 /**
  * The one-time setup that makes `@papyra/<item>` resolvable: it writes the namespace

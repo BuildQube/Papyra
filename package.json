@@ -19,6 +19,7 @@
     "typecheck": "turbo run typecheck",
     "lint": "biome check",
     "check:publishable": "bun run scripts/check-publishable.ts",
+    "check:registry": "bun run --filter @workspace/pdf-viewer check:registry",
     "coverage": "bun run scripts/coverage.ts",
     "coverage:report": "bun run scripts/coverage-report.ts",
     "format": "biome check --write && cargo fmt && taplo format",
