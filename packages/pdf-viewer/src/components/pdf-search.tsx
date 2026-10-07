@@ -54,9 +54,12 @@ export function Search({
         {matches.map((match, i) => (
           <Item
             key={`${match.page}:${i}`}
-            size="xs"
+            // `xs` exists only in the newer styles, and `new-york-v4` (what the CLI
+            // makes of a Tailwind v4 `new-york` project) rejects it. The spacing is
+            // `xs`'s own, which `cn` lets override whatever `sm` sets.
+            size="sm"
             data-active={match === active}
-            className="cursor-pointer text-left hover:bg-muted data-[active=true]:bg-primary/10"
+            className="cursor-pointer gap-2 px-2.5 py-2 text-left hover:bg-muted data-[active=true]:bg-primary/10"
             render={<button type="button" />}
             onClick={() => {
               onActive(match);
