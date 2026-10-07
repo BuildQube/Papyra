@@ -916,3 +916,4 @@ equivalent.
 
 Our own render cache (Addendum 11) makes *repeat* renders free but cannot help the first
 render of a page. This is the fix for that half.
+
