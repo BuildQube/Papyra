@@ -141,10 +141,19 @@ one.** The CLI fills `{style}` from the consumer's `components.json`, so a
 (`shadcn init -b radix`) gets Radix, from the same command. This is how shadcn's
 own registry and ReUI serve both. `{style}` is the whole style name, such as
 `radix-nova`, and Pages cannot redirect, so `build-registry.ts` copies each
-flavour into a directory per style. That is 18 directories and about 9 MB.
+flavour into a directory per style. That is 19 directories and about 9.5 MB.
 `STYLE_DIRS` there lists them, taken from shadcn 4.19.0. A style missing from
 it gets a 404, which is the right answer for React Aria (`aria-*`) but means a
 new shadcn style needs adding there.
+
+**`{style}` is the style after the CLI has rewritten it, not what
+`components.json` says.** A Tailwind v4 project with `"style": "new-york"`, and
+one with no style at all, asks for `new-york-v4`. That is probably the most common
+setup there is, and the registry first shipped without it. `check:registry`
+therefore installs into a third project, `new-york` on Tailwind v4, and asserts
+which directory each project's requests went to. That project also pulls the
+older `new-york-v4` primitives, which lack some variants the nova styles have:
+`Item` has no `size="xs"`, so an item has to stick to what both offer.
 
 Underneath, `r/` holds Base UI and `r/radix/` holds Radix. Those are the URLs for
 installing without the namespace, and the ones the items' sibling URLs point at,

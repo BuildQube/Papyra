@@ -18,7 +18,7 @@
  * Needs the network (npm, and ui.shadcn.com for the primitives) and a built
  * `packages/papyra`.
  *
- * Usage: bun run scripts/check-registry.ts [--only base|radix] [--published] [--keep]
+ * Usage: bun run scripts/check-registry.ts [--only base|radix|new-york] [--published] [--keep]
  */
 import { mkdtemp, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -36,10 +36,23 @@ const { values: args } = parseArgs({
   },
 });
 
-/** Each flavour: the `shadcn init -b` library and where its items are served. */
-const FLAVOURS = [{ base: 'base' }, { base: 'radix' }].filter(
-  (f) => !args.only || f.base === args.only,
-);
+/**
+ * Each fixture: the `shadcn init -b` library, an optional `style` to write over the
+ * one init chose, and the directory the CLI must then ask for. `new-york` is there
+ * because the CLI rewrites it to `new-york-v4` in a Tailwind v4 project before
+ * filling `{style}` — a fresh `-b` project never takes that path, and the registry
+ * shipped without the directory it needs.
+ */
+const FLAVOURS = [
+  { name: 'base', base: 'base', expect: 'base-nova' },
+  { name: 'radix', base: 'radix', expect: 'radix-nova' },
+  {
+    name: 'new-york',
+    base: 'radix',
+    style: 'new-york',
+    expect: 'new-york-v4',
+  },
+].filter((f) => !args.only || f.name === args.only);
 if (FLAVOURS.length === 0) throw new Error(`unknown flavour: ${args.only}`);
 
 const pkg = join(import.meta.dir, '..');
@@ -53,10 +66,15 @@ if (
 
 const scratch = await mkdtemp(join(tmpdir(), 'papyra-registry-check-'));
 const served = join(scratch, 'r');
+/** The first path segment under `r/` of every request, i.e. the `{style}` asked for. */
+const requested = new Set<string>();
 const server = Bun.serve({
   port: 0,
   async fetch(req) {
-    const file = Bun.file(join(scratch, new URL(req.url).pathname));
+    const path = new URL(req.url).pathname;
+    const style = path.split('/')[2];
+    if (style) requested.add(style);
+    const file = Bun.file(join(scratch, path));
     return (await file.exists())
       ? new Response(file)
       : new Response('not found', { status: 404 });
@@ -84,8 +102,8 @@ try {
   );
   if (built !== 0) throw new Error('registry build failed');
 
-  for (const { base } of FLAVOURS) {
-    const dir = join(scratch, base);
+  for (const { name, base, style, expect } of FLAVOURS) {
+    const dir = join(scratch, name);
     const fixture = join(dir, 'fixture');
     await Bun.$`mkdir -p ${dir}`;
 
@@ -108,7 +126,16 @@ try {
       ],
       dir,
     );
-    if (init !== 0) throw new Error(`shadcn init failed for ${base}`);
+    if (init !== 0) throw new Error(`shadcn init failed for ${name}`);
+
+    if (style) {
+      const path = join(fixture, 'components.json');
+      const config = await Bun.file(path).json();
+      await Bun.write(
+        path,
+        `${JSON.stringify({ ...config, style }, null, 2)}\n`,
+      );
+    }
 
     // The way the docs tell people to install: one namespace whose `{style}` the
     // CLI fills from this project's components.json. That is what routes a Radix
@@ -125,15 +152,24 @@ try {
       ],
       fixture,
     );
-    if (setup !== 0) throw new Error(`shadcn registry add failed for ${base}`);
+    if (setup !== 0) throw new Error(`shadcn registry add failed for ${name}`);
 
+    requested.clear();
     const items = registry.items.map((i) => `@papyra/${i.name}`);
     const add = await run(
       ['bunx', '--bun', SHADCN, 'add', '-y', '-o', ...items],
       fixture,
     );
     if (add !== 0) {
-      failed.push(`${base}: shadcn add`);
+      failed.push(`${name}: shadcn add`);
+      continue;
+    }
+    // A wrong directory can still typecheck, when two styles share a flavour, so
+    // check the routing itself rather than only its result.
+    if (!requested.has(expect)) {
+      failed.push(
+        `${name}: expected requests under r/${expect}/, saw ${[...requested].join(', ')}`,
+      );
       continue;
     }
 
@@ -147,8 +183,11 @@ try {
       ['bunx', 'tsc', '-p', 'tsconfig.app.json', '--noEmit'],
       fixture,
     );
-    if (tsc !== 0) failed.push(`${base}: tsc`);
-    else console.log(`✔ ${base}: ${items.length} items install and typecheck`);
+    if (tsc !== 0) failed.push(`${name}: tsc`);
+    else
+      console.log(
+        `✔ ${name}: ${items.length} items install from r/${expect}/ and typecheck`,
+      );
   }
 } finally {
   server.stop(true);

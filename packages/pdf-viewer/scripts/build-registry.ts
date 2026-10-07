@@ -47,7 +47,9 @@ const output = process.argv[2] ?? join(pkg, '../../apps/demo/public/r');
 /**
  * The style names `{style}` can take, from shadcn 4.19.0's own list
  * (`nova`…`rhea`, each prefixed by its library). `new-york` and `default` predate
- * Base UI support and are Radix. A style missing here is a 404 for that project's
+ * Base UI support and are Radix. `{style}` is the style *after* the CLI's config
+ * loader has rewritten it (`Hl` in its bundle), not the string in components.json,
+ * which is how `new-york-v4` got missed the first time. A style missing here is a 404 for that project's
  * install — the honest failure for React Aria (`aria-*`), which has no flavour, and
  * the reason to extend this list when shadcn adds a style.
  */
@@ -56,6 +58,10 @@ const STYLE_DIRS: Record<string, 'base' | 'radix'> = {
   ...Object.fromEntries(STYLES.map((s) => [`base-${s}`, 'base'])),
   ...Object.fromEntries(STYLES.map((s) => [`radix-${s}`, 'radix'])),
   'new-york': 'radix',
+  // Not a style anyone writes: the CLI substitutes it for `new-york` in a Tailwind v4
+  // project (an empty `tailwind.config`), and for a components.json with no style at
+  // all, *before* filling `{style}`. That makes it the most common style there is.
+  'new-york-v4': 'radix',
   default: 'radix',
 };
 
