@@ -61,7 +61,8 @@
     {
       "includes": [
         "apps/demo/src/components/theme-provider.tsx",
-        "packages/pdf-viewer/src/components/pdf-viewer-provider.tsx"
+        "packages/pdf-viewer/src/components/pdf-viewer-provider.tsx",
+        "packages/pdf-viewer/src/components/file-preview-docx-view.tsx"
       ],
       "linter": {
         "rules": {

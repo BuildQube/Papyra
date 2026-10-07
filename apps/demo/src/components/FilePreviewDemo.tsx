@@ -13,6 +13,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { audioRenderer } from '@/components/file-preview-audio';
 import { codeRenderer } from '@/components/file-preview-code';
 import { csvRenderer } from '@/components/file-preview-csv';
+import { docxRenderer } from '@/components/file-preview-docx';
 import { imageRenderer } from '@/components/file-preview-image';
 import { markdownRenderer } from '@/components/file-preview-markdown';
 import { pdfRenderer } from '@/components/file-preview-pdf';
@@ -32,6 +33,7 @@ const RENDERERS = [
   audioRenderer,
   spreadsheetRenderer,
   csvRenderer,
+  docxRenderer,
   markdownRenderer,
   codeRenderer,
 ] as const;
@@ -207,6 +209,9 @@ export function FilePreviewDemo() {
               type: 'image/png',
             },
           ),
+          // Word matches by name, so this reaches the Word view, which reads the
+          // package's content types and refuses it.
+          new File(['not a Word document'], 'not-really.docx'),
         ]),
     );
     return () => {
@@ -247,6 +252,7 @@ export function FilePreviewDemo() {
     // From crates/papyra-tiff/tests/fixtures/generate.py: a two-sheet Group 4 scan
     // whose first sheet is 36x24in at 200 dpi — 34.6 MP, twice the decode cap.
     `${base}drawing.tif`,
+    `${base}sample.docx`,
     ...local,
     // No CORS headers on that server, so the browser will not hand over the bytes.
     'https://example.com/report.pdf',
