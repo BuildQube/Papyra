@@ -167,11 +167,25 @@ describe('detectHead', () => {
       text: true,
       load: async () => () => null,
     });
+    const tree = defineRenderer({
+      id: 'tree',
+      label: 'JSON tree',
+      extensions: ['.json'],
+      mimes: [],
+      text: true,
+      load: async () => () => null,
+    });
     const head = ascii('{"a": 1}');
-    const first = detectHead(named('a.json'), head, [json, codeRenderer]);
-    const second = detectHead(named('a.json'), head, [codeRenderer, json]);
-    expect(first.status === 'ok' && first.renderer.id).toBe('json');
-    expect(second.status === 'ok' && second.renderer.id).toBe('code');
+    const id = (list: Parameters<typeof detectHead>[2]) => {
+      const d = detectHead(named('a.json'), head, list);
+      return d.status === 'ok' && d.renderer.id;
+    };
+    // Between peers claiming the same extension, the first listed wins.
+    expect(id([json, tree])).toBe('json');
+    expect(id([tree, json])).toBe('tree');
+    // `code` is a fallback, so it is not a peer: it loses in either position.
+    expect(id([codeRenderer, json])).toBe('json');
+    expect(id([json, codeRenderer])).toBe('json');
   });
 
   test('a MIME type with parameters still matches', () => {
@@ -260,6 +274,7 @@ describe('laziness', () => {
     'file-preview-audio',
     'file-preview-spreadsheet',
     'file-preview-csv',
+    'file-preview-markdown',
   ])('%s imports only the core statically', async (name) => {
     const source = await readFile(
       join(import.meta.dir, '../../src/components', `${name}.ts`),

@@ -14,6 +14,7 @@ import { audioRenderer } from '@/components/file-preview-audio';
 import { codeRenderer } from '@/components/file-preview-code';
 import { csvRenderer } from '@/components/file-preview-csv';
 import { imageRenderer } from '@/components/file-preview-image';
+import { markdownRenderer } from '@/components/file-preview-markdown';
 import { pdfRenderer } from '@/components/file-preview-pdf';
 import { spreadsheetRenderer } from '@/components/file-preview-spreadsheet';
 import { videoRenderer } from '@/components/file-preview-video';
@@ -29,6 +30,7 @@ const RENDERERS = [
   audioRenderer,
   spreadsheetRenderer,
   csvRenderer,
+  markdownRenderer,
   codeRenderer,
 ] as const;
 type Format = RendererId<typeof RENDERERS>;
@@ -104,6 +106,46 @@ function largeCsv(): File {
   return new File([lines.join('\n')], 'orders-100k.csv', { type: 'text/csv' });
 }
 
+/**
+ * A README that exercises every rule the Markdown renderer has: front matter, a
+ * GFM table and task list, a code block, a link, a remote image that waits for
+ * the reader, and raw HTML that is dropped.
+ */
+const README = `---
+project: Alpha Tower
+revision: C
+---
+
+# Site handover notes
+
+Status for the **level 4** pour, as of the last walk.
+
+| Item | Owner | Status |
+| --- | --- | :---: |
+| Rebar inspection | J. Ortiz | Passed |
+| Formwork sign-off | M. Chen | Pending |
+| RFI 112 — slab edge | Design team | Open |
+
+## Before the pour
+
+- [x] Embeds placed and photographed
+- [x] Penetrations sleeved
+- [ ] Engineer's release received
+
+> Do not pour until RFI 112 is answered in writing.
+
+\`\`\`text
+Pour window: 06:00–11:00
+Mix: 40 MPa, 20 mm aggregate
+\`\`\`
+
+See the [concrete spec](https://example.com/spec) for tolerances.
+
+![Level 4 site photo](https://example.com/level-4.jpg)
+
+<script>alert('raw HTML is dropped')</script>
+`;
+
 /** A gradient, drawn rather than shipped, so the demo carries no image asset. */
 async function gradientPng(): Promise<File> {
   const canvas = document.createElement('canvas');
@@ -150,6 +192,7 @@ export function FilePreviewDemo() {
           new File([LOGO], 'logo.svg', { type: 'image/svg+xml' }),
           toneWav(),
           excelCsv(),
+          new File([README], 'handover.md', { type: 'text/markdown' }),
           largeCsv(),
           new File([coreSource], 'file-preview-core.ts', {
             type: 'text/plain',
