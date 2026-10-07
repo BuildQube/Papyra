@@ -20,6 +20,7 @@ import { Toggle } from '@/components/ui/toggle';
 import {
   Tooltip,
   TooltipContent,
+  TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
@@ -265,18 +266,26 @@ export function FindBar({
               : elapsed !== null
                 ? `${elapsed.toFixed(0)}ms`
                 : 'Nearest page first'}
+            {/*
+             * The provider is redundant under Base UI and required under Radix,
+             * whose Tooltip throws without one — and an app that never set one
+             * up loses the whole viewer to it, on exactly the documents with
+             * unreadable text.
+             */}
             {unsearchable > 0 && (
-              <Tooltip>
-                <TooltipTrigger render={<Badge variant="outline" />}>
-                  {unsearchable} page{unsearchable === 1 ? '' : 's'} partly
-                  unreadable
-                </TooltipTrigger>
-                <TooltipContent>
-                  These pages draw text with no ToUnicode mapping. Some or all
-                  of it cannot be searched, by papyra or anything else without
-                  OCR.
-                </TooltipContent>
-              </Tooltip>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger render={<Badge variant="outline" />}>
+                    {unsearchable} page{unsearchable === 1 ? '' : 's'} partly
+                    unreadable
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    These pages draw text with no ToUnicode mapping. Some or all
+                    of it cannot be searched, by papyra or anything else without
+                    OCR.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
           </span>
         </div>

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build:registry": "bun run scripts/build-registry.ts",
+    "check:registry": "bun run scripts/check-registry.ts",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
     "test": "bun test test/unit",
     "test:integration": "bun test test/integration",
@@ -38,6 +39,7 @@
     "@types/react-dom": "^19.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "ts-morph": "27.0.2",
     "typescript": "^7.0.2"
   }
 }

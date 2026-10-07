@@ -126,9 +126,14 @@ real CLI rather than guessed — see `packages/pdf-viewer/README.md`:
   `{{REGISTRY}}` and turbo runs it before the demo's build, so the items ship with
   the site. The items pin `@build-qube/papyra@^0.3.0`, the oldest release with
   every API they call; an item needing something newer raises the range in the
-  same change. They also need a **Base UI** project (`base-*` style) — they use
-  `render`, `keepMounted` and friends, and in a Radix project install but do not
-  compile.
+  same change. They are **written against Base UI** and served from `r/`;
+  `scripts/radix.ts` rewrites them (`render` → `asChild`, `keepMounted` →
+  `forceMount`, …) into a Radix flavour at `r/radix/`. Both are copied under every
+  shadcn style name so the namespace URL can be `…/r/{style}/{name}.json` and the
+  consumer's own style picks the library. A Base UI API it has no
+  rule for throws at build time or fails `bun run check:registry`, which installs
+  both flavours into fresh shadcn projects and typechecks them — the only thing
+  that compiles the Radix files.
 - `globals.css` names this package in an `@source`. Tailwind's detection reaches
   `packages/ui` and whichever app holds the CSS entry, but no further, so a class
   used only here is otherwise never generated — silently, with a plausible

@@ -125,7 +125,7 @@ before the demo's build, so the items ship with the site.
 
 ```bash
 # once per project: register the namespace in components.json
-npx shadcn@latest registry add @papyra=https://buildqube.github.io/Papyra/r/{name}.json
+npx shadcn@latest registry add @papyra=https://buildqube.github.io/Papyra/r/{style}/{name}.json
 # then any item by name
 npx shadcn@latest add @papyra/pdf-sidebar
 ```
@@ -135,14 +135,48 @@ Siblings stay named by absolute URL *inside* the items, for that reason: an
 item must install in a project that never registered the namespace, and
 `registryDependencies` resolve in the consumer's configuration, not ours.
 
-**The items need a Base UI project** — a `components.json` style of `base-*`,
-which is what `shadcn init -b base` creates. They are written against Base UI's
-API (`render`, `keepMounted`, the drawer's `showSwipeHandle`), and in a Radix
-project they install without complaint and then fail the consumer's typecheck.
-Both halves were checked against fresh `shadcn init -t vite` projects on
-shadcn 4.19.0: on Base UI every file-preview item and the full viewer build
-clean; on Radix the sidebar, outline, structure, search, layout and zoom bar do
-not. Supporting Radix would mean rewriting those call sites, not adding an item.
+**Every item comes in a Base UI and a Radix flavour, and the project's style picks
+one.** The CLI fills `{style}` from the consumer's `components.json`, so a
+`base-*` project (`shadcn init -b base`) gets Base UI and a `radix-*` one
+(`shadcn init -b radix`) gets Radix, from the same command. This is how shadcn's
+own registry and ReUI serve both. `{style}` is the whole style name, such as
+`radix-nova`, and Pages cannot redirect, so `build-registry.ts` copies each
+flavour into a directory per style. That is 18 directories and about 9 MB.
+`STYLE_DIRS` there lists them, taken from shadcn 4.19.0. A style missing from
+it gets a 404, which is the right answer for React Aria (`aria-*`) but means a
+new shadcn style needs adding there.
+
+Underneath, `r/` holds Base UI and `r/radix/` holds Radix. Those are the URLs for
+installing without the namespace, and the ones the items' sibling URLs point at,
+so a Radix item's siblings are all Radix ones. The wrong flavour installs without
+complaint and then fails the typecheck.
+
+The items are written once, against Base UI. `scripts/radix.ts` rewrites them
+for the Radix build: `render={<X />}` becomes `asChild`, `keepMounted` becomes
+`forceMount` (with a class to hide the inactive panel, which Radix leaves
+visible), a single-select `ToggleGroup` gets `type="single"` and loses its
+one-element array, and the drawer's `showSwipeHandle` is dropped. Two things follow
+from that when writing an item:
+
+- A `ToggleGroup` handler destructures its value, `([next]) => …`, so the rewrite
+  can turn it into `(next) => …`.
+- A `Tooltip` sits inside a `TooltipProvider` in the same file. Radix's throws
+  without one, which typechecks and then takes the whole viewer down when it
+  renders; the find bar did exactly that. The build refuses a `Tooltip` with no
+  provider.
+- A Base UI API the script has no rule for either throws during the build or,
+  if the script cannot see it, fails `bun run check:registry`. That check registers
+  the `{style}` namespace in fresh `shadcn init -t vite` projects of each library,
+  installs every item through it, and typechecks the result. CI runs it, because
+  nothing else compiles the Radix files.
+
+The typecheck catches API differences, not behavioural ones. The Radix flavour was
+last checked in a browser against fresh `shadcn init -b radix` and `-b base`
+projects: the outline and structure trees, structure tabs, find bar and its
+tooltip, search results, zoom select, tools menu, preview dialog, markdown toggle
+and mobile drawer all behave alike. The one difference is that Radix's drawer sizes
+to its panel instead of a fixed 80% of the viewport. Changes to focus, animation or
+dismissal on the Radix side need a look in a browser.
 
 **Renderers carry `meta.fileRenderer`** — their id, export name, label, and
 whether they match by name. The demo's file preview picker reads it from the

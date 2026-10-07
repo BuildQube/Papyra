@@ -254,8 +254,7 @@ export function MarkdownFileView({ file }: FileViewProps) {
       <div className="flex flex-none flex-wrap items-center gap-2 border-b bg-card px-3 py-1.5 text-xs text-muted-foreground">
         <ToggleGroup
           disabled={tooLarge}
-          onValueChange={(value) => {
-            const next = value[0];
+          onValueChange={([next]) => {
             if (next === 'rendered' || next === 'source') setMode(next);
           }}
           size="sm"
