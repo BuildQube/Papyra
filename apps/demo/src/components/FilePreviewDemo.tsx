@@ -16,6 +16,7 @@ import { csvRenderer } from '@/components/file-preview-csv';
 import { imageRenderer } from '@/components/file-preview-image';
 import { pdfRenderer } from '@/components/file-preview-pdf';
 import { spreadsheetRenderer } from '@/components/file-preview-spreadsheet';
+import { tiffRenderer } from '@/components/file-preview-tiff';
 import { videoRenderer } from '@/components/file-preview-video';
 import type { RendererId } from '@/lib/file-preview-core';
 import coreSource from '@/lib/file-preview-core?raw';
@@ -25,6 +26,7 @@ import { BlockPreview } from './BlockPreview.js';
 const RENDERERS = [
   pdfRenderer,
   imageRenderer,
+  tiffRenderer,
   videoRenderer,
   audioRenderer,
   spreadsheetRenderer,
@@ -199,6 +201,9 @@ export function FilePreviewDemo() {
     // From the same script: number formats, fonts, fills, borders, widths and
     // heights, and gridlines turned off.
     `${base}styled.xlsx`,
+    // From crates/papyra-tiff/tests/fixtures/generate.py: a two-sheet Group 4 scan
+    // whose first sheet is 36x24in at 200 dpi — 34.6 MP, twice the decode cap.
+    `${base}drawing.tif`,
     ...local,
     // No CORS headers on that server, so the browser will not hand over the bytes.
     'https://example.com/report.pdf',

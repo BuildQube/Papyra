@@ -220,6 +220,16 @@ The features beyond rendering follow the same split:
   every PDF-only consumer pays about +610 KB gzipped (1.77 → 2.38 MB), mostly
   calamine, encoding_rs and a second deflate. Splitting it into its own native
   package is the known way out if that stops being acceptable.
+- **TIFF.** `crates/papyra-tiff` sits beside the PDF stack like `papyra-tables`, but
+  shares `Bitmap`, so `paintToCanvas` and `encode` take a page unchanged. The `tiff`
+  crate reads the container and the non-fax codecs; fax pages (compression 2, 3, 4)
+  go through `hayro-ccitt`, already in the tree via hayro, because `tiff`'s own
+  `fax` feature reads Group 4 only. A page is **never held at full size**: both
+  decoders feed rows into `resample.rs`, a box filter that writes the reduced
+  bitmap as it goes (13200x10200 G4 → 16 MP in ~80ms native, ~260ms wasm). The
+  viewer asks for the settled on-screen width, not the cap — a browser shrinking a
+  5000px canvas samples rather than averages and breaks hairlines into dashes.
+  Costs +91 KB gzipped of wasm (2.39 → 2.48 MB).
 - **Text and search.** `crates/papyra-hayro/src/text.rs` implements
   `hayro_interpret::Device` and collects glyphs, which is how encodings, `ToUnicode`
   cmaps, CID and Type3 fonts, and the graphics-state transform all arrive already
@@ -482,6 +492,13 @@ gate; CI needed no new job.
   near-black and near-white as "automatic" on a cell with no fill and keeps any
   colour that means something, and borders follow the same rule. Do not "fix" this
   by honouring every colour.
+- **The `tiff` crate has three gaps `papyra-tiff` works around or names.** It has
+  no readout for palette images at all (0.11.3), so those are refused as
+  "palette colour". It leaves JPEG-in-TIFF in its stored YCbCr — it asks zune-jpeg
+  for the input colour space — so `raster.rs` converts every YCbCr page itself.
+  And T4's fill bits (`T4Options` bit 2) are **not** hayro-ccitt's
+  `rows_are_byte_aligned`: they pad before an EOL, which hayro's EOL reader already
+  skips. Setting the flag misreads every row; `g3-fill.tif` is the regression.
 - **Excel's column widths are measured in Calibri.** A sheet's own widths are
   correct, but this UI's font runs wider, so the grid draws Excel-laid-out sheets
   at 11px with about 3px of padding. At `text-xs` with `px-2`, the default 64px

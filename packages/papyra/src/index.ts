@@ -1,5 +1,6 @@
 /**
- * papyra — fast PDF rendering for Node and the browser, and spreadsheets beside it.
+ * papyra — fast PDF rendering for Node and the browser, and spreadsheets and TIFF
+ * scans beside it.
  *
  * ```ts
  * import { open, paintToCanvas } from '@build-qube/papyra';
@@ -105,6 +106,12 @@ export {
   scaleQuad,
   scaleRect,
 } from './text.js';
+export type {
+  TiffCompression,
+  TiffPage,
+  TiffRenderOptions,
+} from './tiff.js';
+export { openTiff, TIFF_MAX_PIXELS, TiffImage } from './tiff.js';
 export type {
   DocumentMetadata,
   OpenOptions,
