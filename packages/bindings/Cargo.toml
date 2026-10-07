@@ -14,6 +14,7 @@ crate-type = ["cdylib"]
 papyra-core = { workspace = true }
 papyra-encode = { workspace = true }
 papyra-hayro = { workspace = true }
+papyra-tables = { workspace = true }
 napi = { workspace = true }
 napi-derive = { workspace = true }
 rayon = { workspace = true }

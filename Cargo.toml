@@ -3,6 +3,7 @@ members = [
   "crates/papyra-core",
   "crates/papyra-encode",
   "crates/papyra-hayro",
+  "crates/papyra-tables",
   "packages/bindings",
 ]
 resolver = "2"
@@ -18,6 +19,7 @@ rust-version = "1.92"
 papyra-core = { path = "crates/papyra-core" }
 papyra-encode = { path = "crates/papyra-encode" }
 papyra-hayro = { path = "crates/papyra-hayro" }
+papyra-tables = { path = "crates/papyra-tables" }
 
 hayro = "0.7.1"
 hayro-interpret = "0.7.0"

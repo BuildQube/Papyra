@@ -157,7 +157,9 @@ function mimeMatches(patterns: readonly string[], type: string): boolean {
  * Pick the renderer for a file whose head has already been read.
  *
  * Sniffing renderers are tried first and in order, then the rest by MIME type or
- * extension, also in order — so list order is priority. The `allow` list plays no
+ * extension, also in order — so list order is priority. Within that, the extension
+ * beats an exact MIME type, which beats a wildcard such as `text/*`, wherever the
+ * renderers sit in the list. The `allow` list plays no
  * part in *which* renderer matches, only in whether it may run: a file that sniffs
  * as an image is an image, and with images disallowed it is refused rather than
  * reinterpreted as whatever else would take it.
@@ -187,11 +189,22 @@ function match(
   }
   const ext = extensionOf(file.name);
   const binary = head.includes(0);
-  for (const r of renderers) {
-    if (r.sniff || (r.text && binary)) continue;
-    if (mimeMatches(r.mimes, file.type) || r.extensions.includes(ext)) return r;
-  }
-  return undefined;
+  const byName = renderers.filter((r) => !r.sniff && !(r.text && binary));
+  // Most specific first. A wildcard is a fallback: `code` claims `text/*`, and
+  // listing it before `csv` must not hand it every `text/csv` file. The extension
+  // beats an exact MIME type because a browser derives a file's type from the
+  // extension anyway, through an OS table that is often wrong — Windows with Excel
+  // installed calls every `.csv` `application/vnd.ms-excel`.
+  return (
+    byName.find((r) => r.extensions.includes(ext)) ??
+    byName.find((r) =>
+      mimeMatches(
+        r.mimes.filter((m) => !m.endsWith('/*')),
+        file.type,
+      ),
+    ) ??
+    byName.find((r) => mimeMatches(r.mimes, file.type))
+  );
 }
 
 /** Read a file's head and pick its renderer. See {@link detectHead}. */

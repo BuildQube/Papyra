@@ -1,0 +1,24 @@
+[package]
+name = "papyra-tables"
+description = "Spreadsheet and delimited-text readers for papyra"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+# Read-only, pure Rust: xlsx/xlsm/xlsb, BIFF8 xls and ods. `chrono` is only for the
+# ISO 8601 fallback text of a date with no number format: calamine's `as_datetime`
+# knows the cell's epoch, and the serial alone does not. A formatted date goes
+# through `numfmt.rs`, which takes the epoch from the workbook.
+calamine = { version = "0.36", features = ["chrono"] }
+chardetng = "0.1"
+chrono = { version = "0.4", default-features = false }
+csv = "1"
+encoding_rs = "0.8"
+# Both already in the tree through calamine, at these versions and features; named
+# here because calamine reads no formatting, so `styles.rs` opens the zip itself.
+quick-xml = "0.41"
+thiserror = { workspace = true }
+zip = { version = "8.6", default-features = false, features = ["deflate"] }

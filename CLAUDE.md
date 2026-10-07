@@ -203,6 +203,23 @@ The features beyond rendering follow the same split:
   the id) and `BMC` (with `None`) — so `text.rs` tags each line with the id that
   produced it and nothing needs a second interpretation pass. Reading order is the
   point of all this, and it is the one ordering content-stream order cannot give.
+- **Spreadsheets.** `crates/papyra-tables` is a fifth crate beside the PDF stack, not
+  inside it: it depends on neither `papyra-core` nor hayro, and the `Engine`/`Document`
+  traits do not describe a workbook. Excel and OpenDocument go through calamine (pure
+  Rust, read-only, and the only reader of legacy `.xls` and `.xlsb` either ecosystem
+  has); CSV and TSV through the `csv` crate after `delimited.rs` has sniffed the
+  encoding (BOM, then valid UTF-8, then chardetng) and the delimiter. Both produce the
+  same `Sheet`. Cells cross the boundary a **window** at a time as four flat buffers —
+  kind bytes, `f64`s, one string, UTF-16 offsets into it — because an object per cell
+  costs more than the parse; `cells.ts` decodes lazily. calamine reads no
+  formatting at all, so `styles.rs` opens the same zip itself for `xl/styles.xml`,
+  the theme, and a second attribute-only pass over each worksheet (a cell's `s`,
+  `<col>` widths, `<row>` heights). `numfmt.rs` is the Excel number-format engine.
+  Window `text` is already formatted, and the raw value travels beside it. All of
+  this is xlsx only. It ships in the same addon and wasm as the PDF stack, by choice:
+  every PDF-only consumer pays about +610 KB gzipped (1.77 → 2.38 MB), mostly
+  calamine, encoding_rs and a second deflate. Splitting it into its own native
+  package is the known way out if that stops being acceptable.
 - **Text and search.** `crates/papyra-hayro/src/text.rs` implements
   `hayro_interpret::Device` and collects glyphs, which is how encodings, `ToUnicode`
   cmaps, CID and Type3 fonts, and the graphics-state transform all arrive already
@@ -441,6 +458,34 @@ gate; CI needed no new job.
   test/unit` covers 6 of the 13 files in the wrapper, silently omitting `document.ts`.
   `packages/papyra/test/coverage-entry.ts` is preloaded solely to import the package
   entrypoint and drag the rest into the denominator. There is no `--coverage.all`.
+- **Never call calamine's `worksheet_range` for xlsx or xlsb.** It builds a
+  *dense* grid over the bounding box of whatever cells exist, so a valid file with
+  values in A1 and XFD1048576 asks for seventeen billion cells. Natively that hangs
+  the process while it writes ~550 GB; on wasm32 the count overflows `usize` and
+  the panic aborts the instance. `book.rs` streams `worksheet_cells_reader` into a
+  sparse `Sheet` instead, capped at `LoadOptions::max_cells` (default 8M), and a
+  sheet past the cap is truncated to its first whole rows with `truncated` set. xls
+  and ods still go through `worksheet_range`, because they have no streaming reader;
+  BIFF8 bounds xls at 65,536 × 256, and calamine caps ods repeats at 100M cells,
+  which is still more than wasm can hold. `extent.xlsx` is the regression fixture.
+  Do not run it against plain calamine on a dev machine: it does not crash, it
+  swaps.
+- **Zip entries declare their own sizes, and the file's author picks them.**
+  Nothing in `styles.rs` reserves capacity from `ZipFile::size()`. Every read is
+  bounded by bytes actually inflated (`read_bounded`). Worksheets are streamed
+  through a `take`, and the shared-string table is inflated once into a sink
+  before calamine loads it, so a bomb is refused as `TableError::TooLarge` while
+  it is still only bytes.
+- **A workbook's colours assume white paper.** Nearly every xlsx writes its text
+  colour out as explicit black (theme `dk1`), so a dark-theme grid that takes styles
+  literally is unreadable. `textColor` in `file-preview-sheet-layout.ts` treats
+  near-black and near-white as "automatic" on a cell with no fill and keeps any
+  colour that means something, and borders follow the same rule. Do not "fix" this
+  by honouring every colour.
+- **Excel's column widths are measured in Calibri.** A sheet's own widths are
+  correct, but this UI's font runs wider, so the grid draws Excel-laid-out sheets
+  at 11px with about 3px of padding. At `text-xs` with `px-2`, the default 64px
+  column truncates `15-Mar-24`.
 
 ## Conventions
 

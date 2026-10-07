@@ -4,13 +4,16 @@
  * napi-rs gives every error it throws the same `code`, so the message is the only
  * channel a typed failure can travel through. These are stripped before the error
  * reaches a caller — keep them in step with `TAG_PASSWORD_REQUIRED` and
- * `TAG_INCORRECT_PASSWORD` in `packages/bindings/src/lib.rs`.
+ * `TAG_INCORRECT_PASSWORD` in `packages/bindings/src/lib.rs`, and `TAG_ENCRYPTED` in
+ * `packages/bindings/src/tables.rs`.
  */
 const TAGS = {
   'papyra/password-required': (message: string) =>
     new PasswordRequiredError(message),
   'papyra/incorrect-password': (message: string) =>
     new IncorrectPasswordError(message),
+  'papyra/encrypted-workbook': (message: string) =>
+    new EncryptedWorkbookError(message),
 } as const;
 
 /**
@@ -54,6 +57,21 @@ export class IncorrectPasswordError extends PasswordError {
   override readonly name = 'IncorrectPasswordError';
   override readonly retry = true;
   constructor(message = 'the supplied password is incorrect') {
+    super(message);
+  }
+}
+
+/**
+ * A spreadsheet that is password-protected.
+ *
+ * Deliberately not a {@link PasswordError}: Excel encrypts the whole package, and
+ * there is no decryption here to hand a password to, so a dialog asking for one
+ * would only fail again. Show that the file is protected, and stop.
+ */
+export class EncryptedWorkbookError extends Error {
+  /** Always `'EncryptedWorkbookError'`. */
+  override readonly name = 'EncryptedWorkbookError';
+  constructor(message = 'this workbook is password-protected') {
     super(message);
   }
 }

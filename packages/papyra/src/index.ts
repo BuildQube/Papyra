@@ -1,5 +1,5 @@
 /**
- * papyra — fast PDF rendering for Node and the browser.
+ * papyra — fast PDF rendering for Node and the browser, and spreadsheets beside it.
  *
  * ```ts
  * import { open, paintToCanvas } from '@build-qube/papyra';
@@ -22,6 +22,19 @@ export {
 export type { CacheStats } from './cache.js';
 export type { PaintOptions } from './canvas.js';
 export { paintToCanvas, toImageData } from './canvas.js';
+export type {
+  BoolCell,
+  Cell,
+  CellKind,
+  DateCell,
+  DurationCell,
+  EmptyCell,
+  ErrorCell,
+  MergedRange,
+  NumberCell,
+  TextCell,
+} from './cells.js';
+export { CellWindow, columnName } from './cells.js';
 export type { ImageHandle, RenderHandle, SvgHandle } from './document.js';
 export { Document, open } from './document.js';
 export type {
@@ -39,6 +52,7 @@ export {
   svgPage,
 } from './encode.js';
 export {
+  EncryptedWorkbookError,
   IncorrectPasswordError,
   PasswordError,
   PasswordRequiredError,
@@ -72,6 +86,17 @@ export {
   structuredPageString,
   walkStructTree,
 } from './structure.js';
+export type {
+  BorderEdge,
+  BorderStyle,
+  CellStyle,
+  ColumnSpan,
+  HorizontalAlign,
+  RowSize,
+  SheetLayout,
+  VerticalAlign,
+} from './styles.js';
+export { cssColor } from './styles.js';
 export type { PageText, Quad, Rect, TextLine } from './text.js';
 export {
   lineQuad,
@@ -100,3 +125,12 @@ export {
   viewportQuad,
   viewportRect,
 } from './viewport.js';
+export type {
+  SheetInfo,
+  SheetKind,
+  SheetVisibility,
+  WindowRange,
+  WorkbookFormat,
+  WorkbookOptions,
+} from './workbook.js';
+export { openWorkbook, Sheet, Workbook } from './workbook.js';

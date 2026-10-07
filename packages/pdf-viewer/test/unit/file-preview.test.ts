@@ -4,8 +4,10 @@ import { join } from 'node:path';
 import { audioRenderer, sniffAudio } from '@/components/file-preview-audio';
 import { codeRenderer } from '@/components/file-preview-code';
 import { createFilePreview } from '@/components/file-preview-create';
+import { csvRenderer } from '@/components/file-preview-csv';
 import { imageRenderer, sniffImage } from '@/components/file-preview-image';
 import { pdfRenderer, sniffPdf } from '@/components/file-preview-pdf';
+import { spreadsheetRenderer } from '@/components/file-preview-spreadsheet';
 import { sniffVideo, videoRenderer } from '@/components/file-preview-video';
 import {
   acceptOf,
@@ -13,6 +15,7 @@ import {
   detect,
   detectHead,
   extensionOf,
+  type FileRenderer,
 } from '@/lib/file-preview-core';
 
 const ascii = (s: string) => new TextEncoder().encode(s);
@@ -181,6 +184,52 @@ describe('detectHead', () => {
   });
 });
 
+describe('detectHead, spreadsheets and CSV', () => {
+  const id = (
+    file: { name: string; type: string },
+    head: Uint8Array,
+    renderers: readonly FileRenderer[],
+  ) => {
+    const d = detectHead(file, head, renderers);
+    return d.status === 'ok' ? d.renderer.id : d.status;
+  };
+  const CSV = ascii('a,b\n1,2\n');
+
+  test('a wildcard MIME type loses to an exact one, wherever it is listed', () => {
+    // `code` claims `text/*`. Listed first it used to take every `text/csv`.
+    expect(
+      id(named('export', 'text/csv'), CSV, [codeRenderer, csvRenderer]),
+    ).toBe('csv');
+    expect(
+      id(named('notes', 'text/plain'), CSV, [codeRenderer, csvRenderer]),
+    ).toBe('code');
+  });
+
+  test('the extension beats a MIME type the OS got wrong', () => {
+    // Windows with Excel installed reports every .csv as an Excel workbook.
+    const file = named('data.csv', 'application/vnd.ms-excel');
+    expect(id(file, CSV, [spreadsheetRenderer, csvRenderer])).toBe('csv');
+  });
+
+  test('UTF-16 text is still a CSV, NULs and all', () => {
+    const utf16 = bytes(0xff, 0xfe, 0x61, 0, 0x2c, 0, 0x62, 0);
+    expect(id(named('unicode.csv'), utf16, [codeRenderer, csvRenderer])).toBe(
+      'csv',
+    );
+  });
+
+  test('workbooks match by name, since their containers are shared', () => {
+    // An OLE compound file is an .xls, a .doc or an .msg; the name decides.
+    const cfb = bytes(0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1);
+    const all = [pdfRenderer, imageRenderer, spreadsheetRenderer] as const;
+    const d = detectHead(named('budget.xls'), cfb, all);
+    expect(d.status === 'ok' && d.renderer.id).toBe('spreadsheet');
+    expect(detectHead(named('letter.doc'), cfb, all).status).toBe(
+      'unsupported',
+    );
+  });
+});
+
 test('detect reads the head of a real File', async () => {
   const file = new File([PNG, new Uint8Array(4096)], 'scan.dat');
   const d = await detect(file, ALL);
@@ -209,6 +258,8 @@ describe('laziness', () => {
     'file-preview-code',
     'file-preview-video',
     'file-preview-audio',
+    'file-preview-spreadsheet',
+    'file-preview-csv',
   ])('%s imports only the core statically', async (name) => {
     const source = await readFile(
       join(import.meta.dir, '../../src/components', `${name}.ts`),
