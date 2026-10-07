@@ -326,6 +326,7 @@ describe('laziness', () => {
     'file-preview-csv',
     'file-preview-tiff',
     'file-preview-markdown',
+    'file-preview-docx',
   ])('%s imports only the core statically', async (name) => {
     const source = await readFile(
       join(import.meta.dir, '../../src/components', `${name}.ts`),
