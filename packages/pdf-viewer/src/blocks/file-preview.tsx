@@ -7,12 +7,13 @@ import {
   FileQuestionIcon,
   FilesIcon,
   FileWarningIcon,
+  MaximizeIcon,
+  MinimizeIcon,
   RotateCwIcon,
   ShieldXIcon,
 } from 'lucide-react';
 import {
   Component,
-  type ComponentType,
   type ErrorInfo,
   type KeyboardEvent,
   type LazyExoticComponent,
@@ -33,14 +34,16 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
+import { useFullscreen } from '@/hooks/use-fullscreen';
 import {
   detectHead,
   type FileInputRenderer,
   type FileRenderer,
-  type FileViewProps,
+  type FileView,
   type RendererId,
+  type RendererOptions,
   type UrlInputRenderer,
-  type UrlViewProps,
+  type UrlView,
 } from '@/lib/file-preview-core';
 import {
   defaultFileCache,
@@ -57,8 +60,16 @@ import {
 } from '@/lib/file-preview-source';
 import { cn } from '@/lib/utils';
 
-/** Props for {@link FilePreview}, less the renderer list. */
-export interface FilePreviewProps<Id extends string = string> {
+/**
+ * Props for {@link FilePreview}, less the renderer list.
+ *
+ * `Options` is the shape of `options`; `createFilePreview` fills it in from the
+ * renderers it was given, so each entry is checked against that renderer's view.
+ */
+export interface FilePreviewProps<
+  Id extends string = string,
+  Options extends object = { readonly [K in Id]?: object },
+> {
   /**
    * The files to page through, shown one at a time: `File`s, URLs, or
    * `{ key, url }` sources whose `url` may be a function that mints a signed link.
@@ -81,6 +92,21 @@ export interface FilePreviewProps<Id extends string = string> {
    * on the page, bounded at 256 MiB; pass a `FileCache` to size or clear your own.
    */
   cache?: FileCache;
+  /**
+   * Options for each format's view, by renderer id — `{ pdf: { thumbnails: true } }`.
+   * Merged over whatever the renderer was given with `with`, field by field.
+   */
+  options?: Options;
+  /** Offer a button that fills the window with the preview. On by default. */
+  fullscreen?: boolean;
+  /** Show the file's size under its name. Off by default. */
+  displaySize?: boolean;
+  /**
+   * Let views show how long their work took — a PDF's thumbnails, outline and
+   * search. Off by default: it is a number for whoever is tuning papyra, not for a
+   * reader.
+   */
+  displayRenderTime?: boolean;
   /** Classes for the outermost element. */
   className?: string;
 }
@@ -109,8 +135,12 @@ export function FilePreview<const R extends readonly FileRenderer[]>({
   defaultIndex = 0,
   onIndexChange,
   cache = defaultFileCache,
+  options,
+  fullscreen = true,
+  displaySize = false,
+  displayRenderTime = false,
   className,
-}: FilePreviewProps<RendererId<R>> & {
+}: FilePreviewProps<RendererId<R>, RendererOptions<R>> & {
   /** The formats this preview knows, in priority order. */
   renderers: R;
 }) {
@@ -120,6 +150,7 @@ export function FilePreview<const R extends readonly FileRenderer[]>({
   const source = files[at];
   const key = source === undefined ? '' : sourceKey(source);
   const signal = useUnmountSignal();
+  const [full, toggleFullscreen] = useFullscreen();
 
   // A name or size only the response knew — a `Content-Disposition`, a length.
   const [learned, setLearned] = useState<{ key: string; info: SourceInfo }>();
@@ -129,6 +160,7 @@ export function FilePreview<const R extends readonly FileRenderer[]>({
       : source === undefined
         ? undefined
         : sourceInfo(source);
+  const size = displaySize ? info?.size : undefined;
 
   const go = (next: number) => {
     if (next < 0 || next >= count || next === at) return;
@@ -157,7 +189,13 @@ export function FilePreview<const R extends readonly FileRenderer[]>({
   return (
     <section
       aria-label="File preview"
-      className={cn('flex min-h-0 min-w-0 flex-col', className)}
+      className={cn(
+        'flex min-h-0 min-w-0 flex-col',
+        className,
+        // `dvh`, not `vh`: on a phone the static viewport is taller than what shows
+        // while the address bar is up. After `className`, so it wins over a height.
+        full && 'fixed inset-0 z-50 h-dvh w-screen bg-background',
+      )}
       onKeyDown={onKeyDown}
     >
       {source !== undefined && info ? (
@@ -176,11 +214,13 @@ export function FilePreview<const R extends readonly FileRenderer[]>({
             )}
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{info.name}</p>
-              <p className="text-xs text-muted-foreground tabular-nums">
-                {count > 1 && `${at + 1} of ${count}`}
-                {count > 1 && info.size !== undefined && ' · '}
-                {info.size !== undefined && formatBytes(info.size)}
-              </p>
+              {(count > 1 || size !== undefined) && (
+                <p className="text-xs text-muted-foreground tabular-nums">
+                  {count > 1 && `${at + 1} of ${count}`}
+                  {count > 1 && size !== undefined && ' · '}
+                  {size !== undefined && formatBytes(size)}
+                </p>
+              )}
             </div>
             <Button
               aria-label={`Download ${info.name}`}
@@ -190,6 +230,17 @@ export function FilePreview<const R extends readonly FileRenderer[]>({
             >
               <DownloadIcon />
             </Button>
+            {fullscreen && (
+              <Button
+                aria-label={full ? 'Exit full screen' : 'Full screen'}
+                aria-pressed={full}
+                onClick={toggleFullscreen}
+                size="icon-sm"
+                variant="ghost"
+              >
+                {full ? <MinimizeIcon /> : <MaximizeIcon />}
+              </Button>
+            )}
             {count > 1 && (
               <Button
                 aria-label="Next file"
@@ -208,6 +259,8 @@ export function FilePreview<const R extends readonly FileRenderer[]>({
             key={key}
             onInfo={(i) => setLearned({ key, info: i })}
             onReady={onReady}
+            options={options as Readonly<Record<string, object>> | undefined}
+            displayRenderTime={displayRenderTime}
             renderers={renderers}
             signal={signal}
             source={source}
@@ -289,6 +342,8 @@ function FileBody({
   signal,
   onInfo,
   onReady,
+  options,
+  displayRenderTime,
 }: {
   source: FileSource;
   renderers: readonly FileRenderer[];
@@ -297,6 +352,8 @@ function FileBody({
   signal: () => AbortSignal;
   onInfo: (info: SourceInfo) => void;
   onReady: () => void;
+  options: Readonly<Record<string, object>> | undefined;
+  displayRenderTime: boolean;
 }) {
   const [body, setBody] = useState<Body>({ status: 'inspecting' });
   const [attempt, setAttempt] = useState(0);
@@ -350,6 +407,12 @@ function FileBody({
     // source by key, for the same reason — the key is what identifies it.
   }, [renderers, allow?.join('\0'), cache, attempt]);
 
+  // The renderer's own defaults, then this preview's entry for it.
+  const settingsFor = (renderer: FileRenderer) => ({
+    options: { ...renderer.defaults, ...options?.[renderer.id] },
+    displayRenderTime,
+  });
+
   const name = sourceInfo(source).name;
   const download = <DownloadButton cache={cache} source={source} />;
 
@@ -394,11 +457,12 @@ function FileBody({
       );
     case 'file': {
       const View = fileViewOf(body.renderer);
+      const settings = settingsFor(body.renderer);
       return (
         <ViewBoundary download={download}>
           <Suspense fallback={<Loading />}>
             <div className="flex min-h-0 flex-1 flex-col">
-              <View file={body.file} />
+              <View file={body.file} {...settings} />
             </div>
           </Suspense>
         </ViewBoundary>
@@ -406,6 +470,7 @@ function FileBody({
     }
     case 'url': {
       const View = urlViewOf(body.renderer);
+      const settings = settingsFor(body.renderer);
       const refresh = async () => {
         const fresh = await resolveUrl(source, { cache, fresh: true });
         releases.current.push(fresh.release);
@@ -420,6 +485,7 @@ function FileBody({
                 refresh={refresh}
                 type={body.info.type}
                 url={body.url}
+                {...settings}
               />
             </div>
           </Suspense>
@@ -474,38 +540,45 @@ function FailedNotice({
   );
 }
 
+/** A view as the preview calls it: options are checked where they are set. */
+type AnyFileView = FileView<object>;
+/** {@link AnyFileView}, for streaming views. */
+type AnyUrlView = UrlView<object>;
+
 const fileViews = new WeakMap<
-  FileInputRenderer,
-  LazyExoticComponent<ComponentType<FileViewProps>>
+  FileInputRenderer['load'],
+  LazyExoticComponent<AnyFileView>
 >();
 const urlViews = new WeakMap<
-  UrlInputRenderer,
-  LazyExoticComponent<ComponentType<UrlViewProps>>
+  UrlInputRenderer['load'],
+  LazyExoticComponent<AnyUrlView>
 >();
 
 /**
- * One lazy component per renderer, for the page's lifetime.
+ * One lazy component per view, for the page's lifetime.
  *
  * `lazy` caches its promise on the component it returns, so making a new one per
  * render would mean a new import, and a new suspense, every time a file is shown.
+ * Keyed by `load` rather than the renderer, because `with` makes a new renderer
+ * around the same view.
  */
 function fileViewOf(renderer: FileInputRenderer) {
-  let view = fileViews.get(renderer);
+  const load = renderer.load;
+  let view = fileViews.get(load);
   if (!view) {
-    const load = renderer.load;
-    view = lazy(() => load().then((c) => ({ default: c })));
-    fileViews.set(renderer, view);
+    view = lazy(() => load().then((c) => ({ default: c as AnyFileView })));
+    fileViews.set(load, view);
   }
   return view;
 }
 
 /** {@link fileViewOf}, for streaming views. */
 function urlViewOf(renderer: UrlInputRenderer) {
-  let view = urlViews.get(renderer);
+  const load = renderer.load;
+  let view = urlViews.get(load);
   if (!view) {
-    const load = renderer.load;
-    view = lazy(() => load().then((c) => ({ default: c })));
-    urlViews.set(renderer, view);
+    view = lazy(() => load().then((c) => ({ default: c as AnyUrlView })));
+    urlViews.set(load, view);
   }
   return view;
 }

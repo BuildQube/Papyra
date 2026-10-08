@@ -1,13 +1,36 @@
-import type { ComponentType } from 'react';
+import type { ReactNode } from 'react';
+
+/**
+ * What every view is handed besides its content: its own options, and the flags
+ * the preview sets for all of them.
+ */
+export interface ViewSettings<O extends object = NoOptions> {
+  /**
+   * This renderer's options: the defaults its descriptor was given with
+   * {@link FileInputRenderer.with}, overridden by the preview's `options` entry for
+   * it. Empty when neither set any, so every field a view reads needs a default.
+   */
+  options: O;
+  /**
+   * Whether to show how long the view's work took. Off unless the preview's
+   * `displayRenderTime` is set: a number for whoever is tuning papyra, not a reader.
+   */
+  displayRenderTime: boolean;
+}
+
+/** The options type of a renderer that takes none. */
+export type NoOptions = Record<string, never>;
 
 /** Props a view that takes the whole file receives. */
-export interface FileViewProps {
+export interface FileViewProps<O extends object = NoOptions>
+  extends ViewSettings<O> {
   /** The file to show, downloaded and held in the cache. */
   file: File;
 }
 
 /** Props a view that streams from a URL receives. */
-export interface UrlViewProps {
+export interface UrlViewProps<O extends object = NoOptions>
+  extends ViewSettings<O> {
   /**
    * Something the browser can fetch: the source's own URL, a freshly resolved
    * signed one, or an object URL for a file already in hand.
@@ -66,48 +89,124 @@ export interface RendererBase<Id extends string = string> {
    * Markdown renderer claiming `.md` too would otherwise be decided by list order.
    */
   readonly fallback?: boolean;
+  /**
+   * Options set with {@link FileInputRenderer.with}, merged under the preview's own
+   * before the view sees them. Typed loosely here, and checked where it is set.
+   */
+  readonly defaults?: object;
 }
 
-/** A renderer whose view needs the whole file: a PDF, an image, source code. */
-export interface FileInputRenderer<Id extends string = string>
-  extends RendererBase<Id> {
+/**
+ * A view, as a function component.
+ *
+ * Not `ComponentType`: a class component's `defaultProps` would make the props type
+ * appear where it is read as well as where it is written, and a renderer list could
+ * then no longer hold views that take different options.
+ */
+export type FileView<O extends object = NoOptions> = (
+  props: FileViewProps<O>,
+) => ReactNode;
+
+/** {@link FileView}, for a view that streams from a URL. */
+export type UrlView<O extends object = NoOptions> = (
+  props: UrlViewProps<O>,
+) => ReactNode;
+
+/**
+ * A renderer whose view needs the whole file: a PDF, an image, source code.
+ *
+ * `O` is what its view accepts as `options`. It defaults to `never` so that every
+ * renderer, whatever it takes, fits a plain `FileRenderer` list — the view is the
+ * only place `O` appears as an input, and `never` is assignable to all of them.
+ */
+export interface FileInputRenderer<
+  Id extends string = string,
+  O extends object = never,
+> extends RendererBase<Id> {
   /** Omitted or `'file'`: the file is downloaded, cached, then shown. */
   readonly input?: 'file';
   /** The view. Called once, the first time a file of this type is shown. */
-  readonly load: () => Promise<ComponentType<FileViewProps>>;
+  readonly load: () => Promise<FileView<O>>;
+  /**
+   * The same renderer with default options for its view, for every preview it is
+   * passed to. A preview's `options` still override them, field by field, and a
+   * second `with` merges over the first.
+   *
+   * ```ts
+   * createFilePreview([pdfRenderer.with({ thumbnails: true }), imageRenderer]);
+   * ```
+   */
+  with(options: O): FileInputRenderer<Id, O>;
 }
 
 /**
  * A renderer whose view streams from a URL: audio, video — anything an element can
  * play while it downloads, and that is too large to download first.
  */
-export interface UrlInputRenderer<Id extends string = string>
-  extends RendererBase<Id> {
+export interface UrlInputRenderer<
+  Id extends string = string,
+  O extends object = never,
+> extends RendererBase<Id> {
   /** `'url'`: the view gets a URL, and the file is never downloaded whole. */
   readonly input: 'url';
   /** The view. Called once, the first time a file of this type is shown. */
-  readonly load: () => Promise<ComponentType<UrlViewProps>>;
+  readonly load: () => Promise<UrlView<O>>;
+  /** As {@link FileInputRenderer.with}. */
+  with(options: O): UrlInputRenderer<Id, O>;
 }
 
 /** One file format: how to recognise it, and where its view is. */
-export type FileRenderer<Id extends string = string> =
-  | FileInputRenderer<Id>
-  | UrlInputRenderer<Id>;
+export type FileRenderer<Id extends string = string, O extends object = never> =
+  | FileInputRenderer<Id, O>
+  | UrlInputRenderer<Id, O>;
+
+/** What {@link defineRenderer} takes: a renderer, less what it adds. */
+export type RendererSpec<Id extends string, O extends object> =
+  | Omit<FileInputRenderer<Id, O>, 'with' | 'defaults'>
+  | Omit<UrlInputRenderer<Id, O>, 'with' | 'defaults'>;
 
 /**
- * Declare a renderer, keeping its `id` as a literal type.
+ * Declare a renderer, keeping its `id` as a literal type and its view's options
+ * type as `O`.
  *
  * Without this the id widens to `string` and an `allow` list built from it accepts
- * anything — the identity function is here for the inference, not the runtime.
+ * anything. It also gives the renderer its `with`.
  */
-export function defineRenderer<const Id extends string>(
-  renderer: FileRenderer<Id>,
-): FileRenderer<Id> {
-  return renderer;
+export function defineRenderer<
+  const Id extends string,
+  O extends object = NoOptions,
+>(spec: RendererSpec<Id, O>): FileRenderer<Id, O> {
+  return configured(spec, undefined);
+}
+
+function configured<Id extends string, O extends object>(
+  spec: RendererSpec<Id, O>,
+  defaults: O | undefined,
+): FileRenderer<Id, O> {
+  return {
+    ...spec,
+    defaults,
+    with: (options: O) => configured(spec, { ...defaults, ...options }),
+  } as FileRenderer<Id, O>;
 }
 
 /** The union of ids in a renderer list: what an `allow` list may name. */
 export type RendererId<R extends readonly FileRenderer[]> = R[number]['id'];
+
+/** The options a renderer's view takes, or `never` for something that is not one. */
+export type OptionsOf<R> = R extends
+  | FileInputRenderer<string, infer O>
+  | UrlInputRenderer<string, infer O>
+  ? O
+  : never;
+
+/**
+ * Options per renderer, keyed by id: what a preview's `options` prop accepts for a
+ * given renderer list.
+ */
+export type RendererOptions<R extends readonly FileRenderer[]> = {
+  [X in R[number] as X['id']]?: OptionsOf<X>;
+};
 
 /**
  * How many leading bytes {@link RendererBase.sniff} sees.

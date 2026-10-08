@@ -3,7 +3,10 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { audioRenderer, sniffAudio } from '@/components/file-preview-audio';
 import { codeRenderer } from '@/components/file-preview-code';
-import { createFilePreview } from '@/components/file-preview-create';
+import {
+  createFilePreview,
+  mergePreviewProps,
+} from '@/components/file-preview-create';
 import { csvRenderer } from '@/components/file-preview-csv';
 import { imageRenderer, sniffImage } from '@/components/file-preview-image';
 import { pdfRenderer, sniffPdf } from '@/components/file-preview-pdf';
@@ -371,6 +374,75 @@ describe('createFilePreview', () => {
   });
 });
 
+describe('createFilePreview defaults', () => {
+  type Props = {
+    files: File[];
+    displaySize?: boolean;
+    fullscreen?: boolean;
+    options?: { pdf?: { thumbnails?: boolean; search?: boolean } };
+  };
+
+  test('an instance prop wins over a default', () => {
+    const merged = mergePreviewProps<Props>(
+      { displaySize: true, fullscreen: true },
+      { files: [], fullscreen: false },
+    );
+    expect(merged).toEqual({ files: [], displaySize: true, fullscreen: false });
+  });
+
+  test('an undefined prop does not clear a default', () => {
+    const merged = mergePreviewProps<Props>(
+      { displaySize: true },
+      { files: [], displaySize: undefined },
+    );
+    expect(merged.displaySize).toBe(true);
+  });
+
+  test('options merge per renderer, field by field', () => {
+    const merged = mergePreviewProps<Props>(
+      { options: { pdf: { thumbnails: true, search: false } } },
+      { files: [], options: { pdf: { search: true } } },
+    );
+    expect(merged.options).toEqual({ pdf: { thumbnails: true, search: true } });
+  });
+
+  test('defaults alone come through unchanged', () => {
+    const options = { pdf: { thumbnails: true } };
+    expect(mergePreviewProps<Props>({ options }, { files: [] }).options).toBe(
+      options,
+    );
+  });
+});
+
+describe('renderer options', () => {
+  test('a plain renderer has no defaults', () => {
+    expect(pdfRenderer.defaults).toBeUndefined();
+  });
+
+  test('`with` sets defaults and leaves the original alone', () => {
+    const withThumbs = pdfRenderer.with({ thumbnails: true });
+    expect(withThumbs.defaults).toEqual({ thumbnails: true });
+    expect(withThumbs.id).toBe('pdf');
+    expect(withThumbs.sniff).toBe(pdfRenderer.sniff);
+    expect(pdfRenderer.defaults).toBeUndefined();
+  });
+
+  test('a second `with` merges over the first, field by field', () => {
+    const r = pdfRenderer
+      .with({ thumbnails: true, search: true })
+      .with({ search: false, outline: true });
+    expect(r.defaults).toEqual({
+      thumbnails: true,
+      search: false,
+      outline: true,
+    });
+  });
+
+  test('`with` keeps the view, so it is not imported twice', () => {
+    expect(pdfRenderer.with({ search: true }).load).toBe(pdfRenderer.load);
+  });
+});
+
 /**
  * Compile-time only: `typecheck` runs over this file and fails if an expected error
  * disappears. Never called — calling a component outside React would render it.
@@ -384,6 +456,33 @@ const typeChecks = () => {
   Preview({ ...props, allow: ['code'] });
   // @ts-expect-error -- not a renderer anywhere
   Preview({ ...props, allow: ['docx'] });
+
+  // Options are typed per renderer, from what its view accepts.
+  Preview({ ...props, options: { pdf: { thumbnails: true, view: 'scroll' } } });
+  // @ts-expect-error -- not an option of the PDF view
+  Preview({ ...props, options: { pdf: { sidebar: true } } });
+  Preview({ ...props, options: { pdf: { properties: true } } });
+  // @ts-expect-error -- the file supplies its own name; it is not an option
+  Preview({ ...props, options: { pdf: { fileName: 'x.pdf' } } });
+  // @ts-expect-error -- a PDF option has its own type
+  Preview({ ...props, options: { pdf: { thumbnails: 'yes' } } });
+  // @ts-expect-error -- 'code' is not in this preview, so it takes no options
+  Preview({ ...props, options: { code: {} } });
+  pdfRenderer.with({ search: true });
+  createFilePreview([pdfRenderer, imageRenderer], {
+    displaySize: true,
+    allow: ['pdf'],
+    options: { pdf: { search: true } },
+  });
+  // @ts-expect-error -- defaults are typed from the same renderer list
+  createFilePreview([pdfRenderer, imageRenderer], { allow: ['code'] });
+  // @ts-expect-error -- and so are their options
+  createFilePreview([imageRenderer], { options: { pdf: { search: true } } });
+  // @ts-expect-error -- the files belong to an instance, not to the defaults
+  createFilePreview([imageRenderer], { files: [] });
+  // @ts-expect-error -- `with` is checked against the same type
+  pdfRenderer.with({ search: 1 });
+  createFilePreview([pdfRenderer.with({ outline: true }), imageRenderer]);
 
   // @ts-expect-error -- two renderers claim 'image'
   createFilePreview([imageRenderer, pdfRenderer, imageRenderer]);

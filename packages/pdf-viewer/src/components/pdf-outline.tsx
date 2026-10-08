@@ -30,6 +30,11 @@ export interface OutlineProps {
   current: number;
   /** Called with a 0-based page index when the reader picks a page. */
   onSelect: (index: number) => void;
+  /**
+   * Whether to show how long reading the outline took. Off by default: it is a number for
+   * whoever is tuning papyra, not for the person reading the document.
+   */
+  displayRenderTime?: boolean;
 }
 
 /** The bordered one-liner every sidebar panel opens with. */
@@ -42,7 +47,12 @@ const NOTE = 'border-b px-2.5 py-2 text-xs text-muted-foreground';
  * the difference between a usable table of contents and a wall of 400 sheet numbers
  * on a construction set.
  */
-export function Outline({ doc, current, onSelect }: OutlineProps) {
+export function Outline({
+  doc,
+  current,
+  onSelect,
+  displayRenderTime = false,
+}: OutlineProps) {
   const [tree, setTree] = useState<OutlineNode[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
@@ -104,7 +114,8 @@ export function Outline({ doc, current, onSelect }: OutlineProps) {
   return (
     <>
       <p className={NOTE}>
-        {count} {count === 1 ? 'entry' : 'entries'} · {elapsed.toFixed(1)}ms
+        {count} {count === 1 ? 'entry' : 'entries'}
+        {displayRenderTime && ` · ${elapsed.toFixed(1)}ms`}
       </p>
       <ul className="py-1 pb-3">
         {tree.map((node, i) => (

@@ -36,6 +36,11 @@ export interface StructureProps {
    * is measured on; `null` clears the selection.
    */
   onHighlight: (page: number | null, quads: readonly Quad[]) => void;
+  /**
+   * Whether to show how long reading the structure tree took. Off by default: it is a number for
+   * whoever is tuning papyra, not for the person reading the document.
+   */
+  displayRenderTime?: boolean;
 }
 
 /** The bordered one-liner every sidebar panel opens with. */
@@ -55,6 +60,7 @@ export function Structure({
   current,
   onSelect,
   onHighlight,
+  displayRenderTime = false,
 }: StructureProps) {
   const [tree, setTree] = useState<StructNode[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -155,8 +161,8 @@ export function Structure({
 
       <TabsContent value="tree" keepMounted className="min-h-0 overflow-y-auto">
         <p className={NOTE}>
-          {count} {count === 1 ? 'element' : 'elements'} · {elapsed.toFixed(1)}
-          ms
+          {count} {count === 1 ? 'element' : 'elements'}
+          {displayRenderTime && ` · ${elapsed.toFixed(1)}ms`}
         </p>
         <ul className="py-1 pb-3">
           {tree.map((node, i) => (

@@ -24,7 +24,22 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-type Panel = 'pages' | 'outline' | 'structure' | 'attachments' | 'search';
+/** One of the sidebar's panels, by the name its `panels` list uses. */
+export type SidebarPanel =
+  | 'pages'
+  | 'outline'
+  | 'structure'
+  | 'attachments'
+  | 'search';
+
+/** Every panel, in menu order: what a sidebar shows when not told otherwise. */
+const SIDEBAR_PANELS: readonly SidebarPanel[] = [
+  'pages',
+  'outline',
+  'structure',
+  'attachments',
+  'search',
+];
 
 /** Props for {@link Sidebar}. */
 export interface SidebarProps {
@@ -46,6 +61,13 @@ export interface SidebarProps {
   rotation?: Rotation;
   /** Called with the picked structure element's content, for the page overlay. */
   onHighlight: (page: number | null, quads: readonly Quad[]) => void;
+  /**
+   * The panels on offer, in menu order. Every one by default. A panel left out is
+   * never mounted, so leaving out `pages` also means no thumbnail stream.
+   */
+  panels?: readonly SidebarPanel[];
+  /** Whether the panels show how long reading the document took. Off by default. */
+  displayRenderTime?: boolean;
 }
 
 /**
@@ -58,11 +80,15 @@ export interface SidebarProps {
 function useHas(
   doc: Document,
   read: (doc: Document) => Promise<{ length: number }>,
+  enabled: boolean,
 ): boolean | null {
   const [has, setHas] = useState<boolean | null>(null);
   useEffect(() => {
     let cancelled = false;
     setHas(null);
+    // A panel that is not offered is not asked about: a structure tree is a walk of
+    // the whole object graph, which is not free on a large tagged document.
+    if (!enabled) return;
     read(doc).then(
       (found) => !cancelled && setHas(found.length > 0),
       () => !cancelled && setHas(false),
@@ -70,7 +96,7 @@ function useHas(
     return () => {
       cancelled = true;
     };
-  }, [doc, read]);
+  }, [doc, read, enabled]);
   return has;
 }
 
@@ -107,20 +133,24 @@ export function Sidebar({
   onActive,
   rotation = 0,
   onHighlight,
+  panels: offered = SIDEBAR_PANELS,
+  displayRenderTime = false,
 }: SidebarProps) {
-  const [panel, setPanel] = useState<Panel>('pages');
-  const hasOutline = useHas(doc, readOutline);
-  const hasStructure = useHas(doc, readStructure);
-  const hasAttachments = useHas(doc, readAttachments);
+  const first = offered[0] ?? 'pages';
+  const [panel, setPanel] = useState<SidebarPanel>(first);
+  const offers = (key: SidebarPanel) => offered.includes(key);
+  const hasOutline = useHas(doc, readOutline, offers('outline'));
+  const hasStructure = useHas(doc, readStructure, offers('structure'));
+  const hasAttachments = useHas(doc, readAttachments, offers('attachments'));
 
   // Open on the outline when there is one: a document that declares its own
   // structure is easier to navigate by it than by pictures of its pages.
   useEffect(() => {
-    setPanel(hasOutline ? 'outline' : 'pages');
-  }, [hasOutline]);
+    setPanel(hasOutline ? 'outline' : first);
+  }, [hasOutline, first]);
 
-  const panels: {
-    key: Panel;
+  const all: {
+    key: SidebarPanel;
     label: string;
     icon: typeof LayoutGridIcon;
     has: boolean | null;
@@ -143,105 +173,136 @@ export function Sidebar({
       count: matches.length,
     },
   ];
+  const panels = all.filter((p) => offers(p.key));
+  // The chosen panel, or the first on offer once it no longer is: `panels` may
+  // change under a mounted sidebar, and hiding by the stale choice shows nothing.
   const shown = panels.find((p) => p.key === panel) ?? panels[0];
   const ShownIcon = shown?.icon ?? LayoutGridIcon;
 
   return (
     <aside className="flex h-full w-full min-w-0 flex-col overflow-hidden bg-card">
       <div className="flex flex-none items-center border-b px-1.5 py-1">
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                variant="ghost"
-                size="sm"
-                aria-label="Sidebar panel"
-                className="data-popup-open:bg-muted"
-              />
-            }
-          >
+        {panels.length === 1 ? (
+          // One panel is a heading, not a choice.
+          <p className="flex h-8 items-center gap-1.5 px-2.5 text-sm font-medium [&_svg]:size-4">
             <ShownIcon />
             {shown?.label}
             {shown?.key === 'search' && matches.length > 0 && (
               <Badge variant="secondary">{matches.length}</Badge>
             )}
-            <ChevronDownIcon className="text-muted-foreground" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="min-w-48">
-            <DropdownMenuRadioGroup
-              value={panel}
-              onValueChange={(value) => setPanel(value as Panel)}
+          </p>
+        ) : (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label="Sidebar panel"
+                  className="data-popup-open:bg-muted"
+                />
+              }
             >
-              {panels.map(({ key, label, icon: Icon, has, count }) => (
-                <DropdownMenuRadioItem
-                  key={key}
-                  value={key}
-                  disabled={has === false}
-                >
-                  <Icon />
-                  {label}
-                  {has === false ? (
-                    <DropdownMenuShortcut>none</DropdownMenuShortcut>
-                  ) : (
-                    count !== undefined &&
-                    count > 0 && (
-                      <DropdownMenuShortcut>{count}</DropdownMenuShortcut>
-                    )
-                  )}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <ShownIcon />
+              {shown?.label}
+              {shown?.key === 'search' && matches.length > 0 && (
+                <Badge variant="secondary">{matches.length}</Badge>
+              )}
+              <ChevronDownIcon className="text-muted-foreground" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-48">
+              <DropdownMenuRadioGroup
+                value={shown?.key}
+                onValueChange={(value) => setPanel(value as SidebarPanel)}
+              >
+                {panels.map(({ key, label, icon: Icon, has, count }) => (
+                  <DropdownMenuRadioItem
+                    key={key}
+                    value={key}
+                    disabled={has === false}
+                  >
+                    <Icon />
+                    {label}
+                    {has === false ? (
+                      <DropdownMenuShortcut>none</DropdownMenuShortcut>
+                    ) : (
+                      count !== undefined &&
+                      count > 0 && (
+                        <DropdownMenuShortcut>{count}</DropdownMenuShortcut>
+                      )
+                    )}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
 
-      <div
-        hidden={panel !== 'pages'}
-        className="min-h-0 flex-1 overflow-y-auto"
-      >
-        <Thumbnails
-          doc={doc}
-          current={current}
-          onSelect={onSelect}
-          rotation={rotation}
-        />
-      </div>
-      <div
-        hidden={panel !== 'outline'}
-        className="min-h-0 flex-1 overflow-y-auto"
-      >
-        <Outline doc={doc} current={current} onSelect={onSelect} />
-      </div>
-      <div
-        hidden={panel !== 'structure'}
-        className="flex min-h-0 flex-1 flex-col overflow-hidden"
-      >
-        <Structure
-          doc={doc}
-          current={current}
-          onSelect={onSelect}
-          onHighlight={onHighlight}
-        />
-      </div>
-      <div
-        hidden={panel !== 'attachments'}
-        className="min-h-0 flex-1 overflow-y-auto p-2"
-      >
-        <Attachments doc={doc} />
-      </div>
-      <div
-        hidden={panel !== 'search'}
-        className="flex min-h-0 flex-1 flex-col overflow-y-auto"
-      >
-        <Search
-          query={query}
-          current={current}
-          onSelect={onSelect}
-          matches={matches}
-          active={active}
-          onActive={onActive}
-        />
-      </div>
+      {offers('pages') && (
+        <div
+          hidden={shown?.key !== 'pages'}
+          className="min-h-0 flex-1 overflow-y-auto"
+        >
+          <Thumbnails
+            doc={doc}
+            current={current}
+            onSelect={onSelect}
+            rotation={rotation}
+            displayRenderTime={displayRenderTime}
+          />
+        </div>
+      )}
+      {offers('outline') && (
+        <div
+          hidden={shown?.key !== 'outline'}
+          className="min-h-0 flex-1 overflow-y-auto"
+        >
+          <Outline
+            doc={doc}
+            current={current}
+            onSelect={onSelect}
+            displayRenderTime={displayRenderTime}
+          />
+        </div>
+      )}
+      {offers('structure') && (
+        <div
+          hidden={shown?.key !== 'structure'}
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
+        >
+          <Structure
+            doc={doc}
+            current={current}
+            onSelect={onSelect}
+            onHighlight={onHighlight}
+            displayRenderTime={displayRenderTime}
+          />
+        </div>
+      )}
+      {offers('attachments') && (
+        <div
+          hidden={shown?.key !== 'attachments'}
+          className="min-h-0 flex-1 overflow-y-auto p-2"
+        >
+          <Attachments doc={doc} />
+        </div>
+      )}
+      {offers('search') && (
+        <div
+          hidden={shown?.key !== 'search'}
+          className="flex min-h-0 flex-1 flex-col overflow-y-auto"
+        >
+          <Search
+            query={query}
+            current={current}
+            onSelect={onSelect}
+            matches={matches}
+            active={active}
+            onActive={onActive}
+          />
+        </div>
+      )}
     </aside>
   );
 }

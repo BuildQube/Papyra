@@ -84,6 +84,18 @@
       ]
     },
     {
+      "name": "use-fullscreen",
+      "type": "registry:hook",
+      "title": "Full screen",
+      "description": "Fill the window with an element: a fixed takeover, plus the Fullscreen API on the page where the browser has it, so popovers that portal to body still show.",
+      "files": [
+        {
+          "path": "src/hooks/use-fullscreen.ts",
+          "type": "registry:hook"
+        }
+      ]
+    },
+    {
       "name": "use-pdf-page-labels",
       "type": "registry:hook",
       "title": "Page labels",
@@ -121,6 +133,7 @@
         "resizable",
         "toggle",
         "{{REGISTRY}}/pdf-sidebar.json",
+        "{{REGISTRY}}/use-fullscreen.json",
         "{{REGISTRY}}/use-pdf-viewer.json"
       ],
       "files": [
@@ -171,6 +184,38 @@
       "files": [
         {
           "path": "src/blocks/pdf-viewer-basic.tsx",
+          "type": "registry:block"
+        }
+      ]
+    },
+    {
+      "name": "pdf-viewer-configurable",
+      "type": "registry:block",
+      "title": "Configurable PDF viewer",
+      "description": "One viewer with every feature behind a prop: thumbnails, outline, tags, attachments, search, document properties, and single-page or continuous. Everything off is the basic viewer.",
+      "dependencies": ["@build-qube/papyra@^0.3.0"],
+      "registryDependencies": [
+        "{{REGISTRY}}/pdf-continuous-pages.json",
+        "{{REGISTRY}}/pdf-find-bar.json",
+        "{{REGISTRY}}/pdf-highlights.json",
+        "{{REGISTRY}}/pdf-isolation-guard.json",
+        "{{REGISTRY}}/pdf-links.json",
+        "{{REGISTRY}}/pdf-page-class.json",
+        "{{REGISTRY}}/pdf-page-view.json",
+        "{{REGISTRY}}/pdf-properties.json",
+        "{{REGISTRY}}/pdf-sidebar.json",
+        "{{REGISTRY}}/pdf-viewer-layout.json",
+        "{{REGISTRY}}/pdf-viewer-provider.json",
+        "{{REGISTRY}}/pdf-viewer-store.json",
+        "{{REGISTRY}}/viewer-zoom.json",
+        "{{REGISTRY}}/viewer-zoom-bar.json",
+        "{{REGISTRY}}/use-pdf-page-labels.json",
+        "{{REGISTRY}}/use-pdf-viewer.json",
+        "{{REGISTRY}}/use-viewer-zoom.json"
+      ],
+      "files": [
+        {
+          "path": "src/blocks/pdf-viewer-configurable.tsx",
           "type": "registry:block"
         }
       ]
@@ -425,7 +470,7 @@
       "name": "pdf-sidebar",
       "type": "registry:component",
       "title": "Viewer sidebar",
-      "description": "Pages, outline, tags, attachments and search results in one column, picked from a menu rather than a tab strip, every panel kept mounted so a switch does not discard a thumbnail stream or a result set.",
+      "description": "Pages, outline, tags, attachments and search results in one column, picked from a menu rather than a tab strip. Only the panels asked for exist, and each is kept mounted so a switch does not discard a thumbnail stream or a result set.",
       "dependencies": ["@build-qube/papyra@^0.3.0", "lucide-react"],
       "registryDependencies": [
         "badge",
@@ -458,6 +503,7 @@
         "input-group",
         "kbd",
         "select",
+        "tooltip",
         "{{REGISTRY}}/viewer-zoom.json"
       ],
       "files": [
@@ -528,13 +574,14 @@
       "name": "file-preview",
       "type": "registry:block",
       "title": "File preview",
-      "description": "Previews a list of mixed files one at a time, with a typed allow list. Formats are separate items: install only the ones you show.",
+      "description": "Previews a list of mixed files one at a time, with a typed allow list, a full-screen button and typed per-format options. Formats are separate items: install only the ones you show.",
       "dependencies": ["lucide-react"],
       "registryDependencies": [
         "button",
         "empty",
         "spinner",
-        "{{REGISTRY}}/file-preview-core.json"
+        "{{REGISTRY}}/file-preview-core.json",
+        "{{REGISTRY}}/use-fullscreen.json"
       ],
       "files": [
         {
@@ -642,7 +689,7 @@
       "meta": {
         "fileRenderer": { "id": "pdf", "export": "pdfRenderer", "label": "PDF" }
       },
-      "description": "PDF for the file preview, through papyra: opens the file, asks for a password, and shows the one-page viewer.",
+      "description": "PDF for the file preview, through papyra: opens the file, asks for a password, and shows the configurable viewer — a continuous column by default, with options for thumbnails, search, properties and the rest.",
       "dependencies": ["@build-qube/papyra@^0.3.0", "lucide-react"],
       "registryDependencies": [
         "button",
@@ -651,7 +698,7 @@
         "{{REGISTRY}}/file-preview-core.json",
         "{{REGISTRY}}/pdf-isolation-guard.json",
         "{{REGISTRY}}/pdf-password-prompt.json",
-        "{{REGISTRY}}/pdf-viewer-basic.json"
+        "{{REGISTRY}}/pdf-viewer-configurable.json"
       ],
       "files": [
         {

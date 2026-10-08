@@ -13,10 +13,13 @@ import { cn } from '@/lib/utils';
 export interface PropertiesProps {
   /** The open document. */
   doc: Document;
-  /** The file name, which the document itself does not carry. */
-  name: string;
-  /** The file's own length, which no amount of parsing recovers. */
-  byteLength: number;
+  /**
+   * The file name, which the document itself does not carry. Shown as a dash when
+   * the caller does not know it either.
+   */
+  name?: string;
+  /** The file's own length, which no amount of parsing recovers. Optional as `name` is. */
+  byteLength?: number;
   /** Which page to describe the dimensions of — they vary within a document. */
   page: number;
   /** Called when the dialog is dismissed, by any route. */
@@ -58,8 +61,11 @@ export function Properties({
 
         {/* The label column sizes to its widest entry; the value takes the rest. */}
         <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-5 gap-y-2">
-          <Row label="File name" value={name} />
-          <Row label="File size" value={fileSize(byteLength)} />
+          <Row label="File name" value={name ?? null} />
+          <Row
+            label="File size"
+            value={byteLength === undefined ? null : fileSize(byteLength)}
+          />
 
           <Row label="Title" value={metadata.title} />
           <Row label="Author" value={metadata.author} />

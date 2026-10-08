@@ -44,6 +44,11 @@ export interface FindBarProps {
   onActive: (match: SearchMatch | null) => void;
   /** Called with a 0-based page index when stepping lands on another page. */
   onSelect: (index: number) => void;
+  /**
+   * Whether to show how long the last search took. Off by default: it is a number
+   * for whoever is tuning papyra, not for the person searching.
+   */
+  displayRenderTime?: boolean;
 }
 
 /** Cap the result list; a common word on a long document runs to thousands. */
@@ -88,6 +93,7 @@ export function FindBar({
   active,
   onActive,
   onSelect,
+  displayRenderTime = false,
 }: FindBarProps) {
   const [open, setOpen] = useState(false);
   const [caseSensitive, setCaseSensitive] = useState(false);
@@ -263,7 +269,7 @@ export function FindBar({
             {running && <Spinner className="size-3" />}
             {running
               ? `${matches.length} so far`
-              : elapsed !== null
+              : displayRenderTime && elapsed !== null
                 ? `${elapsed.toFixed(0)}ms`
                 : 'Nearest page first'}
             {/*
