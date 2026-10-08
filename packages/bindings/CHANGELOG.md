@@ -1,5 +1,12 @@
 # @build-qube/papyra-native
 
+## 0.4.1
+
+### Patch Changes
+
+- 96417eb: Ship a README with `@build-qube/papyra-native`, which showed "This package does not
+  have a README" on npm. It points at `@build-qube/papyra`, the package to install.
+
 ## 0.4.0
 
 ### Minor Changes
