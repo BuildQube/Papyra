@@ -42,6 +42,22 @@ const FORMATS: readonly Format[] = RENDERERS.map((r) => r.id);
 
 const Preview = createFilePreview(RENDERERS);
 
+/** The PDF view's features this page lets you flip, and what the toggles say. */
+const PDF_FEATURES = [
+  ['thumbnails', 'Thumbnails'],
+  ['outline', 'Outline'],
+  ['search', 'Search'],
+  ['properties', 'Properties'],
+] as const;
+type PdfFeature = (typeof PDF_FEATURES)[number][0];
+
+/** The preview's own display flags, both off by default in the block. */
+const STATS = [
+  ['size', 'Size'],
+  ['time', 'Render time'],
+] as const;
+type Stat = (typeof STATS)[number][0];
+
 const LOGO = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
   <rect width="120" height="120" rx="24" fill="#6ea8fe"/>
   <path d="M38 30h30a22 22 0 0 1 0 44H52v16H38z M52 44v16h16a8 8 0 0 0 0-16z" fill="#fff"/>
@@ -184,6 +200,8 @@ export function FilePreviewDemo() {
   const [added, setAdded] = useState<File[]>([]);
   const [allow, setAllow] = useState<Format[]>([...FORMATS]);
   const [index, setIndex] = useState(0);
+  const [pdf, setPdf] = useState<PdfFeature[]>(['thumbnails', 'properties']);
+  const [stats, setStats] = useState<Stat[]>([]);
   const input = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -293,6 +311,34 @@ export function FilePreviewDemo() {
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
+        <span>· PDF</span>
+        <ToggleGroup
+          multiple
+          onValueChange={(value) => setPdf(value as PdfFeature[])}
+          size="sm"
+          value={pdf}
+          variant="outline"
+        >
+          {PDF_FEATURES.map(([key, label]) => (
+            <ToggleGroupItem key={key} value={key}>
+              {label}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+        <span>· show</span>
+        <ToggleGroup
+          multiple
+          onValueChange={(value) => setStats(value as Stat[])}
+          size="sm"
+          value={stats}
+          variant="outline"
+        >
+          {STATS.map(([key, label]) => (
+            <ToggleGroupItem key={key} value={key}>
+              {label}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
         <span className="tabular-nums">
           · signed link minted {minted} {minted === 1 ? 'time' : 'times'}
         </span>
@@ -318,9 +364,19 @@ export function FilePreviewDemo() {
         <Preview
           allow={allow}
           className="min-h-0 flex-1"
+          displayRenderTime={stats.includes('time')}
+          displaySize={stats.includes('size')}
           files={files}
           index={index}
           onIndexChange={setIndex}
+          options={{
+            pdf: {
+              thumbnails: pdf.includes('thumbnails'),
+              outline: pdf.includes('outline'),
+              search: pdf.includes('search'),
+              properties: pdf.includes('properties'),
+            },
+          }}
         />
       </BlockPreview>
     </section>

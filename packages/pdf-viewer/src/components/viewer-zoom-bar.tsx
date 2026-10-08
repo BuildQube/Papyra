@@ -40,6 +40,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import {
   FIT_MODES,
@@ -253,23 +259,40 @@ export function ZoomBar({
           onSpec(isFitMode(value) ? value : Number(value))
         }
       >
-        <SelectTrigger
-          size="sm"
-          aria-label="Zoom"
-          className={cn(
-            'w-40 @max-md/pdf-viewer:w-22',
-            settling && 'border-primary',
-          )}
-        >
-          <SelectValue>
-            <span className="@max-md/pdf-viewer:hidden">
-              {describeZoom(spec, scale, subject)}
-            </span>
-            <span className="hidden @max-md/pdf-viewer:inline">
-              {formatZoom(scale)}
-            </span>
-          </SelectValue>
-        </SelectTrigger>
+        {/*
+         * The gestures, on the control they stand in for: discoverable from the
+         * one place a reader looks for zoom, without a line of toolbar spent on
+         * them. The provider is for Radix, whose Tooltip throws without one.
+         */}
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <SelectTrigger
+                  size="sm"
+                  aria-label="Zoom"
+                  className={cn(
+                    'w-40 @max-md/pdf-viewer:w-22',
+                    settling && 'border-primary',
+                  )}
+                />
+              }
+            >
+              <SelectValue>
+                <span className="@max-md/pdf-viewer:hidden">
+                  {describeZoom(spec, scale, subject)}
+                </span>
+                <span className="hidden @max-md/pdf-viewer:inline">
+                  {formatZoom(scale)}
+                </span>
+              </SelectValue>
+            </TooltipTrigger>
+            <TooltipContent className="flex items-center gap-1">
+              <Kbd>⌘/ctrl</Kbd> + scroll, pinch, or <Kbd>⌘/ctrl</Kbd>
+              <Kbd>+</Kbd>/<Kbd>−</Kbd> to zoom
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
         <SelectContent>
           <SelectGroup>
             <SelectLabel>Fit</SelectLabel>
@@ -297,13 +320,6 @@ export function ZoomBar({
       </Select>
 
       <div className="ml-auto flex items-center gap-2.5">
-        {/* Not on a coarse pointer, where there is no ⌘ to hold, and not where the
-            bar is narrow enough that it would be the thing wrapping. */}
-        <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground @max-xl/pdf-viewer:hidden pointer-coarse:hidden">
-          <Kbd>⌘/ctrl</Kbd> + scroll, pinch, or <Kbd>⌘/ctrl</Kbd>
-          <Kbd>+</Kbd>/<Kbd>−</Kbd> to zoom
-        </span>
-
         {more && (
           <DropdownMenu>
             <DropdownMenuTrigger

@@ -1,7 +1,7 @@
 import { MaximizeIcon, MinimizeIcon, PanelLeftIcon } from 'lucide-react';
 import type { ComponentProps, ReactNode, Ref, RefObject } from 'react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Sidebar } from '@/components/pdf-sidebar';
+import { Sidebar, type SidebarPanel } from '@/components/pdf-sidebar';
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 import {
   ResizableHandle,
@@ -9,6 +9,7 @@ import {
   ResizablePanelGroup,
 } from '@/components/ui/resizable';
 import { Toggle } from '@/components/ui/toggle';
+import { useFullscreen } from '@/hooks/use-fullscreen';
 import {
   usePdfDocument,
   usePdfPage,
@@ -29,6 +30,10 @@ export interface ViewerLayoutProps {
   aside?: ReactNode;
   /** Whether the sidebar exists at all. Its open state lives in the store. */
   showThumbs?: boolean;
+  /** The sidebar's panels, in menu order. Every one by default. */
+  panels?: readonly SidebarPanel[];
+  /** Whether the sidebar's panels show how long they took. Off by default. */
+  displayRenderTime?: boolean;
   /** Whether the full-screen toggle is offered. On by default. */
   fullscreen?: boolean;
   /**
@@ -78,58 +83,6 @@ type PanelHandle =
     : never;
 
 /**
- * Full screen, as a takeover of the window plus the Fullscreen API on the *page*.
- *
- * Two halves, on purpose. The viewer itself goes `fixed inset-0`, which is what
- * gives it the whole window — and is the only half iOS Safari gets, since it
- * allows `requestFullscreen` on nothing but video. Where the API exists it is
- * asked of the document element, not the viewer: a fullscreen element shows only
- * its own subtree, and the find bar, the more menu, the panel picker and the
- * drawer all portal to `body`, so a viewer that went fullscreen by itself would
- * lose every one of them. The page going fullscreen hides the browser chrome and
- * leaves the portals where they are.
- *
- * Escape exits either way: the browser ends the API half itself and this hook
- * hears it, and the takeover half listens for the key where the API is absent.
- */
-function useFullscreen(): [boolean, () => void] {
-  const [on, setOn] = useState(false);
-
-  useEffect(() => {
-    if (!on) return;
-    const exited = () => {
-      if (!document.fullscreenElement) setOn(false);
-    };
-    const onKey = (event: KeyboardEvent) => {
-      // A menu or popover closing on Escape claims the event first; that press
-      // was for it, not for this.
-      if (event.defaultPrevented || event.key !== 'Escape') return;
-      if (!document.fullscreenElement) setOn(false);
-    };
-    document.addEventListener('fullscreenchange', exited);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('fullscreenchange', exited);
-      document.removeEventListener('keydown', onKey);
-      if (document.fullscreenElement) void document.exitFullscreen?.();
-    };
-  }, [on]);
-
-  const toggle = () => {
-    if (on) {
-      setOn(false);
-      return;
-    }
-    setOn(true);
-    // Rejected when the gesture is not trusted or the page forbids it; the
-    // takeover half still applies, so a rejection is not an error to show.
-    document.documentElement.requestFullscreen?.().catch(() => {});
-  };
-
-  return [on, toggle];
-}
-
-/**
  * Whether the element is narrower than {@link COMPACT_WIDTH}. Null until measured.
  *
  * Measured in a layout effect, synchronously before first paint, rather than left to
@@ -176,6 +129,8 @@ export function ViewerLayout({
   status,
   aside,
   showThumbs = true,
+  panels,
+  displayRenderTime = false,
   fullscreen = true,
   viewport,
   children,
@@ -231,6 +186,8 @@ export function ViewerLayout({
       onActive={setActive}
       rotation={rotation}
       onHighlight={setStructureSelection}
+      panels={panels}
+      displayRenderTime={displayRenderTime}
     />
   );
 

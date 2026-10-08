@@ -269,6 +269,7 @@ export function ViewerRoute() {
 
   return (
     <ViewerLayout
+      displayRenderTime
       showThumbs={thumbs !== false}
       viewport={viewport}
       toolbar={
@@ -284,6 +285,7 @@ export function ViewerRoute() {
               active={active}
               onActive={setActive}
               onSelect={setPage}
+              displayRenderTime
             />
             <ZoomBar
               spec={zoom.spec}

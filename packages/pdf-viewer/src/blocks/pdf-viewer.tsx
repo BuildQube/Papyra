@@ -47,6 +47,13 @@ export interface PdfViewerProps {
    * page and search state. One is created internally otherwise.
    */
   store?: PdfViewerStore;
+  /** Offer the full-screen toggle. On by default. */
+  fullscreen?: boolean;
+  /**
+   * Whether the panels and the find bar show how long their work took. Off by
+   * default: it is a number for whoever is tuning papyra, not for a reader.
+   */
+  displayRenderTime?: boolean;
   /** Classes for the viewer's outermost element. */
   className?: string;
 }
@@ -69,6 +76,8 @@ export function PdfViewer({
   initialZoom = 'auto',
   showSidebar = true,
   store,
+  fullscreen = true,
+  displayRenderTime = false,
   className,
 }: PdfViewerProps) {
   return (
@@ -79,6 +88,8 @@ export function PdfViewer({
           doc={doc}
           initialZoom={initialZoom}
           showSidebar={showSidebar}
+          fullscreen={fullscreen}
+          displayRenderTime={displayRenderTime}
         />
       </PdfViewerProvider>
     </PdfIsolationGuard>
@@ -93,8 +104,15 @@ function ViewerBody({
   doc,
   initialZoom,
   showSidebar,
+  fullscreen,
+  displayRenderTime,
   className,
-}: Required<Pick<PdfViewerProps, 'doc' | 'initialZoom' | 'showSidebar'>> & {
+}: Required<
+  Pick<
+    PdfViewerProps,
+    'doc' | 'initialZoom' | 'showSidebar' | 'fullscreen' | 'displayRenderTime'
+  >
+> & {
   className?: string;
 }) {
   const loaded = usePdfDocument();
@@ -145,6 +163,8 @@ function ViewerBody({
     <ViewerLayout
       className={className}
       showThumbs={showSidebar}
+      fullscreen={fullscreen}
+      displayRenderTime={displayRenderTime}
       toolbar={
         <>
           <FindBar
@@ -157,6 +177,7 @@ function ViewerBody({
             active={active}
             onActive={setActive}
             onSelect={setPage}
+            displayRenderTime={displayRenderTime}
           />
           <ZoomBar
             label={label}

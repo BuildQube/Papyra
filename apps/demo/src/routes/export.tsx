@@ -176,6 +176,7 @@ export function ExportRoute() {
 
   return (
     <ViewerLayout
+      displayRenderTime
       status={
         timing && (
           <span className="text-xs text-muted-foreground">

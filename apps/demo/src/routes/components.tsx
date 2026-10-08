@@ -3,6 +3,7 @@ import { PdfPreviewDialog } from '@workspace/pdf-viewer/blocks/pdf-preview-dialo
 import { ThumbnailPicker } from '@workspace/pdf-viewer/blocks/pdf-thumbnail-picker';
 import { PdfViewer } from '@workspace/pdf-viewer/blocks/pdf-viewer';
 import { PdfViewerBasic } from '@workspace/pdf-viewer/blocks/pdf-viewer-basic';
+import { PdfViewerConfigurable } from '@workspace/pdf-viewer/blocks/pdf-viewer-configurable';
 import {
   Alert,
   AlertDescription,
@@ -247,6 +248,20 @@ function Preview({ name }: { name: string }) {
       return (
         <BlockPreview>
           <PdfViewerBasic className="flex-1" doc={doc} />
+        </BlockPreview>
+      );
+    case 'pdf-viewer-configurable':
+      return (
+        <BlockPreview>
+          <PdfViewerConfigurable
+            className="flex-1"
+            doc={doc}
+            fileName="sample.pdf"
+            properties
+            search
+            thumbnails
+            viewToggle
+          />
         </BlockPreview>
       );
     case 'pdf-page-preview':

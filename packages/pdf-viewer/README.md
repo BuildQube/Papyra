@@ -250,12 +250,13 @@ consumer may have installed one item and not the other.
 
 ## Blocks
 
-Five, from a whole reader down to a picture of a page:
+Six, from a whole reader down to a picture of a page:
 
 | Item | What it is |
 | --- | --- |
 | `pdf-viewer` | Sidebar, toolbar, continuous column. The reader. |
 | `pdf-viewer-basic` | One page, a pager and zoom. The one to embed. |
+| `pdf-viewer-configurable` | Either of the above, or between: every feature a prop. |
 | `pdf-page-preview` | A page as an image. No interaction. |
 | `pdf-thumbnail-picker` | Pick a page out of a grid. |
 | `pdf-preview-dialog` | A document in a dialog, for attachments. |
@@ -267,9 +268,69 @@ single page scales about the cursor exactly, while a continuous column cannot, b
 the gaps between pages do not scale with the pages. The mode still lives in the store,
 so adding a toggle is a UI change rather than a state change.
 
-Only `pdf-viewer` uses the store. The others hold what little state they have —
-a page index, a selection — and are controlled or uncontrolled at the caller's
-choice, which keeps them usable anywhere.
+`pdf-viewer-configurable` is that toggle, and the rest of the furniture made
+optional: `thumbnails`, `outline`, `structure`, `attachments` and `search` each add a
+sidebar panel (any one of them brings the sidebar), `properties` puts the
+document-properties dialog in the zoom menu, and `view` picks single-page or
+continuous. With everything off it is `pdf-viewer-basic` with the store underneath.
+A panel that is off is never mounted, so a viewer without thumbnails does not stream
+them.
+
+It is what `file-preview-pdf` shows — continuous, unless told `view: 'page'` — and
+its props are that renderer's options, less the file name and size, which come from
+the file, and `fullscreen`, since the preview has its own.
+
+## File preview options
+
+Every renderer's view takes options, typed from the view itself, set in two places:
+
+```tsx
+// Defaults, for every preview the renderer goes into.
+const Preview = createFilePreview([
+  pdfRenderer.with({ thumbnails: true }),
+  imageRenderer,
+]);
+// Per instance, merged over the defaults field by field.
+<Preview files={files} options={{ pdf: { search: true } }} />
+```
+
+App-wide settings go in `createFilePreview`'s second argument — any of `allow`,
+`options`, `cache`, `fullscreen`, `displaySize` and `displayRenderTime`:
+
+```tsx
+const Preview = createFilePreview(RENDERERS, {
+  displaySize: true,
+  options: { pdf: { search: true } },
+});
+```
+
+An instance's prop wins over these, and `options` merge per renderer, field by
+field: the renderer's `with`, then the create-time defaults, then the instance.
+
+An option the view does not take, or an id the preview was not built with, is a type
+error. A renderer's `options` type defaults to `never` so that renderers taking
+different options still fit one `FileRenderer[]`, and views are typed as plain
+functions rather than `ComponentType` because a class component's `defaultProps`
+would make the props covariant and break exactly that. Views are cached by `load`,
+not by renderer, so `with` never imports a view twice.
+
+The preview also has a full-screen button (`fullscreen={false}` hides it), which uses
+the same `use-fullscreen` hook as the viewer layout: a fixed takeover plus the
+Fullscreen API on the *page*, so popovers that portal to `body` stay visible.
+
+Timings — the thumbnail stream, the outline and tag reads, a search — are hidden
+unless `displayRenderTime` is set, on any viewer and on the file preview; so is the
+preview's file size, behind `displaySize` — though not in the properties dialog,
+where the size is what was asked for. They are numbers for whoever is tuning
+papyra, not for a reader. The demo's own routes turn them on.
+
+Only `pdf-viewer` and `pdf-viewer-configurable` use the store. The others hold what
+little state they have — a page index, a selection — and are controlled or
+uncontrolled at the caller's choice, which keeps them usable anywhere.
+
+The zoom shortcuts (⌘/ctrl + scroll, pinch, ⌘/ctrl +/−) are a tooltip on the zoom
+select rather than a line in the toolbar: the select is where a reader looks for
+zoom, and the toolbar has better uses for the width.
 
 Blocks take a `Document`, never a `File`. Opening a PDF means owning a file input, a
 password prompt and a policy for failures, all of which belong to the application.

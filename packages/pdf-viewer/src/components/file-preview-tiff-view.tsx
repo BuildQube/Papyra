@@ -71,7 +71,7 @@ export function TiffFileView({ file }: FileViewProps) {
   );
 }
 
-function OpenedTiff({ file }: FileViewProps) {
+function OpenedTiff({ file }: Pick<FileViewProps, 'file'>) {
   const [opened, setOpened] = useState<Opened>({ status: 'opening' });
 
   useEffect(() => {

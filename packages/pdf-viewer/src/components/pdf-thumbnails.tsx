@@ -27,6 +27,11 @@ export interface ThumbnailsProps {
    * the view does not restream a 400-page document.
    */
   rotation?: Rotation;
+  /**
+   * Whether to show how long streaming every thumbnail took. Off by default: it is a number for
+   * whoever is tuning papyra, not for the person reading the document.
+   */
+  displayRenderTime?: boolean;
   /** Classes for the scrolling container. */
   className?: string;
 }
@@ -72,6 +77,7 @@ export function Thumbnails({
   onSelect,
   columns,
   rotation = 0,
+  displayRenderTime = false,
   className,
 }: ThumbnailsProps) {
   const [thumbs, setThumbs] = useState<Map<number, RenderedPage>>(new Map());
@@ -118,7 +124,7 @@ export function Thumbnails({
     <div ref={root} className={className}>
       <header className="sticky top-0 z-10 flex justify-between border-b bg-card px-2.5 py-2 text-xs">
         <span>{doc.pageCount} pages</span>
-        {elapsed !== null && (
+        {displayRenderTime && elapsed !== null && (
           <span className="text-muted-foreground">{elapsed.toFixed(0)}ms</span>
         )}
       </header>

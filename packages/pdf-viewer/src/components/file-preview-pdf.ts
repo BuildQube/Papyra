@@ -11,7 +11,11 @@ export function sniffPdf(head: Uint8Array): boolean {
 }
 
 /**
- * PDF, through papyra: the same one-page viewer as `pdf-viewer-basic`.
+ * PDF, through papyra, in `pdf-viewer-configurable`: a continuous scrolling column
+ * by default (`view: 'page'` for one at a time).
+ * Its options turn on the rest of that viewer —
+ * `pdfRenderer.with({ thumbnails: true, search: true })`, or the same object as a
+ * preview's `options.pdf`.
  *
  * The heaviest of the three by far — papyra's wasm module and the heap it reserves
  * on first load — and none of it is fetched until a PDF is actually opened. Needs a

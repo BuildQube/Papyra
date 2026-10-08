@@ -115,7 +115,7 @@ real CLI rather than guessed — see `packages/pdf-viewer/README.md`:
   consumer and breaks. `@/` therefore means this package repo-wide; `apps/demo`
   mirrors the mappings in its tsconfig and vite config, most specific first.
 - Filenames are flat and `pdf-`-prefixed: `add` takes the install directory from a
-  file's `type`, so every item lands in one directory in the consumer. The five
+  file's `type`, so every item lands in one directory in the consumer. The
   blocks live in `src/blocks` and everything else in `src/components`, which is a
   distinction only this repo sees — but `src/blocks` must stay a *sibling* of
   `src/components`, since a subdirectory under the aliased one survives the install.
