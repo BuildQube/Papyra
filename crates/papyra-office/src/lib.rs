@@ -58,12 +58,13 @@ pub enum OfficeError {
 
 pub type Result<T> = std::result::Result<T, OfficeError>;
 
+// Both models are boxed: each is over a kilobyte inline (a `Document` ~1.3 KB, a
+// `Presentation` ~0.65 KB), and clippy will not have an enum carry either by value.
 enum Inner {
   Word {
-    doc: wordcraft_doc::Document,
+    doc: Box<wordcraft_doc::Document>,
     pages: Vec<wordcraft_layout::Page>,
   },
-  // Boxed: a `Presentation` is about twice the size of the Word variant inline.
   Slides(Box<deckcraft_model::Presentation>),
 }
 
@@ -123,7 +124,7 @@ impl OfficeDocument {
         let mut cache = wordcraft_layout::LayoutCache::new();
         let layout = wordcraft_layout::layout(&doc, &mut cache, &Default::default());
         Inner::Word {
-          doc,
+          doc: Box::new(doc),
           pages: layout.pages,
         }
       }

@@ -933,10 +933,7 @@
       "type": "registry:component",
       "title": "Office page view",
       "description": "The view behind the PowerPoint renderer and the Word renderer's papyra engine: a document or deck laid out and drawn by papyra in Rust over WordCraft and DeckCraft, in the PDF viewer's continuous column with its zoom bar. Experimental.",
-      "dependencies": [
-        "@build-qube/papyra@^0.4.0",
-        "@build-qube/papyra-office-native@^0.4.0"
-      ],
+      "dependencies": ["@build-qube/papyra@^0.4.0"],
       "registryDependencies": [
         "spinner",
         "{{REGISTRY}}/file-preview-core.json",
