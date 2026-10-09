@@ -1,5 +1,9 @@
-import type { Document, Rotation, SearchMatch } from '@build-qube/papyra';
-import { rotateSize } from '@build-qube/papyra';
+import {
+  type PageSource,
+  type Rotation,
+  rotateSize,
+  type SearchMatch,
+} from '@build-qube/papyra/view';
 import {
   type RefObject,
   useCallback,
@@ -52,8 +56,11 @@ interface Anchor {
 
 /** Props for {@link ContinuousPages}. */
 export interface ContinuousPagesProps {
-  /** The open document. */
-  doc: Document;
+  /**
+   * The open document: a PDF, or anything else papyra pages — an office document
+   * from `@build-qube/papyra/office`. Links are drawn for a PDF only.
+   */
+  doc: PageSource;
   /** The scrolling element. Owned by the layout, shared with the zoom gestures. */
   viewport: RefObject<HTMLElement | null>;
   /**

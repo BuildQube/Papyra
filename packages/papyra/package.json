@@ -23,6 +23,14 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./view": {
+      "types": "./dist/view.d.ts",
+      "default": "./dist/view.js"
+    },
+    "./office": {
+      "types": "./dist/office.d.ts",
+      "default": "./dist/office.js"
     }
   },
   "files": [
@@ -43,6 +51,15 @@
     "@build-qube/papyra-native": "0.4.0"
   },
   "devDependencies": {
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "@build-qube/papyra-office-native": "workspace:*"
+  },
+  "peerDependencies": {
+    "@build-qube/papyra-office-native": "0.4.0"
+  },
+  "peerDependenciesMeta": {
+    "@build-qube/papyra-office-native": {
+      "optional": true
+    }
   }
 }

@@ -1,5 +1,9 @@
-import type { Quad, SearchMatch, Viewport } from '@build-qube/papyra';
-import { viewportQuad } from '@build-qube/papyra';
+import {
+  type Quad,
+  type SearchMatch,
+  type Viewport,
+  viewportQuad,
+} from '@build-qube/papyra/view';
 import { cn } from '@/lib/utils';
 
 /** Props for {@link Highlights}. */

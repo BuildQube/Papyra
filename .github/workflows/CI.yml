@@ -52,6 +52,7 @@ jobs:
             full:
               - 'crates/**'
               - 'packages/bindings/**'
+              - 'packages/office-bindings/**'
               - 'Cargo.toml'
               - 'Cargo.lock'
               - 'rust-toolchain.toml'
@@ -252,6 +253,9 @@ jobs:
       # The wrapper's integration tests open real PDFs, and they are most of what
       # drives the Rust render path.
       - run: bun run corpus
+      # The wrapper's office tests need the office addon. It is built plain, not
+      # instrumented: the office crates are not part of the coverage report yet.
+      - run: bun run --filter @build-qube/papyra-office-native build
       - run: bun run coverage
       # The delta column compares against the last green run on main. Advisory: the
       # first ever run has nothing to compare to, and a main run can be missing
@@ -346,6 +350,29 @@ jobs:
       - name: Build
         working-directory: packages/bindings
         run: bunx napi build --platform --release --target ${{ matrix.target }}
+      # The office addon (WordCraft and DeckCraft) is built only for the two targets
+      # smoke and demo run on. Its own per-platform matrix and tests come with its
+      # release wiring; until then this is what keeps the wrapper and the demo honest.
+      - name: Build office
+        if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'wasm32-wasip1-threads'
+        working-directory: packages/office-bindings
+        run: bunx napi build --platform --release --target ${{ matrix.target }}
+      - name: Upload office artifact
+        if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'wasm32-wasip1-threads'
+        uses: actions/upload-artifact@v7
+        with:
+          name: office-bindings-${{ matrix.target }}
+          # Same set, for the same reasons, as the bindings artifact below.
+          path: |
+            packages/office-bindings/*.node
+            packages/office-bindings/*.wasm
+            !packages/office-bindings/*.debug.wasm
+            packages/office-bindings/index.js
+            packages/office-bindings/index.d.ts
+            packages/office-bindings/browser.js
+            packages/office-bindings/papyra-office.wasi*.*
+            packages/office-bindings/wasi-worker*.mjs
+          if-no-files-found: error
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
@@ -487,6 +514,10 @@ jobs:
         with:
           name: bindings-x86_64-unknown-linux-gnu
           path: packages/bindings
+      - uses: actions/download-artifact@v8
+        with:
+          name: office-bindings-x86_64-unknown-linux-gnu
+          path: packages/office-bindings
       - run: bun run --filter @build-qube/papyra build
       - run: bun run corpus
       # The wrapper's tests that need a real addon and real PDFs: outline walking,
@@ -512,6 +543,10 @@ jobs:
         with:
           name: bindings-wasm32-wasip1-threads
           path: packages/bindings
+      - uses: actions/download-artifact@v8
+        with:
+          name: office-bindings-wasm32-wasip1-threads
+          path: packages/office-bindings
       - run: bun run --filter @build-qube/papyra build
       - name: Build demo
         run: bun run --filter papyra-demo build

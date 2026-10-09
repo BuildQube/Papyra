@@ -1,21 +1,31 @@
+import type { Document } from '@build-qube/papyra';
 import {
-  type Document,
+  type PageSource,
   paintToCanvas,
   type Quad,
   type RenderHandle,
   type Rotation,
   type SearchMatch,
   viewport,
-} from '@build-qube/papyra';
+} from '@build-qube/papyra/view';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Highlights } from '@/components/pdf-highlights';
 import { Links } from '@/components/pdf-links';
 import { cn } from '@/lib/utils';
 
+/**
+ * A PDF, as opposed to any other page source. Structural rather than `instanceof`,
+ * because `instanceof` needs the `Document` class at runtime — and importing that
+ * loads the PDF engine, which a surface showing an office document must not.
+ */
+function isPdf(doc: PageSource): doc is Document {
+  return typeof (doc as Partial<Document>).links === 'function';
+}
+
 /** Props for {@link PageSurface}. */
 export interface PageSurfaceProps {
-  /** The open document. */
-  doc: Document;
+  /** The open document. Links are drawn when it is a PDF. */
+  doc: PageSource;
   /** The 0-based page this surface renders. */
   index: number;
   /** Where this page sits in the scrolled column, in CSS pixels. */
@@ -179,7 +189,7 @@ export const PageSurface = memo(function PageSurface({
           {index + 1}
         </div>
       )}
-      {painted && pageWidth > 0 && (
+      {painted && pageWidth > 0 && isPdf(doc) && (
         <Links
           doc={doc}
           index={index}

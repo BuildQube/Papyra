@@ -25,8 +25,10 @@ import type {
   DocumentMetadata,
   OpenOptions,
   PageSize,
+  PageSource,
   PdfSource,
   RenderedPage,
+  RenderHandle,
   RenderOptions,
   SearchOptions,
   StreamedPage,
@@ -74,17 +76,6 @@ const LINK_BYTES = 96;
  * than one that takes another beat to fill in.
  */
 const DEFAULT_TEXT_PRIORITY = 3;
-
-/** A queued render, plus whether it was served from cache without rendering at all. */
-export interface RenderHandle extends JobHandle<RenderedPage> {
-  /**
-   * The page was already in the cache and nothing was queued.
-   *
-   * `promise` still resolves normally, so this only matters for instrumentation —
-   * a cache hit costs none of the ~93ms floor a real render does.
-   */
-  readonly cached: boolean;
-}
 
 /**
  * A queued export render. No `cached` flag: unlike {@link RenderHandle} the image path
@@ -171,7 +162,7 @@ export async function open(
  * never starve the page on screen — attach a {@link RenderOptions.priority} and the
  * queue reorders around it. Construct via {@link open}, not `new`.
  */
-export class Document {
+export class Document implements PageSource {
   readonly #inner: NativeDocument;
   // One queue for every kind of job, `renderImage` included: priority and concurrency
   // are the point of this library, and a bulk export must not starve the visible page.

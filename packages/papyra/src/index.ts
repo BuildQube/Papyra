@@ -36,7 +36,7 @@ export type {
   TextCell,
 } from './cells.js';
 export { CellWindow, columnName } from './cells.js';
-export type { ImageHandle, RenderHandle, SvgHandle } from './document.js';
+export type { ImageHandle, SvgHandle } from './document.js';
 export { Document, open } from './document.js';
 export type {
   EncodedFormat,
@@ -116,8 +116,10 @@ export type {
   DocumentMetadata,
   OpenOptions,
   PageSize,
+  PageSource,
   PdfSource,
   RenderedPage,
+  RenderHandle,
   RenderOptions,
   SearchOptions,
   StreamedPage,

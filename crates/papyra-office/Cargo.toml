@@ -1,0 +1,27 @@
+[package]
+name = "papyra-office"
+description = "Word and PowerPoint pages for papyra, over WordCraft and DeckCraft"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+# Both engines are git-pinned: neither is on crates.io, and both are days old and
+# moving fast, so a rev is the only way to know what we built against. Bumping one
+# is its own commit, re-run against tests/fixtures.rs.
+[dependencies]
+papyra-core = { workspace = true }
+thiserror = { workspace = true }
+# The engines' own major, so it unifies with theirs rather than adding a third zip
+# (hayro's is 8). Only the content-type sniff uses it.
+zip = { version = "3", default-features = false, features = ["deflate"] }
+wordcraft-doc = { git = "https://github.com/storytold/wordcraft", rev = "d7d9702bda1fe626952024dc37fd2624323dad0f" }
+wordcraft-docx = { git = "https://github.com/storytold/wordcraft", rev = "d7d9702bda1fe626952024dc37fd2624323dad0f" }
+wordcraft-fonts = { git = "https://github.com/storytold/wordcraft", rev = "d7d9702bda1fe626952024dc37fd2624323dad0f" }
+wordcraft-layout = { git = "https://github.com/storytold/wordcraft", rev = "d7d9702bda1fe626952024dc37fd2624323dad0f" }
+wordcraft-render = { git = "https://github.com/storytold/wordcraft", rev = "d7d9702bda1fe626952024dc37fd2624323dad0f" }
+deckcraft-fonts = { git = "https://github.com/storytold/deckcraft", rev = "4b09f35c1d6fa50e2d94243a5d65d98fe49558e0" }
+deckcraft-model = { git = "https://github.com/storytold/deckcraft", rev = "4b09f35c1d6fa50e2d94243a5d65d98fe49558e0" }
+deckcraft-pptx = { git = "https://github.com/storytold/deckcraft", rev = "4b09f35c1d6fa50e2d94243a5d65d98fe49558e0" }
+deckcraft-render = { git = "https://github.com/storytold/deckcraft", rev = "4b09f35c1d6fa50e2d94243a5d65d98fe49558e0" }

@@ -1,3 +1,4 @@
+import type { JobHandle } from './scheduler.js';
 import type { MatchOptions } from './search.js';
 
 /** Anything we can turn into PDF bytes. `File` is a `Blob`, so it is covered. */
@@ -218,4 +219,35 @@ export interface SearchOptions extends MatchOptions {
   priority?: number;
   /** Abort the search. Pages already being extracted are left to finish. */
   signal?: AbortSignal;
+}
+
+/** A queued render, plus whether it was served from cache without rendering at all. */
+export interface RenderHandle extends JobHandle<RenderedPage> {
+  /**
+   * The page was already in the cache and nothing was queued.
+   *
+   * `promise` still resolves normally, so this only matters for instrumentation —
+   * a cache hit costs none of the ~93ms floor a real render does.
+   */
+  readonly cached: boolean;
+}
+
+/**
+ * Anything with pages papyra can render on its queue: a PDF {@link Document}, or an
+ * office document from `@build-qube/papyra/office`.
+ *
+ * The part of a document a page view needs — sizes up front, so a column has its
+ * final geometry before anything rasterises, and renders it can reprioritise and drop
+ * as pages scroll by. A viewer written against this shows any of them.
+ */
+export interface PageSource {
+  /** How many pages there are. */
+  readonly pageCount: number;
+  /** Page size in points (1/72 inch), before any view rotation. */
+  pageSize(index: number): PageSize;
+  /**
+   * Render a page on the source's queue, returning a handle to reprioritise or drop.
+   * Same-key requests coalesce; finished pages are served from a byte-bounded cache.
+   */
+  render(index: number, options?: RenderOptions): RenderHandle;
 }
