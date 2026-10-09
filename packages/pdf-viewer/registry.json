@@ -58,7 +58,7 @@
       "name": "use-pdf-viewer",
       "type": "registry:hook",
       "title": "Viewer hooks",
-      "description": "Selector hooks over the viewer store \u2014 one subscription per slice, so a component re-renders only for the state it reads.",
+      "description": "Selector hooks over the viewer store — one subscription per slice, so a component re-renders only for the state it reads.",
       "registryDependencies": [
         "{{REGISTRY}}/pdf-viewer-provider.json",
         "{{REGISTRY}}/pdf-viewer-store.json"
@@ -224,7 +224,7 @@
       "name": "pdf-page-preview",
       "type": "registry:block",
       "title": "Page preview",
-      "description": "One page, rendered once, with nothing to interact with \u2014 for the places a PDF is a picture rather than a document.",
+      "description": "One page, rendered once, with nothing to interact with — for the places a PDF is a picture rather than a document.",
       "dependencies": ["@build-qube/papyra@^0.3.0"],
       "registryDependencies": [
         "skeleton",
@@ -411,7 +411,7 @@
       "name": "pdf-structure",
       "type": "registry:component",
       "title": "Structure",
-      "description": "The tag tree of a tagged PDF, and the reading order it declares \u2014 with the count of how many lines that moves.",
+      "description": "The tag tree of a tagged PDF, and the reading order it declares — with the count of how many lines that moves.",
       "dependencies": ["@build-qube/papyra@^0.3.0", "lucide-react"],
       "registryDependencies": [
         "alert",
@@ -517,7 +517,7 @@
       "name": "pdf-attachments",
       "type": "registry:component",
       "title": "Attachments",
-      "description": "The files a document embeds, with an inline preview for text and a save button \u2014 and a hybrid invoice called out by name.",
+      "description": "The files a document embeds, with an inline preview for text and a save button — and a hybrid invoice called out by name.",
       "dependencies": ["@build-qube/papyra@^0.3.0", "lucide-react"],
       "registryDependencies": ["badge", "button", "spinner"],
       "files": [
@@ -687,7 +687,11 @@
       "type": "registry:component",
       "title": "PDF renderer",
       "meta": {
-        "fileRenderer": { "id": "pdf", "export": "pdfRenderer", "label": "PDF" }
+        "fileRenderer": {
+          "id": "pdf",
+          "export": "pdfRenderer",
+          "label": "PDF"
+        }
       },
       "description": "PDF for the file preview, through papyra: opens the file, asks for a password, and shows the configurable viewer — a continuous column by default, with options for thumbnails, search, properties and the rest.",
       "dependencies": ["@build-qube/papyra@^0.3.0", "lucide-react"],
@@ -902,11 +906,12 @@
           "byName": true
         }
       },
-      "description": "Word documents (docx, docm, dotx, dotm) for the file preview, laid out by docx-preview in a sandboxed frame that runs no script and loads nothing remote. Approximate layout; legacy .doc is not supported.",
+      "description": "Word documents (docx, docm, dotx, dotm) for the file preview, laid out by docx-preview in a sandboxed frame that runs no script and loads nothing remote. Approximate layout, or a real pagination by papyra over WordCraft with engine: 'papyra'; legacy .doc is not supported.",
       "dependencies": ["docx-preview@^0.4.1", "jszip@^3.10.1"],
       "registryDependencies": [
         "spinner",
-        "{{REGISTRY}}/file-preview-core.json"
+        "{{REGISTRY}}/file-preview-core.json",
+        "{{REGISTRY}}/file-preview-office-view.json"
       ],
       "files": [
         {
@@ -914,7 +919,60 @@
           "type": "registry:component"
         },
         {
+          "path": "src/components/file-preview-docx-engine.tsx",
+          "type": "registry:component"
+        },
+        {
           "path": "src/components/file-preview-docx-view.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
+      "name": "file-preview-office-view",
+      "type": "registry:component",
+      "title": "Office page view",
+      "description": "The view behind the PowerPoint renderer and the Word renderer's papyra engine: a document or deck laid out and drawn by papyra in Rust over WordCraft and DeckCraft, in the PDF viewer's continuous column with its zoom bar. Experimental.",
+      "dependencies": [
+        "@build-qube/papyra@^0.4.0",
+        "@build-qube/papyra-office-native@^0.4.0"
+      ],
+      "registryDependencies": [
+        "spinner",
+        "{{REGISTRY}}/file-preview-core.json",
+        "{{REGISTRY}}/pdf-continuous-pages.json",
+        "{{REGISTRY}}/pdf-isolation-guard.json",
+        "{{REGISTRY}}/viewer-zoom.json",
+        "{{REGISTRY}}/viewer-zoom-bar.json",
+        "{{REGISTRY}}/use-viewer-zoom.json"
+      ],
+      "files": [
+        {
+          "path": "src/components/file-preview-office-view.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
+      "name": "file-preview-pptx",
+      "type": "registry:component",
+      "title": "PowerPoint renderer",
+      "meta": {
+        "fileRenderer": {
+          "id": "pptx",
+          "export": "pptxRenderer",
+          "label": "PowerPoint",
+          "byName": true
+        }
+      },
+      "description": "PowerPoint decks (pptx, pptm, potx, ppsx) for the file preview, drawn slide by slide by papyra in Rust over DeckCraft. Experimental; legacy .ppt is not supported.",
+      "registryDependencies": [
+        "{{REGISTRY}}/file-preview-core.json",
+        "{{REGISTRY}}/file-preview-office-view.json"
+      ],
+      "files": [
+        {
+          "path": "src/components/file-preview-pptx.ts",
           "type": "registry:component"
         }
       ]

@@ -10,6 +10,10 @@ const bindings = fileURLToPath(
   new URL('../../packages/bindings', import.meta.url),
 );
 
+const officeBindings = fileURLToPath(
+  new URL('../../packages/office-bindings', import.meta.url),
+);
+
 const viewerSrc = fileURLToPath(
   new URL('../../packages/pdf-viewer/src/', import.meta.url),
 );
@@ -175,11 +179,19 @@ export default defineConfig({
         find: '@build-qube/papyra-native-wasm32-wasi',
         replacement: `${bindings}/papyra.wasi-browser.js`,
       },
+      {
+        find: '@build-qube/papyra-office-native-wasm32-wasi',
+        replacement: `${officeBindings}/papyra-office.wasi-browser.js`,
+      },
     ],
   },
   // The glue loads the .wasm via `new URL(..., import.meta.url)`; leave it alone.
   optimizeDeps: {
-    exclude: ['@build-qube/papyra', '@build-qube/papyra-native'],
+    exclude: [
+      '@build-qube/papyra',
+      '@build-qube/papyra-native',
+      '@build-qube/papyra-office-native',
+    ],
   },
   server: {
     headers: crossOriginIsolation,

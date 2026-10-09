@@ -1,0 +1,20 @@
+[package]
+name = "papyra-office-bindings"
+description = "Node-API bindings for papyra's Word and PowerPoint renderer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+papyra-core = { workspace = true }
+papyra-office = { workspace = true }
+napi = { workspace = true }
+napi-derive = { workspace = true }
+
+[build-dependencies]
+napi-build = { workspace = true }
