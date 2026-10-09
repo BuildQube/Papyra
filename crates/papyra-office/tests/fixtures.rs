@@ -23,9 +23,10 @@ fn pptx() -> Vec<u8> {
 /// Share of pixels that are not paper-white. A blank page — the failure mode when a
 /// font or a part fails to resolve — is the thing worth catching.
 fn ink(data: &[u8]) -> f64 {
-  let px = data.chunks_exact(4);
+  let px = data.as_chunks::<4>().0;
   let n = px.len() as f64;
-  px.filter(|p| p[0] < 240 || p[1] < 240 || p[2] < 240)
+  px.iter()
+    .filter(|p| p[0] < 240 || p[1] < 240 || p[2] < 240)
     .count() as f64
     / n
 }
@@ -45,7 +46,7 @@ fn word_document_paginates_and_draws() {
   // 254, not 255: vello_cpu's compositing rounds anti-aliased text over paper one
   // short of opaque, on about 700 pixels of this page.
   assert!(
-    bmp.data.chunks_exact(4).all(|p| p[3] >= 250),
+    bmp.data.as_chunks::<4>().0.iter().all(|p| p[3] >= 250),
     "paper is opaque"
   );
 }
