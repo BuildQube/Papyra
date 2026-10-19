@@ -1,3 +1,4 @@
+import type { JobHandle } from './scheduler.js';
 import type { MatchOptions } from './search.js';
 
 /** Anything we can turn into PDF bytes. `File` is a `Blob`, so it is covered. */
@@ -218,4 +219,15 @@ export interface SearchOptions extends MatchOptions {
   priority?: number;
   /** Abort the search. Pages already being extracted are left to finish. */
   signal?: AbortSignal;
+}
+
+/** A queued render, plus whether it was served from cache without rendering at all. */
+export interface RenderHandle extends JobHandle<RenderedPage> {
+  /**
+   * The page was already in the cache and nothing was queued.
+   *
+   * `promise` still resolves normally, so this only matters for instrumentation —
+   * a cache hit costs none of the ~93ms floor a real render does.
+   */
+  readonly cached: boolean;
 }
