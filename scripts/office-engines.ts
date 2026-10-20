@@ -121,7 +121,7 @@ const FILES: readonly {
     name: 'alterman_security.pptx',
     url: `${POI}/slideshow/alterman_security.pptx`,
     office: 23,
-    note: 'slide 10 renders solid black; slide 16 has a WMF picture',
+    note: 'slide 16 has a WMF picture; slide 10 was solid black before a31b990',
   },
   {
     name: 'HowWeRefactor.pptx',

@@ -21,7 +21,7 @@ wordcraft-docx = { git = "https://github.com/BuildQube/wordcraft", rev = "f4299f
 wordcraft-fonts = { git = "https://github.com/BuildQube/wordcraft", rev = "f4299ff644ecfef5570f07e9ccede2459412a4bc" }
 wordcraft-layout = { git = "https://github.com/BuildQube/wordcraft", rev = "f4299ff644ecfef5570f07e9ccede2459412a4bc" }
 wordcraft-render = { git = "https://github.com/BuildQube/wordcraft", rev = "f4299ff644ecfef5570f07e9ccede2459412a4bc" }
-deckcraft-fonts = { git = "https://github.com/storytold/deckcraft", rev = "4b09f35c1d6fa50e2d94243a5d65d98fe49558e0" }
-deckcraft-model = { git = "https://github.com/storytold/deckcraft", rev = "4b09f35c1d6fa50e2d94243a5d65d98fe49558e0" }
-deckcraft-pptx = { git = "https://github.com/storytold/deckcraft", rev = "4b09f35c1d6fa50e2d94243a5d65d98fe49558e0" }
-deckcraft-render = { git = "https://github.com/storytold/deckcraft", rev = "4b09f35c1d6fa50e2d94243a5d65d98fe49558e0" }
+deckcraft-fonts = { git = "https://github.com/storytold/deckcraft", rev = "a31b990d32f2c8562f1588562f922960c3fde48b" }
+deckcraft-model = { git = "https://github.com/storytold/deckcraft", rev = "a31b990d32f2c8562f1588562f922960c3fde48b" }
+deckcraft-pptx = { git = "https://github.com/storytold/deckcraft", rev = "a31b990d32f2c8562f1588562f922960c3fde48b" }
+deckcraft-render = { git = "https://github.com/storytold/deckcraft", rev = "a31b990d32f2c8562f1588562f922960c3fde48b" }

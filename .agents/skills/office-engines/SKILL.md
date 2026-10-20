@@ -112,7 +112,7 @@ bun run office fidelity --update       # record the result as the new baseline
    gzip -9c packages/office-bindings/papyra-office.wasm32-wasi.wasm | wc -c
    ```
    It was 4.24 MB gzipped at the first pin (1.35 MB code, ~2.9 MB embedded fonts and
-   hyphenation data), and 5.29 MB after WordCraft `f4299ff`. Report a change over about 100 KB either way. Pass the exact
+   hyphenation data), 5.29 MB after WordCraft `f4299ff`, and 5.68 MB after DeckCraft `a31b990`. Report a change over about 100 KB either way. Pass the exact
    file: the directory also holds an unstripped `*.debug.wasm`, and a glob picks up
    both.
 
@@ -143,7 +143,7 @@ Active forks:
 
 | Engine | Fork commit | Fix | Upstream PR |
 |---|---|---|---|
-| WordCraft | `f4299ff` on `BuildQube/wordcraft` `fix/wasi-clock` | browser clock only on `wasm32-unknown-unknown` | to be opened |
+| WordCraft | `f4299ff` on `BuildQube/wordcraft` `fix/wasi-clock` | browser clock only on `wasm32-unknown-unknown` | [storytold/wordcraft#3322](https://github.com/storytold/wordcraft/pull/3322) |
 
 ## Why the check runs on wasm, under Node
 
@@ -165,9 +165,11 @@ which measures the wrong thing.
   file was last saved. It is the reference, not gospel: it reflects the author's fonts
   and printer. `-` means the file has none, or one known to be wrong.
 - **`solid` is not always a bug.** It flags any page that is one non-white colour edge
-  to edge. `HowWeRefactor.pptx` uses black title slides on purpose (7, 11, 13, 17);
-  `alterman_security.pptx` slide 10 is a real failure. The baseline records both, and
-  only *changes* are reported, so look at the sheet before calling one a regression.
+  to edge. `HowWeRefactor.pptx` uses black title slides on purpose (13 and 17 are
+  flagged; 7 and 11 stopped being flagged at DeckCraft `a31b990` only because their
+  slide numbers started to draw), while `alterman_security.pptx` slide 10 was a real
+  failure, fixed in the same bump. Only *changes* are reported, so look at the sheet
+  before calling one a regression or a fix.
 - **Timings are informational.** They come from one Node process on one machine and
   are not compared.
 - The **corpus** is real Office-authored files from Apache POI's `test-data`, pinned to
@@ -178,8 +180,6 @@ which measures the wrong thing.
 
 | File | Defect | Engine |
 |---|---|---|
-| `alterman_security.pptx` | slide 10 renders solid black | DeckCraft |
-| `alterman_security.pptx` | slide 16's WMF picture is a placeholder; WMF/EMF are not decoded | both |
 | `calendar-ru.docx` | 16 pages vs Office's 15 (13 before `f4299ff`, which fixed the title overlapping the table) | WordCraft |
 | `bug65649.docx` | blank pages 2, 112, 161, 210 at section breaks since `f4299ff`; not checked against Word | WordCraft |
 | `HowWeRefactor.pptx` | animation builds drawn all at once, so text overlaps | DeckCraft |

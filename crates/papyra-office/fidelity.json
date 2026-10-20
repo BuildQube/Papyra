@@ -1,7 +1,7 @@
 {
   "revs": {
     "wordcraft": "f4299ff644ecfef5570f07e9ccede2459412a4bc",
-    "deckcraft": "4b09f35c1d6fa50e2d94243a5d65d98fe49558e0"
+    "deckcraft": "a31b990d32f2c8562f1588562f922960c3fde48b"
   },
   "width": 240,
   "results": {
@@ -71,14 +71,14 @@
     "alterman_security.pptx": {
       "pages": 23,
       "blank": [],
-      "solid": [10],
+      "solid": [],
       "failed": [],
       "kind": "slides"
     },
     "HowWeRefactor.pptx": {
       "pages": 28,
       "blank": [],
-      "solid": [7, 11, 13, 17],
+      "solid": [13, 17],
       "failed": [],
       "kind": "slides"
     },
