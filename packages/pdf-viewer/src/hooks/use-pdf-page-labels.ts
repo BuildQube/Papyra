@@ -1,5 +1,6 @@
-import type { Document } from '@build-qube/papyra';
+import type { PdfDoc } from '@build-qube/papyra/core';
 import { useEffect, useState } from 'react';
+import { usePdfEngine } from '@/components/pdf-engine';
 
 /**
  * The label printed on each page, or an empty array when the document has none.
@@ -7,8 +8,9 @@ import { useEffect, useState } from 'react';
  * papyra memoises the walk per document, so every component that wants labels can
  * call this without coordinating — the second caller gets the first one's promise.
  */
-export function usePageLabels(doc: Document | undefined): readonly string[] {
+export function usePageLabels(doc: PdfDoc | undefined): readonly string[] {
   const [labels, setLabels] = useState<readonly string[]>([]);
+  const engine = usePdfEngine();
 
   useEffect(() => {
     if (!doc) {
@@ -17,14 +19,14 @@ export function usePageLabels(doc: Document | undefined): readonly string[] {
     }
     let cancelled = false;
     setLabels([]);
-    doc.pageLabels().then(
+    engine.pageLabels(doc).then(
       (next) => !cancelled && setLabels(next),
       () => !cancelled && setLabels([]),
     );
     return () => {
       cancelled = true;
     };
-  }, [doc]);
+  }, [engine, doc]);
 
   return labels;
 }

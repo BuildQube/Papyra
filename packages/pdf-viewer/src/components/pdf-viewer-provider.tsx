@@ -1,4 +1,5 @@
 import { createContext, type ReactNode, useState } from 'react';
+import { usePdfEngine } from '@/components/pdf-engine';
 import {
   createPdfViewerStore,
   type PdfViewerStore,
@@ -42,7 +43,10 @@ export function PdfViewerProvider({
   // `sidebar` and getting the default back is a bug that presents as "the prop does
   // nothing". A later change to a prop is ignored, deliberately: a store is not
   // rebuilt, and the render cache on its document with it, because a prop moved.
-  const [fallback] = useState(() => createPdfViewerStore(options));
+  const engine = usePdfEngine();
+  const [fallback] = useState(() =>
+    createPdfViewerStore({ engine, ...options }),
+  );
 
   return (
     <PdfViewerContext value={store ?? fallback}>{children}</PdfViewerContext>

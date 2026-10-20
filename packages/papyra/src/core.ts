@@ -70,7 +70,7 @@ export type {
   OutlineNode,
 } from './outline.js';
 export { buildOutlineTree, walkOutline } from './outline.js';
-export { PapyraEngine } from './papyra-engine.js';
+export { defaultPdfEngine, PapyraEngine } from './papyra-engine.js';
 export type { JobHandle, JobTiming } from './scheduler.js';
 export { AbortError, DEFAULT_PRIORITY } from './scheduler.js';
 export type { MatchOptions, SearchMatch } from './search.js';

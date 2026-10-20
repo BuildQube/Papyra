@@ -1,4 +1,11 @@
-import type { Document, Quad, Rotation, SearchMatch } from '@build-qube/papyra';
+import type {
+  Capabilities,
+  PdfDoc,
+  PdfEngine,
+  Quad,
+  Rotation,
+  SearchMatch,
+} from '@build-qube/papyra/core';
 import {
   ChevronDownIcon,
   LayoutGridIcon,
@@ -9,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Attachments } from '@/components/pdf-attachments';
+import { usePdfEngine } from '@/components/pdf-engine';
 import { Outline } from '@/components/pdf-outline';
 import { Search } from '@/components/pdf-search';
 import { Structure } from '@/components/pdf-structure';
@@ -44,7 +52,7 @@ const SIDEBAR_PANELS: readonly SidebarPanel[] = [
 /** Props for {@link Sidebar}. */
 export interface SidebarProps {
   /** The open document. */
-  doc: Document;
+  doc: PdfDoc;
   /** The page on screen, 0-based. Its row is marked selected. */
   current: number;
   /** Called with a 0-based page index when the reader picks a page. */
@@ -78,10 +86,11 @@ export interface SidebarProps {
  * is worse than a moment of not saying.
  */
 function useHas(
-  doc: Document,
-  read: (doc: Document) => Promise<{ length: number }>,
+  doc: PdfDoc,
+  read: (engine: PdfEngine, doc: PdfDoc) => Promise<{ length: number }>,
   enabled: boolean,
 ): boolean | null {
+  const engine = usePdfEngine();
   const [has, setHas] = useState<boolean | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -89,20 +98,34 @@ function useHas(
     // A panel that is not offered is not asked about: a structure tree is a walk of
     // the whole object graph, which is not free on a large tagged document.
     if (!enabled) return;
-    read(doc).then(
+    read(engine, doc).then(
       (found) => !cancelled && setHas(found.length > 0),
       () => !cancelled && setHas(false),
     );
     return () => {
       cancelled = true;
     };
-  }, [doc, read, enabled]);
+  }, [engine, doc, read, enabled]);
   return has;
 }
 
-const readOutline = (doc: Document) => doc.outline();
-const readStructure = (doc: Document) => doc.structTree();
-const readAttachments = (doc: Document) => doc.attachments();
+const readOutline = (engine: PdfEngine, doc: PdfDoc) => engine.outline(doc);
+const readStructure = (engine: PdfEngine, doc: PdfDoc) =>
+  engine.structTree(doc);
+const readAttachments = (engine: PdfEngine, doc: PdfDoc) =>
+  engine.attachments(doc);
+
+/**
+ * What each panel needs from the engine. A panel the engine cannot fill is not
+ * offered at all — decided before anything is read, so it never appears and then
+ * vanishes.
+ */
+const NEEDS: Partial<Record<SidebarPanel, keyof Capabilities>> = {
+  outline: 'outline',
+  structure: 'structure',
+  attachments: 'attachments',
+  search: 'text',
+};
 
 /**
  * Pages, outline, tags, attachments and search results share one column, chosen
@@ -136,9 +159,13 @@ export function Sidebar({
   panels: offered = SIDEBAR_PANELS,
   displayRenderTime = false,
 }: SidebarProps) {
-  const first = offered[0] ?? 'pages';
+  const supported = offered.filter((key) => {
+    const need = NEEDS[key];
+    return need === undefined || doc.capabilities[need];
+  });
+  const first = supported[0] ?? 'pages';
   const [panel, setPanel] = useState<SidebarPanel>(first);
-  const offers = (key: SidebarPanel) => offered.includes(key);
+  const offers = (key: SidebarPanel) => supported.includes(key);
   const hasOutline = useHas(doc, readOutline, offers('outline'));
   const hasStructure = useHas(doc, readStructure, offers('structure'));
   const hasAttachments = useHas(doc, readAttachments, offers('attachments'));

@@ -1,5 +1,6 @@
-import type { Document, RenderedPage, Rotation } from '@build-qube/papyra';
+import type { PageBitmap, PdfDoc, Rotation } from '@build-qube/papyra/core';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { usePdfEngine } from '@/components/pdf-engine';
 import { PageCanvas } from '@/components/pdf-page-canvas';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -8,7 +9,7 @@ import { pageLabel, usePageLabels } from '@/hooks/use-pdf-page-labels';
 /** Props for {@link Thumbnails}. */
 export interface ThumbnailsProps {
   /** The open document. */
-  doc: Document;
+  doc: PdfDoc;
   /** The page on screen, 0-based. Its row is marked selected. */
   current: number;
   /** Called with a 0-based page index when the reader picks a page. */
@@ -80,11 +81,12 @@ export function Thumbnails({
   displayRenderTime = false,
   className,
 }: ThumbnailsProps) {
-  const [thumbs, setThumbs] = useState<Map<number, RenderedPage>>(new Map());
+  const [thumbs, setThumbs] = useState<Map<number, PageBitmap>>(new Map());
   const [elapsed, setElapsed] = useState<number | null>(null);
   const [fit, setFit] = useState(1);
   const root = useRef<HTMLDivElement>(null);
   const labels = usePageLabels(doc);
+  const engine = usePdfEngine();
 
   // Only measured when the count is not given: a picker grid that says three
   // columns gets three, and pays for no observer.
@@ -105,7 +107,7 @@ export function Thumbnails({
     const started = performance.now();
 
     (async () => {
-      for await (const { page, bitmap } of doc.stream({
+      for await (const { page, bitmap } of engine.stream(doc, {
         fitWidth: THUMB_WIDTH,
         priority: THUMB_PRIORITY,
       })) {
@@ -118,7 +120,7 @@ export function Thumbnails({
     return () => {
       cancelled = true;
     };
-  }, [doc]);
+  }, [engine, doc]);
 
   return (
     <div ref={root} className={className}>

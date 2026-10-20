@@ -2,7 +2,7 @@
 
 Status: **proposal, not implemented.** Nothing here ships until it is approved.
 
-## As built (PR 1–3) — where this supersedes the text below
+## As built (PR 1–4) — where this supersedes the text below
 
 Measured or decided while implementing; the sections below are kept as written.
 
@@ -38,6 +38,35 @@ Measured or decided while implementing; the sections below are kept as written.
   loads nothing either way. Every item's range is `^0.5.0`, the release `/core` ships
   in, so installing an item stops at `notarget` until that release is published —
   the honest failure the registry README asks for.
+- **One default engine instance, `defaultPdfEngine`.** A handle carries its engine's
+  *id*, not the engine, and the ownership check is by instance — so a viewer whose
+  fallback was its own `new PapyraEngine()` would reject every `Document` from
+  `open()`. `/core` exports the instance `open()` uses, and the context defaults to it.
+- **`PapyraEngine.open` resolves to a `Document`** (`document.js` is imported with the
+  addon, lazily). With the default engine, the store and the file preview therefore
+  still hold `Document`s at runtime, and papyra-only code — the demo's export and
+  queue readout — narrows with `instanceof Document` instead of breaking. `close` sets
+  a flag on the shared state, so closing either name closes both.
+- **`PdfIsolationGuard` is not an alias of `PdfEngineGuard`.** TIFF and spreadsheets
+  use it too, and they call papyra's wasm directly whatever PDF engine is chosen; an
+  engine-aware guard would wave them through under a Tauri provider. The PDF paths
+  switched to `PdfEngineGuard`; the isolation guard is unchanged. The engine guard's
+  default message is today's words, without the `<code>` spans.
+- **The item lives at `components/pdf-engine.tsx`**, beside `pdf-viewer-provider`,
+  since it renders (the guard's alert) and is a provider.
+- **Closing has a timing rule.** `engine.stream` looks the document up per page, so
+  closing under a live thumbnail strip used to throw from its loop; a stream now ends
+  when its document closes. The file preview closes in its effect cleanup, which React
+  runs after the viewer below has unmounted; the store, which React does not tell
+  when subscribers have moved on, closes a replaced document on the next task. The
+  find bar's unsearchable-page count checks its abort signal per page.
+- **`?engine=` in the demo is deferred to PR 5**: with one engine there is nothing
+  to switch to.
+- **Performance.** Components call `engine.render(doc)` directly rather than through
+  `Document`'s forwarder. Native A/B against PR 3 (14 documents, 15 rounds, min): open
+  −0.7%, cold render +1.1%, cached render −0.7%, `pageSize` 0.0%, search +0.8% — noise.
+  In headless Chrome the viewer, export and components routes render with no console
+  errors, through four rapid file swaps in the viewer and eight in the file preview.
 
 ## Why
 

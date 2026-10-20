@@ -1,5 +1,6 @@
-import type { Document } from '@build-qube/papyra';
 import {
+  type PageBitmap,
+  type PdfDoc,
   paintToCanvas,
   type Quad,
   type RenderHandle,
@@ -8,6 +9,7 @@ import {
   viewport,
 } from '@build-qube/papyra/core';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { usePdfEngine } from '@/components/pdf-engine';
 import { Highlights } from '@/components/pdf-highlights';
 import { Links } from '@/components/pdf-links';
 import { cn } from '@/lib/utils';
@@ -15,7 +17,7 @@ import { cn } from '@/lib/utils';
 /** Props for {@link PageSurface}. */
 export interface PageSurfaceProps {
   /** The open document. */
-  doc: Document;
+  doc: PdfDoc;
   /** The 0-based page this surface renders. */
   index: number;
   /** Where this page sits in the scrolled column, in CSS pixels. */
@@ -91,16 +93,17 @@ export const PageSurface = memo(function PageSurface({
   onSelect,
 }: PageSurfaceProps) {
   const canvas = useRef<HTMLCanvasElement>(null);
-  const job = useRef<RenderHandle | null>(null);
+  const job = useRef<RenderHandle<PageBitmap> | null>(null);
   const [painted, setPainted] = useState(false);
   const [pending, setPending] = useState(false);
+  const engine = usePdfEngine();
 
   useEffect(() => {
     if (renderWidth <= 0) return;
     let dropped = false;
-    let handle: RenderHandle;
+    let handle: RenderHandle<PageBitmap>;
     try {
-      handle = doc.render(index, {
+      handle = engine.render(doc, index, {
         fitWidth: renderWidth,
         priority,
         annotations,
@@ -133,7 +136,7 @@ export const PageSurface = memo(function PageSurface({
     // `rotation` is a dependency even though it changes nothing about the render:
     // re-submitting hits papyra's cache and repaints, which costs nothing and avoids
     // holding a multi-megabyte bitmap per mounted surface just to turn it later.
-  }, [doc, index, renderWidth, rotation, annotations]);
+  }, [engine, doc, index, renderWidth, rotation, annotations]);
 
   useEffect(() => {
     job.current?.setPriority(priority);

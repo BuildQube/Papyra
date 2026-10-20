@@ -240,6 +240,8 @@ export interface DocState<B extends PagedBackend = PagedBackend> {
   attachments?: Promise<readonly Attachment[]>;
   structure?: Promise<StructNode[]>;
   labels?: Promise<readonly string[]>;
+  /** Set by `close`. A flag rather than only a delete, so every alias sees it. */
+  closed?: boolean;
 }
 
 /**
@@ -256,7 +258,7 @@ export function stateOf<B extends PagedBackend>(
   doc: object,
 ): DocState<B> {
   const state = states.get(doc) as DocState<B> | undefined;
-  if (!state) {
+  if (!state || state.closed) {
     throw new Error('papyra: this document is closed, or was never opened');
   }
   if (engine && state.engine !== engine) {
@@ -429,6 +431,7 @@ export abstract class PagedEngine<
    */
   close(doc: PagedDoc): void {
     const state = stateOf(this, doc);
+    state.closed = true;
     states.delete(doc);
     state.cache.clear();
     state.text.clear();
@@ -482,7 +485,8 @@ export abstract class PagedEngine<
     doc: PagedDoc,
     options: StreamOptions = {},
   ): AsyncGenerator<StreamedPage<PageBitmap>> {
-    const { limit } = stateOf(this, doc);
+    const state = stateOf(this, doc);
+    const { limit } = state;
     const pages = options.order ?? range(0, doc.pageCount);
     const window = Math.max(
       1,
@@ -511,7 +515,9 @@ export abstract class PagedEngine<
         const { slot, page, bitmap } = await Promise.race(inflight.values());
         inflight.delete(slot);
         handles.delete(slot);
-        if (next < pages.length) schedule(next++);
+        // Closing a document ends its streams: a viewer swapping files closes the old
+        // one while a thumbnail strip may still be iterating it.
+        if (next < pages.length && !state.closed) schedule(next++);
         yield { page, bitmap };
       }
     } finally {

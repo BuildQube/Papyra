@@ -1,6 +1,6 @@
 import {
+  type PageBitmap,
   paintToCanvas,
-  type RenderedPage,
   type Rotation,
 } from '@build-qube/papyra/core';
 import type { CSSProperties } from 'react';
@@ -28,7 +28,7 @@ export interface PageViewHandle {
    * `rotation` is applied by the canvas as it draws, so turning the page costs a
    * blit rather than a render.
    */
-  paint(page: RenderedPage, rotation?: Rotation): Promise<PaintTiming>;
+  paint(page: PageBitmap, rotation?: Rotation): Promise<PaintTiming>;
 }
 
 /** Props for {@link PageView}. */

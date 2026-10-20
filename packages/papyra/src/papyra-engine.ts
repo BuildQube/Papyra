@@ -3,6 +3,7 @@ import type {
   DocumentInfo as NativeDocumentInfo,
 } from '@build-qube/papyra-native';
 import { type Attachment, toAttachment } from './attachments.js';
+import type { Document } from './document.js';
 import {
   type Availability,
   type BackendRenderOptions,
@@ -52,19 +53,22 @@ function toMetadata(info: NativeDocumentInfo): DocumentMetadata {
 type Addon = {
   native: typeof import('@build-qube/papyra-native');
   runtime: typeof import('./runtime.js');
+  Document: typeof Document;
 };
 
 /** The addon once loaded. Process-wide, like the addon itself. */
 let addon: Addon | undefined;
 
 async function loadAddon(): Promise<Addon> {
-  const [native, runtime] = await Promise.all([
+  const [native, runtime, { Document }] = await Promise.all([
     import('@build-qube/papyra-native'),
     import('./runtime.js'),
+    // With the addon, not before: `Document`'s export methods call it directly.
+    import('./document.js'),
   ]);
   // Before any document loads: the wasm thread pool has to exist before rayon does.
   runtime.init();
-  addon = { native, runtime };
+  addon = { native, runtime, Document };
   return addon;
 }
 
@@ -96,6 +100,21 @@ export class PapyraEngine extends PdfEngine {
     };
   }
 
+  /**
+   * Opens to a `Document`, which is a `PdfDoc` like any engine's handle and
+   * also carries papyra's extras — `renderImage`, `renderSvg`, `cache` — so code that
+   * knows it has papyra's engine can reach them with an `instanceof` check.
+   */
+  override async open(
+    source: PdfSource,
+    options: OpenOptions = {},
+  ): Promise<Document> {
+    const doc = await super.open(source, options);
+    // Loaded by now: `super.open` went through `load`.
+    const { Document } = addon ?? (await loadAddon());
+    return new Document(doc, this);
+  }
+
   protected async load(
     source: PdfSource,
     options: OpenOptions,
@@ -120,6 +139,17 @@ export class PapyraEngine extends PdfEngine {
     );
   }
 }
+
+/**
+ * The engine `open()` and `Document` go through, and the one a viewer falls back
+ * to when the app names none. Being one instance is the point: a document belongs to
+ * the engine that opened it, so a `Document` from `open()` and a viewer's default
+ * engine have to be the same object for the viewer's commands to accept it.
+ *
+ * Costs nothing until a document opens, like any {@link PapyraEngine}.
+ */
+export const defaultPdfEngine: PapyraEngine =
+  /* @__PURE__ */ new PapyraEngine();
 
 /**
  * The addon's document, as a {@link PdfBackend}. Every napi shape is normalised

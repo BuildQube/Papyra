@@ -332,13 +332,25 @@ The zoom shortcuts (⌘/ctrl + scroll, pinch, ⌘/ctrl +/−) are a tooltip on t
 select rather than a line in the toolbar: the select is where a reader looks for
 zoom, and the toolbar has better uses for the width.
 
-Blocks take a `Document`, never a `File`. Opening a PDF means owning a file input, a
-password prompt and a policy for failures, all of which belong to the application.
+Blocks take an open document, never a `File`. Opening a PDF means owning a file
+input, a password prompt and a policy for failures, all of which belong to the
+application.
 
-Every block wraps itself in `PdfIsolationGuard`. papyra's browser build needs
-`SharedArrayBuffer`, so the page must be cross-origin isolated, and without the two
-headers the symptom is a blank area and a console message nobody reads. The guard
-turns that into a two-line config change.
+**Engines.** Every command a viewer sends — render, stream, search, text, outline,
+links — goes through the engine in scope: `usePdfEngine()`, from `pdf-engine`, which
+is papyra's own wasm engine unless a `PdfEngineProvider` above names another. A
+document belongs to the engine that opened it, and `open()` uses that same default
+engine, so a `Document` the app opened itself works with no provider at all. An app
+whose pages cannot be cross-origin isolated — a mobile WebView, say — wraps its root
+in `<PdfEngineProvider engine={…}>` and changes nothing else. A panel the engine
+cannot fill (`doc.capabilities`) is not offered.
+
+Every PDF block wraps itself in `PdfEngineGuard`, which asks the engine whether it
+can run here. For papyra's engine that means `SharedArrayBuffer`, so the page must
+be cross-origin isolated, and without the two headers the symptom is a blank area
+and a console message nobody reads. The guard turns that into a two-line config
+change. `PdfIsolationGuard` stays for TIFF and spreadsheets, which call papyra
+directly whatever PDF engine is chosen.
 
 ## The showcase
 

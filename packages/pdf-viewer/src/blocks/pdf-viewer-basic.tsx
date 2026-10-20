@@ -1,5 +1,8 @@
-import type { Document, Rotation } from '@build-qube/papyra';
-import { rotateSize } from '@build-qube/papyra/core';
+import {
+  type PdfDoc,
+  type Rotation,
+  rotateSize,
+} from '@build-qube/papyra/core';
 import {
   useEffect,
   useImperativeHandle,
@@ -7,7 +10,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { PdfIsolationGuard } from '@/components/pdf-isolation-guard';
+import { PdfEngineGuard, usePdfEngine } from '@/components/pdf-engine';
 import { PageView, type PageViewHandle } from '@/components/pdf-page-view';
 import { ZoomBar } from '@/components/viewer-zoom-bar';
 import {
@@ -26,7 +29,7 @@ const GUTTER = 32;
 /** Props for {@link PdfViewerBasic}. */
 export interface PdfViewerBasicProps {
   /** The open document. */
-  doc: Document;
+  doc: PdfDoc;
   /** The page on screen, 0-based. Leave it out to let the viewer hold its own. */
   page?: number;
   /** The page to start on when uncontrolled. */
@@ -69,6 +72,7 @@ export function PdfViewerBasic({
   const viewport = useRef<HTMLDivElement>(null);
   const stack = useRef<HTMLDivElement>(null);
   const surface = useRef<PageViewHandle>(null);
+  const engine = usePdfEngine();
   const anchor = useRef<ZoomAnchor | null>(null);
 
   const labels = usePageLabels(doc);
@@ -130,7 +134,7 @@ export function PdfViewerBasic({
   useEffect(() => {
     if (pixelWidth <= 0) return;
     let cancelled = false;
-    const job = doc.render(index, {
+    const job = engine.render(doc, index, {
       fitWidth: pixelWidth,
       priority: 0,
       annotations,
@@ -149,7 +153,7 @@ export function PdfViewerBasic({
     };
     // `rotation` re-runs this only to repaint: the resubmission is a cache hit, which
     // is cheaper than keeping the bitmap around to turn later.
-  }, [doc, index, pixelWidth, rotation, annotations]);
+  }, [engine, doc, index, pixelWidth, rotation, annotations]);
 
   const goTo = (next: number) => {
     setOwn(next);
@@ -157,7 +161,7 @@ export function PdfViewerBasic({
   };
 
   return (
-    <PdfIsolationGuard>
+    <PdfEngineGuard>
       <div
         className={cn(
           'flex min-h-0 min-w-0 flex-col @container/pdf-viewer',
@@ -183,7 +187,9 @@ export function PdfViewerBasic({
               )
             }
             annotations={annotations}
-            onAnnotations={setAnnotations}
+            onAnnotations={
+              doc.capabilities.annotationsToggle ? setAnnotations : undefined
+            }
           />
         </div>
         {/*
@@ -208,6 +214,6 @@ export function PdfViewerBasic({
           </div>
         </div>
       </div>
-    </PdfIsolationGuard>
+    </PdfEngineGuard>
   );
 }

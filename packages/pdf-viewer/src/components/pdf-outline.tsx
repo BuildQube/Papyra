@@ -1,10 +1,11 @@
-import type { Document, OutlineNode } from '@build-qube/papyra';
+import type { OutlineNode, PdfDoc } from '@build-qube/papyra/core';
 import {
   ChevronRightIcon,
   ListTreeIcon,
   TriangleAlertIcon,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { usePdfEngine } from '@/components/pdf-engine';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,7 +26,7 @@ import { cn } from '@/lib/utils';
 /** Props for {@link Outline}. */
 export interface OutlineProps {
   /** The open document. */
-  doc: Document;
+  doc: PdfDoc;
   /** The page on screen, 0-based. Its row is marked selected. */
   current: number;
   /** Called with a 0-based page index when the reader picks a page. */
@@ -56,14 +57,15 @@ export function Outline({
   const [tree, setTree] = useState<OutlineNode[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  const engine = usePdfEngine();
 
   useEffect(() => {
     let cancelled = false;
     setTree(null);
     setError(null);
     const started = performance.now();
-    doc
-      .outline()
+    engine
+      .outline(doc)
       .then((nodes) => {
         if (cancelled) return;
         setElapsed(performance.now() - started);
@@ -73,7 +75,7 @@ export function Outline({
     return () => {
       cancelled = true;
     };
-  }, [doc]);
+  }, [engine, doc]);
 
   if (error) {
     return (

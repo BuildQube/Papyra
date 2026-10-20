@@ -2,9 +2,8 @@ import { describe, expect, test } from 'bun:test';
 import { createPdfViewerStore } from '../../src/lib/pdf-viewer-store.js';
 
 /**
- * In `test/integration`, not `test/unit`: the store imports `@build-qube/papyra` for
- * `open` and `PasswordError`, and that entrypoint loads the native addon at module
- * scope. CI's unit-test job runs with no Rust toolchain and no build.
+ * In `test/integration`, not `test/unit`: the store imports `@build-qube/papyra/core`,
+ * which needs papyra's TypeScript built, and CI's unit-test job runs with no build.
  *
  * What is under test is the property the whole store design rests on — that a write
  * to one slice leaves the others' references untouched, so `useSyncExternalStore`
@@ -228,5 +227,51 @@ describe('annotations', () => {
 
     store.actions.setAnnotations(true);
     expect(notifications).toBe(0);
+  });
+});
+
+describe('document ownership', () => {
+  /** Enough of an engine for the store: it only opens and closes. */
+  function stubEngine() {
+    const closed: unknown[] = [];
+    let n = 0;
+    const engine = {
+      open: async () => ({ pageCount: 1, id: n++ }),
+      close: (doc: unknown) => closed.push(doc),
+    };
+    return { engine: engine as never, closed };
+  }
+  const file = new File([new Uint8Array(4)], 'a.pdf');
+  const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  test('load opens through the engine it was given', async () => {
+    const { engine } = stubEngine();
+    const store = createPdfViewerStore({ engine });
+    await store.actions.load(file);
+    expect(store.getState().document?.doc).toEqual({ pageCount: 1, id: 0 });
+  });
+
+  test('closes what load opened once it is replaced, after subscribers move on', async () => {
+    const { engine, closed } = stubEngine();
+    const store = createPdfViewerStore({ engine });
+    await store.actions.load(file);
+    const first = store.getState().document?.doc;
+    await store.actions.load(file);
+    expect(closed).toEqual([]); // not while a subscriber may still hold it
+    await tick();
+    expect(closed).toEqual([first]);
+
+    store.actions.setDocument(null);
+    await tick();
+    expect(closed).toHaveLength(2);
+  });
+
+  test('never closes a document the caller handed over', async () => {
+    const { engine, closed } = stubEngine();
+    const store = createPdfViewerStore({ engine });
+    store.actions.setDocument({ doc: { pageCount: 2 } } as never);
+    await store.actions.load(file);
+    await tick();
+    expect(closed).toEqual([]);
   });
 });

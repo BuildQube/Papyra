@@ -1,5 +1,8 @@
-import type { Document } from '@build-qube/papyra';
-import { viewport as pageViewport, rotateSize } from '@build-qube/papyra/core';
+import {
+  type PdfDoc,
+  viewport as pageViewport,
+  rotateSize,
+} from '@build-qube/papyra/core';
 import {
   useEffect,
   useImperativeHandle,
@@ -8,9 +11,9 @@ import {
   useState,
 } from 'react';
 import { ContinuousPages } from '@/components/pdf-continuous-pages';
+import { PdfEngineGuard, usePdfEngine } from '@/components/pdf-engine';
 import { FindBar } from '@/components/pdf-find-bar';
 import { Highlights } from '@/components/pdf-highlights';
-import { PdfIsolationGuard } from '@/components/pdf-isolation-guard';
 import { Links } from '@/components/pdf-links';
 import { PageView, type PageViewHandle } from '@/components/pdf-page-view';
 import { Properties } from '@/components/pdf-properties';
@@ -50,7 +53,7 @@ const GUTTER = 48;
 /** Props for {@link PdfViewerConfigurable}. */
 export interface PdfViewerConfigurableProps {
   /** The open document. */
-  doc: Document;
+  doc: PdfDoc;
   /**
    * Pages one at a time (`'page'`), or in a scrolling column (`'scroll'`). Where the
    * viewer starts; with `viewToggle` the reader can change it. Defaults to `'page'`.
@@ -125,11 +128,11 @@ export function PdfViewerConfigurable({
   ...props
 }: PdfViewerConfigurableProps) {
   return (
-    <PdfIsolationGuard>
+    <PdfEngineGuard>
       <PdfViewerProvider store={store} view={view}>
         <ViewerBody {...props} />
       </PdfViewerProvider>
-    </PdfIsolationGuard>
+    </PdfEngineGuard>
   );
 }
 
@@ -168,6 +171,7 @@ function ViewerBody({
   const anchor = useRef<ZoomAnchor | null>(null);
   const stack = useRef<HTMLDivElement>(null);
   const surface = useRef<PageViewHandle>(null);
+  const engine = usePdfEngine();
   const [showProperties, setShowProperties] = useState(false);
 
   // Mirrored into the store, which the panels read, as `pdf-viewer` does. The page
@@ -250,7 +254,7 @@ function ViewerBody({
   useEffect(() => {
     if (!single || pixelWidth <= 0) return;
     let cancelled = false;
-    const job = doc.render(index, {
+    const job = engine.render(doc, index, {
       fitWidth: pixelWidth,
       priority: 0,
       annotations,
@@ -268,7 +272,7 @@ function ViewerBody({
       job.cancel('page or zoom changed');
     };
     // `rotation` re-runs this only to repaint: the resubmission is a cache hit.
-  }, [doc, index, pixelWidth, rotation, annotations, single]);
+  }, [engine, doc, index, pixelWidth, rotation, annotations, single]);
 
   // Nothing renders until the store has the document the panels read.
   if (!loaded) return null;
@@ -284,7 +288,7 @@ function ViewerBody({
       fullscreen={fullscreen}
       toolbar={
         <>
-          {search && (
+          {search && doc.capabilities.text && (
             <FindBar
               doc={doc}
               current={index}
@@ -314,7 +318,9 @@ function ViewerBody({
             rotation={rotation}
             onRotate={rotateBy}
             annotations={annotations}
-            onAnnotations={setAnnotations}
+            onAnnotations={
+              doc.capabilities.annotationsToggle ? setAnnotations : undefined
+            }
             onProperties={
               properties ? () => setShowProperties(true) : undefined
             }

@@ -46,7 +46,10 @@
       "type": "registry:component",
       "title": "Viewer provider",
       "description": "Puts a viewer store in scope. Mount it above your router so the document and its render cache survive navigation.",
-      "registryDependencies": ["{{REGISTRY}}/pdf-viewer-store.json"],
+      "registryDependencies": [
+        "{{REGISTRY}}/pdf-viewer-store.json",
+        "{{REGISTRY}}/pdf-engine.json"
+      ],
       "files": [
         {
           "path": "src/components/pdf-viewer-provider.tsx",
@@ -101,6 +104,7 @@
       "title": "Page labels",
       "description": "The labels a document prints on its pages, when they differ from the index.",
       "dependencies": ["@build-qube/papyra@^0.5.0"],
+      "registryDependencies": ["{{REGISTRY}}/pdf-engine.json"],
       "files": [
         {
           "path": "src/hooks/use-pdf-page-labels.ts",
@@ -118,6 +122,20 @@
       "files": [
         {
           "path": "src/components/pdf-isolation-guard.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
+      "name": "pdf-engine",
+      "type": "registry:component",
+      "title": "Engine",
+      "description": "Chooses what opens and renders PDFs for every viewer below it \u2014 papyra's own by default, or another engine such as pdf.js or a native one in an app shell \u2014 and a guard that says, in the engine's words, why it cannot run here.",
+      "dependencies": ["@build-qube/papyra@^0.5.0", "lucide-react"],
+      "registryDependencies": ["alert"],
+      "files": [
+        {
+          "path": "src/components/pdf-engine.tsx",
           "type": "registry:component"
         }
       ]
@@ -152,7 +170,7 @@
       "registryDependencies": [
         "{{REGISTRY}}/pdf-continuous-pages.json",
         "{{REGISTRY}}/pdf-find-bar.json",
-        "{{REGISTRY}}/pdf-isolation-guard.json",
+        "{{REGISTRY}}/pdf-engine.json",
         "{{REGISTRY}}/pdf-viewer-layout.json",
         "{{REGISTRY}}/pdf-viewer-provider.json",
         "{{REGISTRY}}/viewer-zoom-bar.json",
@@ -174,7 +192,7 @@
       "description": "One page at a time with a pager and zoom. The viewer to embed in a panel or a modal, where the full one would be more furniture than document.",
       "dependencies": ["@build-qube/papyra@^0.5.0"],
       "registryDependencies": [
-        "{{REGISTRY}}/pdf-isolation-guard.json",
+        "{{REGISTRY}}/pdf-engine.json",
         "{{REGISTRY}}/pdf-page-class.json",
         "{{REGISTRY}}/pdf-page-view.json",
         "{{REGISTRY}}/viewer-zoom-bar.json",
@@ -198,7 +216,7 @@
         "{{REGISTRY}}/pdf-continuous-pages.json",
         "{{REGISTRY}}/pdf-find-bar.json",
         "{{REGISTRY}}/pdf-highlights.json",
-        "{{REGISTRY}}/pdf-isolation-guard.json",
+        "{{REGISTRY}}/pdf-engine.json",
         "{{REGISTRY}}/pdf-links.json",
         "{{REGISTRY}}/pdf-page-class.json",
         "{{REGISTRY}}/pdf-page-view.json",
@@ -228,7 +246,7 @@
       "dependencies": ["@build-qube/papyra@^0.5.0"],
       "registryDependencies": [
         "skeleton",
-        "{{REGISTRY}}/pdf-isolation-guard.json",
+        "{{REGISTRY}}/pdf-engine.json",
         "{{REGISTRY}}/pdf-page-canvas.json"
       ],
       "files": [
@@ -245,7 +263,7 @@
       "description": "Pick a page out of a document: a streaming grid of thumbnails, controlled or not.",
       "dependencies": ["@build-qube/papyra@^0.5.0"],
       "registryDependencies": [
-        "{{REGISTRY}}/pdf-isolation-guard.json",
+        "{{REGISTRY}}/pdf-engine.json",
         "{{REGISTRY}}/pdf-thumbnails.json"
       ],
       "files": [
@@ -313,6 +331,7 @@
       "title": "Link layer",
       "description": "Hit regions over a page for its link annotations, invisible until hovered, mapped through a viewport so they follow a rotated view.",
       "dependencies": ["@build-qube/papyra@^0.5.0"],
+      "registryDependencies": ["{{REGISTRY}}/pdf-engine.json"],
       "files": [
         {
           "path": "src/components/pdf-links.tsx",
@@ -341,7 +360,8 @@
       "dependencies": ["@build-qube/papyra@^0.5.0"],
       "registryDependencies": [
         "{{REGISTRY}}/pdf-highlights.json",
-        "{{REGISTRY}}/pdf-links.json"
+        "{{REGISTRY}}/pdf-links.json",
+        "{{REGISTRY}}/pdf-engine.json"
       ],
       "files": [
         {
@@ -378,7 +398,8 @@
         "button",
         "skeleton",
         "{{REGISTRY}}/pdf-page-canvas.json",
-        "{{REGISTRY}}/use-pdf-page-labels.json"
+        "{{REGISTRY}}/use-pdf-page-labels.json",
+        "{{REGISTRY}}/pdf-engine.json"
       ],
       "files": [
         {
@@ -398,7 +419,8 @@
         "button",
         "collapsible",
         "empty",
-        "spinner"
+        "spinner",
+        "{{REGISTRY}}/pdf-engine.json"
       ],
       "files": [
         {
@@ -420,7 +442,8 @@
         "collapsible",
         "empty",
         "spinner",
-        "tabs"
+        "tabs",
+        "{{REGISTRY}}/pdf-engine.json"
       ],
       "files": [
         {
@@ -443,7 +466,8 @@
         "popover",
         "spinner",
         "toggle",
-        "tooltip"
+        "tooltip",
+        "{{REGISTRY}}/pdf-engine.json"
       ],
       "files": [
         {
@@ -480,7 +504,8 @@
         "{{REGISTRY}}/pdf-outline.json",
         "{{REGISTRY}}/pdf-structure.json",
         "{{REGISTRY}}/pdf-search.json",
-        "{{REGISTRY}}/pdf-thumbnails.json"
+        "{{REGISTRY}}/pdf-thumbnails.json",
+        "{{REGISTRY}}/pdf-engine.json"
       ],
       "files": [
         {
@@ -519,7 +544,12 @@
       "title": "Attachments",
       "description": "The files a document embeds, with an inline preview for text and a save button \u2014 and a hybrid invoice called out by name.",
       "dependencies": ["@build-qube/papyra@^0.5.0", "lucide-react"],
-      "registryDependencies": ["badge", "button", "spinner"],
+      "registryDependencies": [
+        "badge",
+        "button",
+        "spinner",
+        "{{REGISTRY}}/pdf-engine.json"
+      ],
       "files": [
         {
           "path": "src/components/pdf-attachments.tsx",
@@ -696,7 +726,7 @@
         "empty",
         "spinner",
         "{{REGISTRY}}/file-preview-core.json",
-        "{{REGISTRY}}/pdf-isolation-guard.json",
+        "{{REGISTRY}}/pdf-engine.json",
         "{{REGISTRY}}/pdf-password-prompt.json",
         "{{REGISTRY}}/pdf-viewer-configurable.json"
       ],

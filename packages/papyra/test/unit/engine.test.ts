@@ -144,6 +144,18 @@ describe('PdfEngine over another backend', () => {
     expect(pages.sort()).toEqual([0, 2]);
   });
 
+  test('closing a document ends its stream rather than throwing', async () => {
+    const engine = new FakeEngine();
+    const doc = await engine.open(BYTES);
+    const pages = [];
+    for await (const { page } of engine.stream(doc, { concurrency: 1 })) {
+      pages.push(page);
+      // Page 1 was already scheduled when page 0 arrived; page 2 never is.
+      if (page === 0) engine.close(doc);
+    }
+    expect(pages).toEqual([0, 1]);
+  });
+
   test('the handle carries the facts, read once', async () => {
     const engine = new FakeEngine();
     const doc = await engine.open(BYTES);

@@ -1,9 +1,8 @@
-import type { Document } from '@build-qube/papyra';
-import { rotateSize } from '@build-qube/papyra/core';
+import { type PdfDoc, rotateSize } from '@build-qube/papyra/core';
 import { useEffect, useMemo, useRef } from 'react';
 import { ContinuousPages } from '@/components/pdf-continuous-pages';
+import { PdfEngineGuard } from '@/components/pdf-engine';
 import { FindBar } from '@/components/pdf-find-bar';
-import { PdfIsolationGuard } from '@/components/pdf-isolation-guard';
 import { ViewerLayout } from '@/components/pdf-viewer-layout';
 import { PdfViewerProvider } from '@/components/pdf-viewer-provider';
 import { ZoomBar } from '@/components/viewer-zoom-bar';
@@ -37,7 +36,7 @@ export interface PdfViewerProps {
    * prompt and whatever it wants to do with failures — so this takes a `Document`
    * rather than a `File`.
    */
-  doc: Document;
+  doc: PdfDoc;
   /** The zoom to open at. Defaults to `auto`. */
   initialZoom?: ZoomSpec;
   /** Whether the pages/outline/search sidebar is shown. */
@@ -81,7 +80,7 @@ export function PdfViewer({
   className,
 }: PdfViewerProps) {
   return (
-    <PdfIsolationGuard>
+    <PdfEngineGuard>
       <PdfViewerProvider store={store} view="scroll">
         <ViewerBody
           className={className}
@@ -92,7 +91,7 @@ export function PdfViewer({
           displayRenderTime={displayRenderTime}
         />
       </PdfViewerProvider>
-    </PdfIsolationGuard>
+    </PdfEngineGuard>
   );
 }
 
@@ -167,18 +166,20 @@ function ViewerBody({
       displayRenderTime={displayRenderTime}
       toolbar={
         <>
-          <FindBar
-            doc={doc}
-            current={index}
-            query={query}
-            onQuery={setQuery}
-            matches={matches}
-            onMatches={setMatches}
-            active={active}
-            onActive={setActive}
-            onSelect={setPage}
-            displayRenderTime={displayRenderTime}
-          />
+          {doc.capabilities.text && (
+            <FindBar
+              doc={doc}
+              current={index}
+              query={query}
+              onQuery={setQuery}
+              matches={matches}
+              onMatches={setMatches}
+              active={active}
+              onActive={setActive}
+              onSelect={setPage}
+              displayRenderTime={displayRenderTime}
+            />
+          )}
           <ZoomBar
             label={label}
             onPage={setPage}
@@ -193,7 +194,9 @@ function ViewerBody({
             rotation={rotation}
             onRotate={rotateBy}
             annotations={annotations}
-            onAnnotations={setAnnotations}
+            onAnnotations={
+              doc.capabilities.annotationsToggle ? setAnnotations : undefined
+            }
           />
         </>
       }

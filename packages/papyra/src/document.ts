@@ -16,7 +16,11 @@ import {
 } from './engine.js';
 import type { PageLink } from './links.js';
 import type { OutlineNode } from './outline.js';
-import { type PapyraBackend, PapyraEngine } from './papyra-engine.js';
+import {
+  defaultPdfEngine,
+  type PapyraBackend,
+  type PapyraEngine,
+} from './papyra-engine.js';
 import { currentRuntime } from './runtime.js';
 import { DEFAULT_PRIORITY, type JobHandle } from './scheduler.js';
 import type { SearchMatch } from './search.js';
@@ -51,12 +55,6 @@ export type ImageHandle = JobHandle<PageImage>;
 export type SvgHandle = JobHandle<SvgPage>;
 
 /**
- * The engine every {@link open} goes through. One per process: it holds no state of
- * its own — each document's queue and caches belong to that document.
- */
-const engine = new PapyraEngine();
-
-/**
  * Open a PDF from bytes, an `ArrayBuffer`, a `Blob`, or a `File`.
  *
  * Throws {@link PasswordRequiredError} when the document is encrypted and no
@@ -68,7 +66,7 @@ export async function open(
   source: PdfSource,
   options: OpenOptions = {},
 ): Promise<Document> {
-  return new Document(await engine.open(source, options));
+  return defaultPdfEngine.open(source, options);
 }
 
 /**
@@ -83,6 +81,7 @@ export async function open(
  */
 export class Document implements PdfDoc {
   readonly #doc: PdfDoc;
+  readonly #engine: PapyraEngine;
   readonly #state: DocState<PapyraBackend>;
   /** Memoised by {@link indexText}. */
   #indexed: Promise<void> | undefined;
@@ -101,8 +100,9 @@ export class Document implements PdfDoc {
   readonly fingerprint: string;
 
   /** @internal — construct via {@link open}. */
-  constructor(doc: PdfDoc) {
+  constructor(doc: PdfDoc, engine: PapyraEngine) {
     this.#doc = doc;
+    this.#engine = engine;
     this.#state = stateOf(engine, doc) as DocState<PapyraBackend>;
     this.fingerprint = doc.fingerprint;
     adopt(this, doc);
@@ -134,7 +134,7 @@ export class Document implements PdfDoc {
    * it frees the caches at once rather than whenever the collector gets to them.
    */
   close(): void {
-    engine.close(this.#doc);
+    this.#engine.close(this.#doc);
   }
 
   /** Pages queued but not yet started, pages rendering, and the longest wait so far. */
@@ -197,7 +197,7 @@ export class Document implements PdfDoc {
    * ```
    */
   async outline(): Promise<OutlineNode[]> {
-    return engine.outline(this.#doc);
+    return this.#engine.outline(this.#doc);
   }
 
   /**
@@ -232,7 +232,7 @@ export class Document implements PdfDoc {
    * ```
    */
   async pageLabels(): Promise<readonly string[]> {
-    return engine.pageLabels(this.#doc);
+    return this.#engine.pageLabels(this.#doc);
   }
 
   /**
@@ -262,7 +262,7 @@ export class Document implements PdfDoc {
    * ```
    */
   async structTree(): Promise<StructNode[]> {
-    return engine.structTree(this.#doc);
+    return this.#engine.structTree(this.#doc);
   }
 
   /**
@@ -288,7 +288,7 @@ export class Document implements PdfDoc {
    * ```
    */
   async attachments(): Promise<readonly Attachment[]> {
-    return engine.attachments(this.#doc);
+    return this.#engine.attachments(this.#doc);
   }
 
   /**
@@ -300,7 +300,7 @@ export class Document implements PdfDoc {
    * cannot be decoded.
    */
   async attachmentData(index: number): Promise<Uint8Array> {
-    return engine.attachmentData(this.#doc, index);
+    return this.#engine.attachmentData(this.#doc, index);
   }
 
   /**
@@ -326,7 +326,7 @@ export class Document implements PdfDoc {
    * ```
    */
   async links(index: number): Promise<readonly PageLink[]> {
-    return engine.links(this.#doc, index);
+    return this.#engine.links(this.#doc, index);
   }
 
   /** Page dimensions in PDF points (1/72 inch). */
@@ -474,7 +474,7 @@ export class Document implements PdfDoc {
    */
   render(index: number, options: RenderOptions = {}): RenderHandle {
     // papyra's backend only ever produces RGBA, so the wider engine type narrows.
-    return engine.render(this.#doc, index, options) as RenderHandle;
+    return this.#engine.render(this.#doc, index, options) as RenderHandle;
   }
 
   /**
@@ -534,7 +534,10 @@ export class Document implements PdfDoc {
    */
   stream(options: StreamOptions = {}): AsyncGenerator<StreamedPage> {
     // As for `render`: the bitmaps are RGBA.
-    return engine.stream(this.#doc, options) as AsyncGenerator<StreamedPage>;
+    return this.#engine.stream(
+      this.#doc,
+      options,
+    ) as AsyncGenerator<StreamedPage>;
   }
 
   /**
@@ -552,7 +555,7 @@ export class Document implements PdfDoc {
     index: number,
     options: { priority?: number; signal?: AbortSignal } = {},
   ): Promise<PageText> {
-    return engine.pageText(this.#doc, index, options);
+    return this.#engine.pageText(this.#doc, index, options);
   }
 
   /**
@@ -619,7 +622,7 @@ export class Document implements PdfDoc {
     query: string,
     options: SearchOptions = {},
   ): AsyncGenerator<SearchMatch> {
-    return engine.search(this.#doc, query, options);
+    return this.#engine.search(this.#doc, query, options);
   }
 
   /** Extracted page text held for reuse, and how often that has paid off. */

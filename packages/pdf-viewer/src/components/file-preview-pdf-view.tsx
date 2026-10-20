@@ -1,7 +1,7 @@
-import { type Document, open, PasswordError } from '@build-qube/papyra';
+import { PasswordError, type PdfDoc } from '@build-qube/papyra/core';
 import { LockIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { PdfIsolationGuard } from '@/components/pdf-isolation-guard';
+import { PdfEngineGuard, usePdfEngine } from '@/components/pdf-engine';
 import { PasswordPrompt } from '@/components/pdf-password-prompt';
 import {
   PdfViewerConfigurable,
@@ -34,7 +34,7 @@ export type PdfFileViewOptions = Omit<
 
 type State =
   | { status: 'opening' }
-  | { status: 'open'; doc: Document }
+  | { status: 'open'; doc: PdfDoc; file: File }
   | { status: 'password'; retry: boolean }
   | { status: 'locked' }
   | { status: 'failed'; error: unknown };
@@ -43,19 +43,20 @@ type State =
  * A PDF, opened from the file and shown in the configurable viewer — a continuous
  * scrolling column with nothing else unless `options` turns on more.
  *
- * The other PDF blocks take an open `Document` and leave opening to the app, since
+ * The other PDF blocks take an open document and leave opening to the app, since
  * that means owning a password prompt and a failure policy. A file previewer *is*
  * the thing that owns those, so this one opens the file itself: it asks for a
- * password when papyra says one is needed, and says so when the reader declines.
+ * password when the engine says one is needed, and says so when the reader declines.
+ * It closes what it opened, when the file changes and on unmount.
  *
  * Loaded by `pdfRenderer` — import that, not this, so papyra stays out of the bundle
  * until a PDF is opened.
  */
 export function PdfFileView(props: FileViewProps<PdfFileViewOptions>) {
   return (
-    <PdfIsolationGuard>
+    <PdfEngineGuard>
       <OpenedPdf {...props} />
-    </PdfIsolationGuard>
+    </PdfEngineGuard>
   );
 }
 
@@ -68,13 +69,25 @@ function OpenedPdf({
   // than being tried once with the old password before an effect clears it.
   const [typed, setTyped] = useState<{ file: File; password: string }>();
   const password = typed?.file === file ? typed.password : undefined;
-  const [state, setState] = useState<State>({ status: 'opening' });
+  const engine = usePdfEngine();
+  const [current, setState] = useState<State>({ status: 'opening' });
+  // A document opened for another file is never shown, not even for the render
+  // before the effect below catches up: by then that effect has closed it.
+  const state =
+    current.status === 'open' && current.file !== file
+      ? { status: 'opening' as const }
+      : current;
 
   useEffect(() => {
     let live = true;
+    let opened: PdfDoc | undefined;
     setState({ status: 'opening' });
-    open(file, { password }).then(
-      (doc) => live && setState({ status: 'open', doc }),
+    engine.open(file, { password }).then(
+      (doc) => {
+        if (!live) return engine.close(doc);
+        opened = doc;
+        setState({ status: 'open', doc, file });
+      },
       (error: unknown) => {
         if (!live) return;
         setState(
@@ -86,9 +99,11 @@ function OpenedPdf({
     );
     return () => {
       live = false;
+      // After the viewer below has unmounted: React runs a child's cleanups first.
+      if (opened) engine.close(opened);
     };
     // On `typed`, not the string: the same wrong password twice is still two attempts.
-  }, [file, typed]);
+  }, [engine, file, typed]);
 
   switch (state.status) {
     case 'opening':
