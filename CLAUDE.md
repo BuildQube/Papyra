@@ -68,6 +68,15 @@ bun run --filter papyra-bench encode    # WebP/PNG/JPEG size and time per page
 bun run --filter papyra-bench priority  # also: cache, scaling, large-format
 ```
 
+The office engines (WordCraft, DeckCraft) are git-pinned and move fast; the
+`office-engines` skill has the procedure for bumping them:
+
+```bash
+bun run office status      # how far each pin is behind upstream, per crate we compile
+bun run office bump wordcraft        # or deckcraft; --rev <sha> for a specific one
+bun run office fidelity    # render corpus/office on wasm, diff crates/papyra-office/fidelity.json
+```
+
 Releases go through changesets: `bun run change` to add one, `bun run release` to publish.
 `@build-qube/papyra`, `@build-qube/papyra-native`, `@build-qube/papyra-pdfjs` and
 `@build-qube/papyra-tauri` are version-locked (`fixed` in `.changeset/config.json`); `papyra-demo`, `papyra-bench` and `@workspace/ui` are
@@ -249,6 +258,15 @@ The features beyond rendering follow the same split:
   viewer asks for the settled on-screen width, not the cap — a browser shrinking a
   5000px canvas samples rather than averages and breaks hairlines into dashes.
   Costs +91 KB gzipped of wasm (2.39 → 2.48 MB).
+- **Word and PowerPoint (experimental).** `crates/papyra-office` renders `.docx` over
+  WordCraft and `.pptx` over DeckCraft, pure-Rust engines pinned by git rev. It ships
+  as its own addon (`packages/office-bindings`, about 4.2 MB of wasm gzipped) so a
+  PDF-only consumer downloads none of it, and `@build-qube/papyra/office` makes an
+  `OfficeDocument` a `PageSource` that the PDF viewer's continuous column takes
+  unchanged. Code that only draws pages imports `@build-qube/papyra/view`, never the
+  main entry, which loads the PDF engine. Fidelity is measured on the wasm build,
+  never natively: native catalogs the host's fonts, so its pagination differs from
+  machine to machine.
 - **Text and search.** `crates/papyra-hayro/src/text.rs` implements
   `hayro_interpret::Device` and collects glyphs, which is how encodings, `ToUnicode`
   cmaps, CID and Type3 fonts, and the graphics-state transform all arrive already

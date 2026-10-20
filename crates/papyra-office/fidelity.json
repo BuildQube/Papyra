@@ -1,0 +1,128 @@
+{
+  "revs": {
+    "wordcraft": "d7d9702bda1fe626952024dc37fd2624323dad0f",
+    "deckcraft": "4b09f35c1d6fa50e2d94243a5d65d98fe49558e0"
+  },
+  "width": 240,
+  "results": {
+    "Bug51170.docx": {
+      "pages": 7,
+      "blank": [],
+      "solid": [],
+      "failed": [],
+      "kind": "word"
+    },
+    "calendar-ru.docx": {
+      "pages": 13,
+      "blank": [],
+      "solid": [],
+      "failed": [],
+      "kind": "word"
+    },
+    "pcb-paper.docx": {
+      "pages": 53,
+      "blank": [],
+      "solid": [],
+      "failed": [],
+      "kind": "word"
+    },
+    "bug65649.docx": {
+      "pages": 177,
+      "blank": [93, 177],
+      "solid": [],
+      "failed": [],
+      "kind": "word"
+    },
+    "saut_page.docx": {
+      "pages": 3,
+      "blank": [3],
+      "solid": [],
+      "failed": [],
+      "kind": "word"
+    },
+    "heading123.docx": {
+      "pages": 1,
+      "blank": [],
+      "solid": [],
+      "failed": [],
+      "kind": "word"
+    },
+    "VariousPictures.docx": {
+      "pages": 1,
+      "blank": [],
+      "solid": [],
+      "failed": [],
+      "kind": "word"
+    },
+    "MultipleBodyBug.docx": {
+      "pages": 1,
+      "blank": [],
+      "solid": [],
+      "failed": [],
+      "kind": "word"
+    },
+    "issue_51265_3.docx": {
+      "pages": 1,
+      "blank": [],
+      "solid": [],
+      "failed": [],
+      "kind": "word"
+    },
+    "alterman_security.pptx": {
+      "pages": 23,
+      "blank": [],
+      "solid": [10],
+      "failed": [],
+      "kind": "slides"
+    },
+    "HowWeRefactor.pptx": {
+      "pages": 28,
+      "blank": [],
+      "solid": [7, 11, 13, 17],
+      "failed": [],
+      "kind": "slides"
+    },
+    "Performance_Up.pptx": {
+      "pages": 48,
+      "blank": [],
+      "solid": [],
+      "failed": [],
+      "kind": "slides"
+    },
+    "aascu-cooper.pptx": {
+      "pages": 16,
+      "blank": [],
+      "solid": [],
+      "failed": [],
+      "kind": "slides"
+    },
+    "GeomLec1.pptx": {
+      "pages": 14,
+      "blank": [],
+      "solid": [],
+      "failed": [],
+      "kind": "slides"
+    },
+    "aptia.pptx": {
+      "pages": 9,
+      "blank": [],
+      "solid": [],
+      "failed": [],
+      "kind": "slides"
+    },
+    "ecodesign-elektronik.pptx": {
+      "pages": 34,
+      "blank": [],
+      "solid": [],
+      "failed": [],
+      "kind": "slides"
+    },
+    "ececapstone.pptx": {
+      "pages": 24,
+      "blank": [],
+      "solid": [],
+      "failed": [],
+      "kind": "slides"
+    }
+  }
+}
