@@ -742,6 +742,27 @@ Each PR leaves the default path the same in behaviour.
 
 Office documents join `PagedEngine` when #50 rebases onto PR 2 (§7.1).
 
+Decided since (2026-10-20):
+
+- **Formats in the Tauri host are Cargo features of one plugin**, not separate
+  plugins: `pdf` by default, `tiff`, `tables` and `office` (#50's renderers run in
+  Rust) opt-in, with `build.rs` listing each feature's commands so its permissions
+  follow it. One open-document map, one reload hook, one protocol, one capability.
+  The JS side adds an engine class per format to `@build-qube/papyra-tauri`.
+- **Download, share and open-with are not engine commands.** They are what a
+  *platform* does with a file, not how a format is read, so they get their own
+  context in the file preview (`download`, `share`, `openWith`; the browser's anchor
+  download by default), and a Tauri implementation over the dialog, fs and opener
+  plugins. Coupling them to engines would make every format need an engine to get a
+  share button.
+- **No WebP page format or image export through engines** until a viewer needs one;
+  papyra's `renderImage`/`encode` already export WebP.
+- The plugin follows the `tauri plugin new` layout (`commands.rs`, `models.rs`,
+  `error.rs`, with a serialisable error enum), less the Android and iOS projects
+  (no native code: hayro is Rust) and `guest-js` (the engine is its own package).
+  schemars is for a global *scope* schema; it arrives with a path scope, if `open`
+  ever reads files from disk.
+
 ### Vendored consumers (aldoa-mono)
 
 aldoa installs items with `shadcn add` and carries local edits marked `aldoa:`.

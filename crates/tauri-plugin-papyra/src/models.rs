@@ -3,22 +3,8 @@
 //! `buildOutlineTree`, `toPageLink`, …) read these unchanged, and an outline or a
 //! link means the same thing whichever host produced it.
 
-use papyra_core::{DestinationView as V, PapyraError};
+use papyra_core::DestinationView as V;
 use serde::Serialize;
-
-/// Prefixes the TypeScript side strips to rethrow a typed password error, exactly
-/// as the napi bindings tag theirs.
-const TAG_PASSWORD_REQUIRED: &str = "papyra/password-required";
-const TAG_INCORRECT_PASSWORD: &str = "papyra/incorrect-password";
-
-/// A failure as the message the TypeScript engine receives.
-pub fn error(e: PapyraError) -> String {
-  match &e {
-    PapyraError::PasswordRequired => format!("{TAG_PASSWORD_REQUIRED} {e}"),
-    PapyraError::IncorrectPassword => format!("{TAG_INCORRECT_PASSWORD} {e}"),
-    _ => e.to_string(),
-  }
-}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]

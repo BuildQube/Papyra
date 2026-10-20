@@ -3611,6 +3611,7 @@ dependencies = [
  "tauri",
  "tauri-plugin",
  "tauri-utils",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
