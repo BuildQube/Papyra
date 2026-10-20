@@ -1,6 +1,6 @@
 {
   "revs": {
-    "wordcraft": "d7d9702bda1fe626952024dc37fd2624323dad0f",
+    "wordcraft": "f4299ff644ecfef5570f07e9ccede2459412a4bc",
     "deckcraft": "4b09f35c1d6fa50e2d94243a5d65d98fe49558e0"
   },
   "width": 240,
@@ -13,22 +13,22 @@
       "kind": "word"
     },
     "calendar-ru.docx": {
-      "pages": 13,
+      "pages": 16,
       "blank": [],
       "solid": [],
       "failed": [],
       "kind": "word"
     },
     "pcb-paper.docx": {
-      "pages": 53,
+      "pages": 52,
       "blank": [],
       "solid": [],
       "failed": [],
       "kind": "word"
     },
     "bug65649.docx": {
-      "pages": 177,
-      "blank": [93, 177],
+      "pages": 210,
+      "blank": [2, 112, 161, 210],
       "solid": [],
       "failed": [],
       "kind": "word"
