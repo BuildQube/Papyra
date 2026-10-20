@@ -2,13 +2,18 @@
  * Everything in papyra that runs without its engine.
  *
  * Painting a rendered bitmap, page geometry, search over extracted text, outline and
- * structure trees, the priority queue, the error types. The main entry exports all of
- * it too, but importing that loads the engine — on a browser, a wasm module of about
- * 2.5 MB that needs a cross-origin-isolated page to start. Code that only draws pages,
- * or that will hand the opening to another engine, imports from here.
+ * structure trees, the priority queue, the error types — and the engines:
+ * {@link PagedEngine} and {@link PdfEngine} to build one on, and {@link PapyraEngine},
+ * which loads papyra's own addon only when it first opens a document.
  *
- * Nothing in this module's graph may import `@build-qube/papyra-native` as a value;
- * `test/unit/core.test.ts` walks the graph and fails if anything does.
+ * The main entry exports all of it too, but importing that loads the engine — on a
+ * browser, a wasm module of about 2.5 MB that needs a cross-origin-isolated page to
+ * start. Code that only draws pages, or that will hand the opening to another engine,
+ * imports from here.
+ *
+ * Nothing in this module's graph may import `@build-qube/papyra-native` statically;
+ * `PapyraEngine` reaches it through `import()`. `test/unit/core.test.ts` walks the
+ * graph and fails if anything does.
  *
  * @module
  */
@@ -42,6 +47,16 @@ export type {
   SvgPage,
 } from './encoded.js';
 export { encodedImage, mimeType, svgPage } from './encoded.js';
+export type {
+  Availability,
+  BackendRenderOptions,
+  Capabilities,
+  PagedBackend,
+  PagedDoc,
+  PdfBackend,
+  PdfDoc,
+} from './engine.js';
+export { PagedEngine, PdfEngine, RENDER_ONLY } from './engine.js';
 export {
   EncryptedWorkbookError,
   IncorrectPasswordError,
@@ -55,6 +70,7 @@ export type {
   OutlineNode,
 } from './outline.js';
 export { buildOutlineTree, walkOutline } from './outline.js';
+export { PapyraEngine } from './papyra-engine.js';
 export type { JobHandle, JobTiming } from './scheduler.js';
 export { AbortError, DEFAULT_PRIORITY } from './scheduler.js';
 export type { MatchOptions, SearchMatch } from './search.js';
@@ -92,6 +108,7 @@ export {
 export type {
   DocumentMetadata,
   OpenOptions,
+  PageBitmap,
   PageSize,
   PdfSource,
   RenderedPage,

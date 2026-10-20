@@ -1,4 +1,4 @@
-import type { RenderedPage } from './types.js';
+import type { PageBitmap, RenderedPage } from './types.js';
 import type { Rotation } from './viewport.js';
 
 /**
@@ -51,7 +51,7 @@ export interface PaintOptions {
  * ```
  */
 export function paintToCanvas(
-  page: RenderedPage,
+  page: PageBitmap,
   canvas: HTMLCanvasElement | OffscreenCanvas,
   options: PaintOptions = {},
 ): void {
@@ -63,8 +63,12 @@ export function paintToCanvas(
   const ctx = canvas.getContext('2d') as AnyContext | null;
   if (!ctx) throw new Error('papyra: could not get a 2d canvas context');
 
+  // An `ImageBitmap` is already a drawable surface: no copy, no scratch canvas.
+  const pixels = 'data' in page;
+
   if (rotation === 0) {
-    ctx.putImageData(toImageData(page), 0, 0);
+    if (pixels) ctx.putImageData(toImageData(page), 0, 0);
+    else ctx.drawImage(page, 0, 0);
     return;
   }
 
@@ -72,10 +76,18 @@ export function paintToCanvas(
   // a rotation cannot go through it. The pixels land on a scratch surface first and
   // are then blitted under a transform, which is one extra copy — against rotating
   // the buffer ourselves, which is a copy plus a per-pixel loop in JS.
-  const scratch = scratchCanvas(page.width, page.height);
-  const scratchCtx = scratch.getContext('2d') as AnyContext | null;
-  if (!scratchCtx) throw new Error('papyra: could not get a 2d canvas context');
-  scratchCtx.putImageData(toImageData(page), 0, 0);
+  let source: CanvasImageSource;
+  if (pixels) {
+    const scratch = scratchCanvas(page.width, page.height);
+    const scratchCtx = scratch.getContext('2d') as AnyContext | null;
+    if (!scratchCtx) {
+      throw new Error('papyra: could not get a 2d canvas context');
+    }
+    scratchCtx.putImageData(toImageData(page), 0, 0);
+    source = scratch as CanvasImageSource;
+  } else {
+    source = page;
+  }
 
   // Each pair puts the rotated page's origin back at the canvas corner: at 90° the
   // page's top-left corner ends up top-right, so the axes move there first.
@@ -83,7 +95,7 @@ export function paintToCanvas(
   else if (rotation === 180) ctx.translate(canvas.width, canvas.height);
   else ctx.translate(0, canvas.height);
   ctx.rotate((rotation * Math.PI) / 180);
-  ctx.drawImage(scratch as CanvasImageSource, 0, 0);
+  ctx.drawImage(source, 0, 0);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
 

@@ -2,6 +2,35 @@
 
 Status: **proposal, not implemented.** Nothing here ships until it is approved.
 
+## As built (PR 1–2) — where this supersedes the text below
+
+Measured or decided while implementing; the sections below are kept as written.
+
+- **`pageSize(index)` on the handle, not a `pageSizes` array.** A native `pageSize`
+  call costs ~0.3 µs, so eager-versus-lazy makes no difference to papyra's engine,
+  and the accessor keeps today's `Document.pageSize` and every viewer call site as
+  they are. A remote engine answers it from an array it fetched while opening.
+- **Backends receive `dpi`, not `scale`.** hayro floors a page's pixel size from the
+  DPI it is given; converting `dpi → scale → dpi` can move that by one pixel, which
+  would break `viewport()`'s "same size as the bitmap" guarantee. The engine resolves
+  `fitWidth` once and hands the DPI over untouched, so papyra's native calls and
+  cache keys are byte-identical to before.
+- **`PapyraEngine`, not `PapyraWasmEngine`** — it is the native addon in Node too.
+  It caches the loaded addon after the first `open`; two `import()`s per open cost a
+  measured 6 µs.
+- **The running-job `AbortSignal` is the caller's**, passed through as `renderImage`
+  already did. Aborting a *running* job from `handle.cancel()` needs scheduler work
+  that only pdf.js and Tauri benefit from; it lands with the pdf.js engine.
+- **Performance gate.** An A/B of HEAD against the refactor on the 14-document corpus
+  (native, 15 interleaved rounds, minimum): cold render, open and search within the
+  noise of the machine; cached renders ~17% and `pageSize` ~30% faster, because
+  `pageCount` is now a field rather than a napi getter. Wasm, threaded, in a clean
+  headless Chrome (fresh profile, no debugger) on `tracemonkey.pdf`, best of three
+  alternating runs: open 0.13 / 0.13 ms, 14 pages streamed cold 93.9 / 93.8 ms, one
+  page cold 15.6 / 15.6 ms, cached renders 2.26 / 2.29 ms, cold search 48.8 /
+  49.1 ms — identical within noise. `PapyraEngine` from `/core` loaded the wasm
+  through `import()` in the browser and produced pixels byte-identical to `Document`.
+
 ## Why
 
 aldoa-mono wants the viewer inside its Tauri 2 mobile app, and neither mobile WebView
@@ -72,7 +101,7 @@ default stays exactly what ships today.
    owns per document: scheduler · render/text/link caches · memoised reads
             │  calls protected primitives:
             ▼
- ├─ PapyraWasmEngine     @build-qube/papyra/core   import() of papyra-native on first open
+ ├─ PapyraEngine     @build-qube/papyra/core   import() of papyra-native on first open
  ├─ PapyraWorkerEngine   @build-qube/papyra/core   Worker hosting the wasip1 build (optional)
  ├─ PdfjsEngine          @build-qube/papyra-pdfjs  pdfjs-dist peer dependency
  └─ TauriEngine          @build-qube/papyra-tauri  commands + papyra:// protocol
@@ -177,7 +206,7 @@ export type PageBitmap = RenderedPage | ImageBitmap;
 
 Every primitive returns papyra's **public** shapes (`PageText`, `OutlineNode`,
 `PageLink`, …). The normalisation `document.ts` does on napi's results today moves
-into `PapyraWasmEngine`'s backend, so no other engine ever sees a napi type.
+into `PapyraEngine`'s backend, so no other engine ever sees a napi type.
 
 The base's command bodies are today's `Document` methods, moved: `render` keeps its
 cache key (including `annotationKey`), coalescing, `cached` flag, `setPriority` and
@@ -191,7 +220,7 @@ eviction drops the reference and GC frees it — the lifetime `RenderedPage` has
 ```ts
 import type { PdfDocument as NativeDocument } from '@build-qube/papyra-native'; // erased
 
-export class PapyraWasmEngine extends PdfEngine {
+export class PapyraEngine extends PdfEngine {
   readonly id = 'papyra-wasm';
   availability() {
     return globalThis.crossOriginIsolated || typeof window === 'undefined'
@@ -213,7 +242,7 @@ when the view's own code has been loaded.
 ### Node, and today's `Document`
 
 `@build-qube/papyra`'s main entry keeps `open()` and the `Document` class, so no Node
-caller changes. `Document` becomes a thin façade: it holds a `PapyraWasmEngine` and a
+caller changes. `Document` becomes a thin façade: it holds a `PapyraEngine` and a
 handle, forwards each method (`doc.render(i)` → `engine.render(handle, i)`), and keeps
 the wasm-only extras — `renderImage`, `renderSvg`, `renderPages` (the rayon batch),
 `indexText`'s rayon path, `clearCache`, `queued`. One implementation of the queue,
@@ -226,7 +255,7 @@ the default engine's `WeakMap`. So an app that today opens a `Document` and pass
 ## 2. Choosing the engine
 
 ```tsx
-// Today, and still valid — no provider means new PapyraWasmEngine():
+// Today, and still valid — no provider means new PapyraEngine():
 <FilePreview file={f} />
 
 // aldoa-mono's Tauri app, once, at the root:
@@ -235,12 +264,12 @@ const engine = new TauriEngine();
 <PdfEngineProvider engine={engine}>…</PdfEngineProvider>
 
 // A web app that wants a fallback where isolation is missing:
-<PdfEngineProvider engine={[new PapyraWasmEngine(), new PdfjsEngine({ workerSrc })]}>
+<PdfEngineProvider engine={[new PapyraEngine(), new PdfjsEngine({ workerSrc })]}>
 ```
 
 - `engine` takes an instance or a list; with a list the provider keeps the **first whose
   `availability()` is ok**, chosen once on mount.
-- `usePdfEngine()` returns it, or a module-level default `PapyraWasmEngine` when there is
+- `usePdfEngine()` returns it, or a module-level default `PapyraEngine` when there is
   no provider. Instantiating that default costs nothing, which is what makes it safe to
   have one.
 - The store gets the engine too: `createPdfViewerStore({ engine })`, which
@@ -279,7 +308,7 @@ each becoming `engine.x(doc, …)`.
 | File | Change |
 |---|---|
 | new `lib/pdf-engine.tsx` (item `pdf-engine`) | `PdfEngineProvider`, `usePdfEngine`, `PdfEngineGuard`. |
-| `pdf-isolation-guard.tsx` | `PdfEngineGuard` re-exported under the old name. With the default engine its message is today's, word for word (the text moves into `PapyraWasmEngine.availability()`). |
+| `pdf-isolation-guard.tsx` | `PdfEngineGuard` re-exported under the old name. With the default engine its message is today's, word for word (the text moves into `PapyraEngine.availability()`). |
 | `lib/pdf-viewer-store.ts` | `load()` opens through the store's engine; closes the previous document **only if the store opened it** (not one passed to `setDocument`). `doc: PdfDoc`. |
 | `file-preview-pdf-view.tsx` | `open(file)` → `usePdfEngine().open(file)`; `engine.close(doc)` on unmount and when the file changes. |
 | `pdf-page-surface.tsx`, `pdf-thumbnails.tsx`, `pdf-page-preview.tsx`, `pdf-viewer-basic.tsx`, `pdf-viewer-configurable.tsx` | `doc.render`/`doc.stream` → `engine.render(doc, …)`/`engine.stream(doc, …)`. `RenderedPage` → `PageBitmap` in types. `pdf-page-canvas.tsx`: type only. |
@@ -330,7 +359,7 @@ in the base class.
 
 ## 6. The four engines
 
-### 1. `PapyraWasmEngine` (default)
+### 1. `PapyraEngine` (default)
 
 Today's code behind `load()`. Behaviour, cache key, concurrency and the
 `reserveMemory` pre-grow are untouched — the acceptance test for PR 2 is that the demo
@@ -568,7 +597,7 @@ pulls in the 2.4 MB gzipped wasm. Only five modules value-import the native pack
 (`document`, `encode`, `runtime`, `tiff`, `workbook`); `viewport`, `text`, `search`,
 `outline`, `links`, `structure`, `attachments`, `canvas`, `scheduler`, `cache`,
 `errors` and `fingerprint` already import it as types only. `/core` is those modules,
-the base class and `PapyraWasmEngine`. A unit test asserts that importing `/core` never
+the base class and `PapyraEngine`. A unit test asserts that importing `/core` never
 evaluates `@build-qube/papyra-native`, so the rule cannot erode. The main entry keeps
 re-exporting everything, so no existing import breaks.
 
@@ -585,7 +614,7 @@ Each PR leaves the default path the same in behaviour.
 
 1. **`@build-qube/papyra/core`.** Subpath export of the pure modules, plus the
    "never evaluates the native package" test. No behaviour change.
-2. **`PdfEngine` + `PapyraWasmEngine`.** Move `Document`'s queue and cache logic into
+2. **`PdfEngine` + `PapyraEngine`.** Move `Document`'s queue and cache logic into
    the base; `Document` becomes the façade. Adds capabilities, `close`, abort of running
    primitives, `PageBitmap` in `paintToCanvas`. Gate: every existing unit and
    integration test passes untouched. New `test/unit` coverage of the base over a fake
@@ -622,7 +651,7 @@ aldoa installs items with `shadcn add` and carries local edits marked `aldoa:`.
   and keeps working on the default engine, because `Document` still has its methods and
   still satisfies `PdfDoc` — it simply will not follow a non-default engine.
 - aldoa then wraps its mobile root in `<PdfEngineProvider engine={new TauriEngine()}>`
-  and leaves its web root alone, or gives it `[new PapyraWasmEngine(), new PdfjsEngine()]`.
+  and leaves its web root alone, or gives it `[new PapyraEngine(), new PdfjsEngine()]`.
 
 ## Open questions and things to verify
 

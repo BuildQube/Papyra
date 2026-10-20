@@ -6,43 +6,56 @@ const NATIVE = '@build-qube/papyra-native';
 const SRC = resolve(import.meta.dir, '../../src');
 
 /**
- * Specifiers a module loads at runtime. `import type` and `export type` are erased;
- * everything else is kept — including `import { type A } from`, which
- * `verbatimModuleSyntax` emits as a side-effect import of the whole module.
+ * Specifiers a module loads when it is evaluated, and those it may load later.
+ *
+ * `import type` and `export type` are erased; every other static form is kept —
+ * including `import { type A } from`, which `verbatimModuleSyntax` emits as a
+ * side-effect import of the whole module. `import()` is lazy: a bundler splits it
+ * into its own chunk, fetched only when the call runs.
  */
-function runtimeImports(source: string): string[] {
-  const found: string[] = [];
+function imports(source: string): { eager: string[]; lazy: string[] } {
+  const eager: string[] = [];
   const statement =
     /^\s*(?:import|export)\s+(type\s+)?(?:\{[^}]*\}|\*(?:\s+as\s+\w+)?|\w+)\s+from\s+'([^']+)'/gm;
   for (const [, typeOnly, spec] of source.matchAll(statement)) {
-    if (!typeOnly && spec) found.push(spec);
-  }
-  for (const [, spec] of source.matchAll(/import\s*\(\s*'([^']+)'\s*\)/g)) {
-    if (spec) found.push(spec);
+    if (!typeOnly && spec) eager.push(spec);
   }
   for (const [, spec] of source.matchAll(/^\s*import\s+'([^']+)'/gm)) {
-    if (spec) found.push(spec);
+    if (spec) eager.push(spec);
   }
-  return found;
+  const lazy = [...source.matchAll(/import\s*\(\s*'([^']+)'\s*\)/g)].map(
+    ([, spec]) => spec ?? '',
+  );
+  return { eager, lazy };
 }
 
-/** Every file reached at runtime from `entry`, and the package specifiers they load. */
-function graph(entry: string): { files: Set<string>; packages: Set<string> } {
+/**
+ * Every file evaluated when `entry` is imported, the packages they load, and the
+ * packages left for an `import()` to fetch.
+ */
+function graph(entry: string): {
+  files: Set<string>;
+  packages: Set<string>;
+  lazy: Set<string>;
+} {
   const files = new Set<string>();
   const packages = new Set<string>();
+  const lazy = new Set<string>();
   const pending = [entry];
   for (let file = pending.pop(); file; file = pending.pop()) {
     if (files.has(file)) continue;
     files.add(file);
-    for (const spec of runtimeImports(readFileSync(file, 'utf8'))) {
+    const found = imports(readFileSync(file, 'utf8'));
+    for (const spec of found.eager) {
       if (spec.startsWith('.')) {
         pending.push(resolve(dirname(file), spec.replace(/\.js$/, '.ts')));
       } else {
         packages.add(spec);
       }
     }
+    for (const spec of found.lazy) lazy.add(spec);
   }
-  return { files, packages };
+  return { files, packages, lazy };
 }
 
 describe('@build-qube/papyra/core', () => {
@@ -51,13 +64,18 @@ describe('@build-qube/papyra/core', () => {
     expect([...graph(`${SRC}/core.ts`).packages]).not.toContain(NATIVE);
   });
 
+  test('reaches the native package only through import()', () => {
+    // PapyraEngine is in /core and does open documents: it gets there lazily.
+    expect([...graph(`${SRC}/core.ts`).lazy]).toContain(NATIVE);
+  });
+
   test('the check can fail', () => {
     // Without this the test above would pass on a walker that found nothing.
     expect([...graph(`${SRC}/index.ts`).packages]).toContain(NATIVE);
     expect(graph(`${SRC}/core.ts`).files.size).toBeGreaterThan(10);
   });
 
-  test('counts an inline type specifier as a runtime import', () => {
+  test('counts an inline type specifier as an eager import', () => {
     const source = [
       "import type { A } from 'erased-a';",
       "export type { B } from 'erased-b';",
@@ -65,6 +83,9 @@ describe('@build-qube/papyra/core', () => {
       "export * from 'kept-d';",
       "const e = await import('kept-e');",
     ].join('\n');
-    expect(runtimeImports(source)).toEqual(['kept-c', 'kept-d', 'kept-e']);
+    expect(imports(source)).toEqual({
+      eager: ['kept-c', 'kept-d'],
+      lazy: ['kept-e'],
+    });
   });
 });

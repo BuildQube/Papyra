@@ -114,12 +114,22 @@ export interface RenderedPage {
   readonly data: Uint8Array;
 }
 
+/**
+ * A rendered page in whichever form its engine produces it.
+ *
+ * papyra's own engine hands back {@link RenderedPage} — RGBA bytes, painted with
+ * `putImageData`. An engine that rasterises somewhere else (pdf.js on an
+ * `OffscreenCanvas`, a host process serving images) hands back an `ImageBitmap`,
+ * which a canvas draws without a copy. {@link paintToCanvas} takes either.
+ */
+export type PageBitmap = RenderedPage | ImageBitmap;
+
 /** One result from {@link Document.stream}, tagged with the page it came from. */
-export interface StreamedPage {
+export interface StreamedPage<P extends PageBitmap = RenderedPage> {
   /** Index of the page in the document. */
   readonly page: number;
   /** The rendered pixels. */
-  readonly bitmap: RenderedPage;
+  readonly bitmap: P;
 }
 
 /** Page dimensions in PDF points (1/72 inch). */
@@ -222,7 +232,8 @@ export interface SearchOptions extends MatchOptions {
 }
 
 /** A queued render, plus whether it was served from cache without rendering at all. */
-export interface RenderHandle extends JobHandle<RenderedPage> {
+export interface RenderHandle<P extends PageBitmap = RenderedPage>
+  extends JobHandle<P> {
   /**
    * The page was already in the cache and nothing was queued.
    *

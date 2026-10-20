@@ -1,26 +1,27 @@
-import {
-  PdfDocument as NativeDocument,
-  type DocumentInfo as NativeDocumentInfo,
-  type PageImage as NativePageImage,
-} from '@build-qube/papyra-native';
-import { type Attachment, toAttachment } from './attachments.js';
-import { type CacheStats, RenderCache } from './cache.js';
+import type { PageImage as NativePageImage } from '@build-qube/papyra-native';
+import type { Attachment } from './attachments.js';
+import type { CacheStats } from './cache.js';
 import { PageImage, type SvgPage, svgPage } from './encode.js';
-import { rethrowLoadError } from './errors.js';
-import { fingerprint } from './fingerprint.js';
-import { type PageLink, toPageLink } from './links.js';
-import { buildOutlineTree, type OutlineNode } from './outline.js';
 import {
-  currentRuntime,
-  hardwareConcurrency,
-  init,
-  MAX_WASM_CONCURRENCY,
-} from './runtime.js';
-import { DEFAULT_PRIORITY, type JobHandle, Scheduler } from './scheduler.js';
-import { type SearchMatch, searchPageText } from './search.js';
-import { toBytes } from './source.js';
-import { buildStructTree, type StructNode } from './structure.js';
-import { type PageText, pageTextBytes, toPageText } from './text.js';
+  adopt,
+  annotationKey,
+  attachSignal,
+  type Capabilities,
+  type DocState,
+  type PdfDoc,
+  range,
+  resolveDpi,
+  stateOf,
+  textKey,
+} from './engine.js';
+import type { PageLink } from './links.js';
+import type { OutlineNode } from './outline.js';
+import { type PapyraBackend, PapyraEngine } from './papyra-engine.js';
+import { currentRuntime } from './runtime.js';
+import { DEFAULT_PRIORITY, type JobHandle } from './scheduler.js';
+import type { SearchMatch } from './search.js';
+import type { StructNode } from './structure.js';
+import { type PageText, toPageText } from './text.js';
 import type {
   DocumentMetadata,
   OpenOptions,
@@ -38,45 +39,6 @@ import type {
 const DEFAULT_DPI = 72;
 
 /**
- * Refuse renders large enough to take down the tab.
- *
- * 100 MP is ~400 MB of RGBA — beyond this you almost certainly meant `fitWidth`.
- */
-const MAX_PIXELS = 100_000_000;
-
-/** Default bytes of rendered pages to keep. Roughly eleven 2000px ARCH-E sheets. */
-const DEFAULT_CACHE_BYTES = 128 * 1024 * 1024;
-
-/**
- * Default bytes of extracted text to keep.
- *
- * Text is three orders of magnitude smaller than the pixels of the same page — a
- * dense page of a paper is ~80 KB against ~11 MB — so this holds hundreds of pages
- * and a repeated search never re-extracts.
- */
-const DEFAULT_TEXT_CACHE_BYTES = 32 * 1024 * 1024;
-
-/**
- * Bytes of page links to keep.
- *
- * Not an option, unlike the render and text budgets: links are two orders of
- * magnitude smaller again — a page of a linked table of contents is a few hundred
- * bytes — so 4 MB holds tens of thousands of them and there is nothing to tune.
- */
-const LINK_CACHE_BYTES = 4 * 1024 * 1024;
-
-/** Rough bytes per cached link: two objects, a rect, and a short string. */
-const LINK_BYTES = 96;
-
-/**
- * Where text extraction sits in the queue by default.
- *
- * Behind rendering: a search that stalls the page the user is looking at is worse
- * than one that takes another beat to fill in.
- */
-const DEFAULT_TEXT_PRIORITY = 3;
-
-/**
  * A queued export render. No `cached` flag: unlike {@link RenderHandle} the image path
  * never comes from the cache, which is keyed by page and size with no format dimension.
  */
@@ -89,45 +51,10 @@ export type ImageHandle = JobHandle<PageImage>;
 export type SvgHandle = JobHandle<SvgPage>;
 
 /**
- * Cache- and coalescing-key suffix for the annotation switch.
- *
- * Empty in the default case, so the ordinary key keeps the shape it has always had.
- * The suffix has to exist at all because the scheduler coalesces on this string and
- * the cache is looked up by it: without it, asking for a page with annotations off
- * would be served the bitmap that still has them drawn on.
+ * The engine every {@link open} goes through. One per process: it holds no state of
+ * its own — each document's queue and caches belong to that document.
  */
-function annotationKey(options: { annotations?: boolean | undefined }): string {
-  return options.annotations === false ? ':noannots' : '';
-}
-
-/** napi omits absent strings rather than nulling them; normalise to one shape. */
-function toMetadata(info: NativeDocumentInfo): DocumentMetadata {
-  return {
-    title: info.title ?? null,
-    author: info.author ?? null,
-    subject: info.subject ?? null,
-    keywords: info.keywords ?? null,
-    creator: info.creator ?? null,
-    producer: info.producer ?? null,
-    created: info.created ?? null,
-    modified: info.modified ?? null,
-  };
-}
-
-/** Wire an `AbortSignal` to a queued job. Cancelling only drops work not yet started. */
-function attachSignal(
-  handle: JobHandle<unknown>,
-  signal: AbortSignal | undefined,
-): void {
-  if (!signal) return;
-  if (signal.aborted) {
-    handle.cancel('signal aborted');
-    return;
-  }
-  signal.addEventListener('abort', () => handle.cancel('signal aborted'), {
-    once: true,
-  });
-}
+const engine = new PapyraEngine();
 
 /**
  * Open a PDF from bytes, an `ArrayBuffer`, a `Blob`, or a `File`.
@@ -141,17 +68,7 @@ export async function open(
   source: PdfSource,
   options: OpenOptions = {},
 ): Promise<Document> {
-  init();
-  const bytes = await toBytes(source);
-  try {
-    const inner =
-      options.password === undefined
-        ? NativeDocument.load(bytes)
-        : NativeDocument.loadWithPassword(bytes, options.password);
-    return new Document(inner, fingerprint(bytes), options);
-  } catch (e) {
-    rethrowLoadError(e);
-  }
+  return new Document(await engine.open(source, options));
 }
 
 /**
@@ -160,28 +77,13 @@ export async function open(
  * Every page-level call goes through one shared scheduler, so a thumbnail sweep can
  * never starve the page on screen — attach a {@link RenderOptions.priority} and the
  * queue reorders around it. Construct via {@link open}, not `new`.
+ *
+ * A {@link PdfDoc} in its own right: a viewer written against engines can be handed
+ * one of these and will reach it through papyra's engine.
  */
-export class Document {
-  readonly #inner: NativeDocument;
-  // One queue for every kind of job, `renderImage` included: priority and concurrency
-  // are the point of this library, and a bulk export must not starve the visible page.
-  readonly #scheduler: Scheduler;
-  readonly #limit: number;
-  readonly #cache: RenderCache<RenderedPage>;
-  readonly #text: RenderCache<PageText>;
-  readonly #links: RenderCache<readonly PageLink[]>;
-  /** In-flight link reads, so two callers on one page share a single task. */
-  readonly #linksPending = new Map<number, Promise<readonly PageLink[]>>();
-  /** Memoised by {@link outline}; the outline cannot change under us. */
-  #outline: Promise<OutlineNode[]> | undefined;
-  /** Memoised by {@link attachments}. */
-  #attachments?: Promise<readonly Attachment[]>;
-  /** Memoised by {@link structTree}. */
-  #structure?: Promise<StructNode[]>;
-  /** Memoised by {@link pageLabels}. */
-  #labels: Promise<readonly string[]> | undefined;
-  /** Memoised by {@link metadata}. */
-  #metadata: DocumentMetadata | undefined;
+export class Document implements PdfDoc {
+  readonly #doc: PdfDoc;
+  readonly #state: DocState<PapyraBackend>;
   /** Memoised by {@link indexText}. */
   #indexed: Promise<void> | undefined;
 
@@ -199,39 +101,40 @@ export class Document {
   readonly fingerprint: string;
 
   /** @internal — construct via {@link open}. */
-  constructor(
-    inner: NativeDocument,
-    fingerprintOfBytes: string,
-    options: OpenOptions = {},
-  ) {
-    this.#inner = inner;
-    this.fingerprint = fingerprintOfBytes;
-    this.#limit = Math.max(1, options.concurrency ?? defaultConcurrency());
-    this.#scheduler = new Scheduler(this.#limit, {
-      yieldToUrgent: options.yieldToUrgent,
-    });
-    this.#cache = new RenderCache<RenderedPage>(
-      options.cacheBytes ?? DEFAULT_CACHE_BYTES,
-      (page) => page.data.byteLength,
-    );
-    this.#text = new RenderCache<PageText>(
-      options.textCacheBytes ?? DEFAULT_TEXT_CACHE_BYTES,
-      pageTextBytes,
-    );
-    this.#links = new RenderCache<readonly PageLink[]>(
-      LINK_CACHE_BYTES,
-      (links) => links.length * LINK_BYTES,
-    );
+  constructor(doc: PdfDoc) {
+    this.#doc = doc;
+    this.#state = stateOf(engine, doc) as DocState<PapyraBackend>;
+    this.fingerprint = doc.fingerprint;
+    adopt(this, doc);
+  }
+
+  /** The engine that opened this document: always papyra's own. */
+  get engine(): string {
+    return this.#doc.engine;
+  }
+
+  /** Everything: papyra's engine implements every optional capability. */
+  get capabilities(): Capabilities {
+    return this.#doc.capabilities;
   }
 
   /** Rendered pages held for reuse, and how often that has paid off. */
   get cache(): CacheStats {
-    return this.#cache.stats;
+    return this.#state.cache.stats;
   }
 
   /** Drop every cached page. */
   clearCache(): void {
-    this.#cache.clear();
+    this.#state.cache.clear();
+  }
+
+  /**
+   * Release this document: its caches, and its queue's claim on the engine. Every
+   * method throws afterwards. Optional — an unreachable document is collected — but
+   * it frees the caches at once rather than whenever the collector gets to them.
+   */
+  close(): void {
+    engine.close(this.#doc);
   }
 
   /** Pages queued but not yet started, pages rendering, and the longest wait so far. */
@@ -249,15 +152,15 @@ export class Document {
     oldestWaitMs: number;
   } {
     return {
-      pending: this.#scheduler.pendingCount,
-      running: this.#scheduler.runningCount,
-      oldestWaitMs: this.#scheduler.oldestWaitMs,
+      pending: this.#state.scheduler.pendingCount,
+      running: this.#state.scheduler.runningCount,
+      oldestWaitMs: this.#state.scheduler.oldestWaitMs,
     };
   }
 
   /** How many pages the document has. Page indices are 0-based throughout. */
   get pageCount(): number {
-    return this.#inner.pageCount;
+    return this.#doc.pageCount;
   }
 
   /**
@@ -272,7 +175,7 @@ export class Document {
    * extinct, and it is also what a file with an unreadable header reports.
    */
   get pdfVersion(): string | null {
-    return this.#inner.pdfVersion ?? null;
+    return this.#doc.pdfVersion;
   }
 
   /**
@@ -294,15 +197,7 @@ export class Document {
    * ```
    */
   async outline(): Promise<OutlineNode[]> {
-    this.#outline ??= this.#inner
-      .outline()
-      .then(buildOutlineTree)
-      // A failed walk must not be cached as a permanent empty outline.
-      .catch((e: unknown) => {
-        this.#outline = undefined;
-        throw e;
-      });
-    return this.#outline;
+    return engine.outline(this.#doc);
   }
 
   /**
@@ -313,8 +208,7 @@ export class Document {
    * verified; `title` in particular is often a filename or missing entirely.
    */
   get metadata(): DocumentMetadata {
-    this.#metadata ??= toMetadata(this.#inner.info());
-    return this.#metadata;
+    return this.#doc.metadata;
   }
 
   /**
@@ -338,12 +232,7 @@ export class Document {
    * ```
    */
   async pageLabels(): Promise<readonly string[]> {
-    this.#labels ??= this.#inner.pageLabels().catch((e: unknown) => {
-      // A failed walk must not be cached as a permanent absence of labels.
-      this.#labels = undefined;
-      throw e;
-    });
-    return this.#labels;
+    return engine.pageLabels(this.#doc);
   }
 
   /**
@@ -373,15 +262,7 @@ export class Document {
    * ```
    */
   async structTree(): Promise<StructNode[]> {
-    this.#structure ??= this.#inner
-      .structTree()
-      .then(buildStructTree)
-      // A failed walk must not be cached as a permanent absence of structure.
-      .catch((e: unknown) => {
-        this.#structure = undefined;
-        throw e;
-      });
-    return this.#structure;
+    return engine.structTree(this.#doc);
   }
 
   /**
@@ -407,15 +288,7 @@ export class Document {
    * ```
    */
   async attachments(): Promise<readonly Attachment[]> {
-    this.#attachments ??= this.#inner
-      .attachments()
-      .then((files) => files.map(toAttachment))
-      // A failed walk must not be cached as a permanent absence of attachments.
-      .catch((e: unknown) => {
-        this.#attachments = undefined;
-        throw e;
-      });
-    return this.#attachments;
+    return engine.attachments(this.#doc);
   }
 
   /**
@@ -427,7 +300,7 @@ export class Document {
    * cannot be decoded.
    */
   async attachmentData(index: number): Promise<Uint8Array> {
-    return this.#inner.attachmentData(index);
+    return engine.attachmentData(this.#doc, index);
   }
 
   /**
@@ -453,36 +326,12 @@ export class Document {
    * ```
    */
   async links(index: number): Promise<readonly PageLink[]> {
-    const key = `links:${index}`;
-    const hit = this.#links.get(key);
-    if (hit) return hit;
-
-    const pending = this.#linksPending.get(index);
-    if (pending) return pending;
-
-    const read = this.#inner
-      .pageLinks(index)
-      .then((native) => {
-        // `toPageLink` only returns null for a link with no resolvable target, which
-        // the bindings do not emit — the filter is here so a future one cannot leak
-        // a null into the array.
-        const links = native
-          .map(toPageLink)
-          .filter((link): link is PageLink => link !== null);
-        this.#links.set(key, links);
-        return links as readonly PageLink[];
-      })
-      .finally(() => {
-        this.#linksPending.delete(index);
-      });
-
-    this.#linksPending.set(index, read);
-    return read;
+    return engine.links(this.#doc, index);
   }
 
   /** Page dimensions in PDF points (1/72 inch). */
   pageSize(index: number): PageSize {
-    return this.#inner.pageSize(index);
+    return this.#state.backend.pageSize(index);
   }
 
   /** Render a single page. Never blocks the event loop. */
@@ -529,16 +378,16 @@ export class Document {
    * render time, which end-to-end timing around the promise cannot.
    */
   imageHandle(index: number, options: RenderOptions = {}): ImageHandle {
-    const dpi = this.#resolveDpi(index, options);
+    const dpi = resolveDpi(this.#state.backend, index, options);
 
     // A distinct key space from `render`, so an image request never coalesces onto a
     // pending raw render (different return type) or vice versa.
-    const handle = this.#scheduler.submit({
+    const handle = this.#state.scheduler.submit({
       key: `image:${index}@${dpi.toFixed(4)}${annotationKey(options)}`,
       priority: options.priority ?? DEFAULT_PRIORITY,
       run: () =>
         (
-          this.#inner.renderPageImageAsync(
+          this.#state.backend.native.renderPageImageAsync(
             index,
             dpi,
             options.annotations,
@@ -587,14 +436,14 @@ export class Document {
 
     const opaque = options.background !== 'transparent';
 
-    const handle = this.#scheduler.submit<SvgPage>({
+    const handle = this.#state.scheduler.submit<SvgPage>({
       // The background is part of the key: the scheduler coalesces same-key requests,
       // and an opaque and a transparent conversion of one page are different output.
       key: `svg:${index}${opaque ? '' : ':transparent'}${annotationKey(options)}`,
       priority: options.priority ?? DEFAULT_PRIORITY,
       run: () =>
         (
-          this.#inner.renderPageSvgAsync(
+          this.#state.backend.native.renderPageSvgAsync(
             index,
             opaque,
             options.annotations,
@@ -624,56 +473,8 @@ export class Document {
    * ```
    */
   render(index: number, options: RenderOptions = {}): RenderHandle {
-    const dpi = this.#resolveDpi(index, options);
-    const key = `${index}@${dpi.toFixed(4)}${annotationKey(options)}`;
-
-    const hit = this.#cache.get(key);
-    if (hit) return cachedHandle(key, hit);
-
-    const handle = this.#scheduler.submit<RenderedPage>({
-      key,
-      priority: options.priority ?? DEFAULT_PRIORITY,
-      run: () =>
-        (
-          this.#inner.renderPageAsync(
-            index,
-            dpi,
-            options.annotations,
-          ) as Promise<RenderedPage>
-        ).then((page) => {
-          this.#cache.set(key, page);
-          return page;
-        }),
-    });
-
-    attachSignal(handle, options.signal);
-    return liveHandle(handle);
-  }
-
-  /**
-   * Turn `fitWidth`/`dpi` into a concrete DPI, and refuse absurd outputs.
-   *
-   * `fitWidth` exists because page sizes vary by two orders of magnitude in area: a
-   * DPI that is sensible for US Letter produces a 113 MB bitmap for an ARCH-E drawing.
-   */
-  #resolveDpi(index: number, options: RenderOptions): number {
-    const { width, height } = this.pageSize(index);
-    const dpi =
-      options.fitWidth !== undefined && width > 0
-        ? (options.fitWidth / width) * 72
-        : (options.dpi ?? DEFAULT_DPI);
-
-    const pixels = ((width * dpi) / 72) * ((height * dpi) / 72);
-    if (pixels > MAX_PIXELS) {
-      const mb = Math.round((pixels * 4) / 1e6);
-      throw new RangeError(
-        `papyra: page ${index} at ${dpi.toFixed(1)} DPI would be ` +
-          `${Math.round((width * dpi) / 72)}x${Math.round((height * dpi) / 72)} ` +
-          `(${mb} MB). The page is ${(width / 72).toFixed(1)}x${(height / 72).toFixed(1)}in — ` +
-          'use { fitWidth } to size by output pixels instead of DPI.',
-      );
-    }
-    return dpi;
+    // papyra's backend only ever produces RGBA, so the wider engine type narrows.
+    return engine.render(this.#doc, index, options) as RenderHandle;
   }
 
   /**
@@ -697,8 +498,9 @@ export class Document {
       // One DPI for the whole batch, so every page in range has to pass the guard —
       // a document can mix a letter-size cover sheet with ARCH-E drawings.
       let dpi = DEFAULT_DPI;
-      for (let i = start; i < end; i++) dpi = this.#resolveDpi(i, options);
-      return (await this.#inner.renderPagesAsync(
+      for (let i = start; i < end; i++)
+        dpi = resolveDpi(this.#state.backend, i, options);
+      return (await this.#state.backend.native.renderPagesAsync(
         start,
         end,
         dpi,
@@ -730,49 +532,9 @@ export class Document {
    * }
    * ```
    */
-  async *stream(options: StreamOptions = {}): AsyncGenerator<StreamedPage> {
-    const pages = options.order ?? range(0, this.pageCount);
-    const window = Math.max(
-      1,
-      options.concurrency ?? Math.min(this.#limit, pages.length || 1),
-    );
-
-    type Completion = { slot: number; page: number; bitmap: RenderedPage };
-    const inflight = new Map<number, Promise<Completion>>();
-    const handles = new Map<number, JobHandle<RenderedPage>>();
-    let next = 0;
-
-    const schedule = (slot: number): void => {
-      const page = pages[slot];
-      if (page === undefined) return;
-      const handle = this.render(page, options);
-      handles.set(slot, handle);
-      inflight.set(
-        slot,
-        handle.promise.then((bitmap) => ({ slot, page, bitmap })),
-      );
-    };
-
-    try {
-      while (next < pages.length && inflight.size < window) schedule(next++);
-      while (inflight.size > 0) {
-        const { slot, page, bitmap } = await Promise.race(inflight.values());
-        inflight.delete(slot);
-        handles.delete(slot);
-        if (next < pages.length) schedule(next++);
-        yield { page, bitmap };
-      }
-    } finally {
-      // Breaking out of the loop drops everything still queued, so "thumbnails for
-      // the rows I can see" does not keep rendering the rows I cannot.
-      for (const [slot, handle] of handles) {
-        handle.cancel('stream ended');
-        // The derived promise rejects once cancelled; nobody is listening any more.
-        inflight.get(slot)?.catch(() => {});
-      }
-      inflight.clear();
-      handles.clear();
-    }
+  stream(options: StreamOptions = {}): AsyncGenerator<StreamedPage> {
+    // As for `render`: the bitmaps are RGBA.
+    return engine.stream(this.#doc, options) as AsyncGenerator<StreamedPage>;
   }
 
   /**
@@ -790,37 +552,7 @@ export class Document {
     index: number,
     options: { priority?: number; signal?: AbortSignal } = {},
   ): Promise<PageText> {
-    const key = `text:${index}`;
-    const hit = this.#text.get(key);
-    if (hit) return hit;
-
-    // One queue for renders and text both, so priority means something across them.
-    // Coalescing by key is what stops a search and a text selection extracting the
-    // same page twice.
-    const handle = this.#scheduler.submit<PageText>({
-      key,
-      priority: options.priority ?? DEFAULT_TEXT_PRIORITY,
-      run: async () => {
-        const text = toPageText(index, await this.#inner.pageTextAsync(index));
-        this.#text.set(key, text);
-        return text;
-      },
-    });
-
-    const { signal } = options;
-    if (signal) {
-      if (signal.aborted) handle.cancel('signal aborted');
-      else
-        signal.addEventListener(
-          'abort',
-          () => handle.cancel('signal aborted'),
-          {
-            once: true,
-          },
-        );
-    }
-
-    return handle.promise;
+    return engine.pageText(this.#doc, index, options);
   }
 
   /**
@@ -849,9 +581,12 @@ export class Document {
 
   async #index(options: { priority?: number }): Promise<void> {
     if (currentRuntime() === 'native') {
-      const all = await this.#inner.pageTextsAsync(0, this.pageCount);
+      const all = await this.#state.backend.native.pageTextsAsync(
+        0,
+        this.pageCount,
+      );
       for (const [i, native] of all.entries()) {
-        this.#text.set(`text:${i}`, toPageText(i, native));
+        this.#state.text.set(textKey(i), toPageText(i, native));
       }
       return;
     }
@@ -880,80 +615,20 @@ export class Document {
    * }
    * ```
    */
-  async *search(
+  search(
     query: string,
     options: SearchOptions = {},
   ): AsyncGenerator<SearchMatch> {
-    if (query.trim() === '') return;
-
-    const pages = options.order ?? range(0, this.pageCount);
-    const limit = options.limit ?? Number.POSITIVE_INFINITY;
-    let found = 0;
-
-    for (const page of pages) {
-      if (options.signal?.aborted) return;
-      const text = await this.pageText(page, {
-        priority: options.priority ?? DEFAULT_TEXT_PRIORITY,
-        signal: options.signal,
-      });
-
-      for (const match of searchPageText(text, query, options)) {
-        yield match;
-        if (++found >= limit) return;
-      }
-    }
+    return engine.search(this.#doc, query, options);
   }
 
   /** Extracted page text held for reuse, and how often that has paid off. */
   get textCache(): CacheStats {
-    return this.#text.stats;
+    return this.#state.text.stats;
   }
 
   /** How many pages this document will render at once. */
   get concurrency(): number {
-    return this.#limit;
+    return this.#state.limit;
   }
-}
-
-function defaultConcurrency(): number {
-  return currentRuntime() === 'wasm'
-    ? MAX_WASM_CONCURRENCY
-    : hardwareConcurrency();
-}
-
-/**
- * Wrap a scheduler handle as a {@link RenderHandle}.
- *
- * Delegates rather than spreading: `timing` is a getter that is null until the job
- * settles, and a spread would freeze it at null forever.
- */
-function liveHandle(handle: JobHandle<RenderedPage>): RenderHandle {
-  return {
-    key: handle.key,
-    cached: false,
-    promise: handle.promise,
-    get timing() {
-      return handle.timing;
-    },
-    setPriority: (priority: number) => handle.setPriority(priority),
-    cancel: (reason?: string) => handle.cancel(reason),
-  };
-}
-
-/** A handle for work that never had to happen. */
-function cachedHandle(key: string, page: RenderedPage): RenderHandle {
-  return {
-    key,
-    cached: true,
-    promise: Promise.resolve(page),
-    timing: { waitMs: 0, runMs: 0 },
-    setPriority: () => {},
-    cancel: () => {},
-  };
-}
-
-function range(start: number, end: number): number[] {
-  const out: number[] = [];
-  for (let i = start; i < end; i++) out.push(i);
-  return out;
 }
