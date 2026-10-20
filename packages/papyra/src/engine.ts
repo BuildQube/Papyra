@@ -200,8 +200,11 @@ export interface PagedBackend {
     options: BackendRenderOptions,
     signal?: AbortSignal,
   ): Promise<PageBitmap>;
-  /** Release whatever the backend holds outside the JS heap. */
-  close?(): void;
+  /**
+   * Release whatever the backend holds outside the JS heap. Async where that is a
+   * call to somewhere else — a host process — so a failure reaches the caller.
+   */
+  close?(): void | Promise<void>;
 }
 
 /**
@@ -435,16 +438,24 @@ export abstract class PagedEngine<
 
   /**
    * Release a document: its caches, and whatever its backend holds. The handle, and
-   * any alias of it, is unusable afterwards. Work already running finishes.
+   * any alias of it, is unusable from the moment this returns; the promise settles
+   * when the backend has let go, and rejects if it could not. Work already running
+   * finishes.
+   *
+   * Throws at once, not through the promise, for a document that is not open here.
    */
-  close(doc: PagedDoc): void {
+  close(doc: PagedDoc): Promise<void> {
     const state = stateOf(this, doc);
     state.closed = true;
     states.delete(doc);
     state.cache.clear();
     state.text.clear();
     state.links.clear();
-    state.backend.close?.();
+    try {
+      return Promise.resolve(state.backend.close?.());
+    } catch (e) {
+      return Promise.reject(e);
+    }
   }
 
   /**

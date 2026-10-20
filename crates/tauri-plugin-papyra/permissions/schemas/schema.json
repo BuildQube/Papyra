@@ -355,6 +355,18 @@
           "markdownDescription": "Denies the open command without any pre-configured scope."
         },
         {
+          "description": "Enables the open_count command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-open-count",
+          "markdownDescription": "Enables the open_count command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the open_count command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-open-count",
+          "markdownDescription": "Denies the open_count command without any pre-configured scope."
+        },
+        {
           "description": "Enables the outline command without any pre-configured scope.",
           "type": "string",
           "const": "allow-outline",

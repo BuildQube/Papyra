@@ -1,14 +1,16 @@
-import { defaultPdfEngine, type PdfEngine } from '@build-qube/papyra/core';
+import type { PdfEngine } from '@build-qube/papyra/core';
 import { TriangleAlertIcon } from 'lucide-react';
 import { createContext, type ReactNode, use, useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { fallbackPdfEngine } from '@/lib/pdf-default-engine';
 
 /**
  * The engine in scope. papyra's own when no provider is mounted, so every viewer works
  * without one — and since that is the instance `open()` uses, a `Document` the app
- * opened itself is one the viewer's commands accept.
+ * opened itself is one the viewer's commands accept. `pdf-default-engine` says how
+ * to keep papyra's wasm out of an app that never uses it.
  */
-const PdfEngineContext = createContext<PdfEngine>(defaultPdfEngine);
+const PdfEngineContext = createContext<PdfEngine>(fallbackPdfEngine);
 
 /** Props for {@link PdfEngineProvider}. */
 export interface PdfEngineProviderProps {
@@ -35,7 +37,9 @@ export function PdfEngineProvider({
   const [chosen] = useState(() => {
     const list = ([] as PdfEngine[]).concat(engine);
     // None available: keep the first, so the guard can say why it cannot run.
-    return list.find((e) => e.availability().ok) ?? list[0] ?? defaultPdfEngine;
+    return (
+      list.find((e) => e.availability().ok) ?? list[0] ?? fallbackPdfEngine
+    );
   });
   return <PdfEngineContext value={chosen}>{children}</PdfEngineContext>;
 }

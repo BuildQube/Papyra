@@ -183,14 +183,25 @@ describe('TauriEngine', () => {
     expect(outline[0]?.children[0]?.title).toBe('Two');
   });
 
-  test('closing the document releases it in the host', async () => {
+  test('closing the document releases it in the host, and can be awaited', async () => {
     answers['plugin:papyra|close'] = () => null;
     const engine = new TauriEngine();
     const doc = await engine.open(new Uint8Array());
-    engine.close(doc);
+    await engine.close(doc);
     expect(calls.at(-1)).toMatchObject({
       cmd: 'plugin:papyra|close',
       args: { id: 7 },
     });
+  });
+
+  test('a close the host refuses rejects, rather than vanishing', async () => {
+    answers['plugin:papyra|close'] = () => {
+      throw 'papyra: host gone';
+    };
+    const engine = new TauriEngine();
+    const doc = await engine.open(new Uint8Array());
+    expect(engine.close(doc)).rejects.toBe('papyra: host gone');
+    // The handle is closed on this side either way.
+    expect(() => engine.render(doc, 0)).toThrow('closed');
   });
 });

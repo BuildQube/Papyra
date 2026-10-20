@@ -156,6 +156,32 @@ Denies the open command without any pre-configured scope.
 <tr>
 <td>
 
+`papyra:allow-open-count`
+
+</td>
+<td>
+
+Enables the open_count command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`papyra:deny-open-count`
+
+</td>
+<td>
+
+Denies the open_count command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `papyra:allow-outline`
 
 </td>

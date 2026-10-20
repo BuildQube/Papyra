@@ -33,7 +33,10 @@
       "title": "Viewer store",
       "description": "A subscribable store for the open document, page, view mode, rotation, annotation switch and search results, sliced so a page change does not re-render every panel.",
       "dependencies": ["@build-qube/papyra@^0.5.0"],
-      "registryDependencies": ["{{REGISTRY}}/viewer-zoom.json"],
+      "registryDependencies": [
+        "{{REGISTRY}}/viewer-zoom.json",
+        "{{REGISTRY}}/pdf-default-engine.json"
+      ],
       "files": [
         {
           "path": "src/lib/pdf-viewer-store.ts",
@@ -127,12 +130,25 @@
       ]
     },
     {
+      "name": "pdf-default-engine",
+      "type": "registry:lib",
+      "title": "Default engine",
+      "description": "The engine a viewer uses when no provider is mounted: papyra's own. An app that never runs papyra's engine aliases this file to its own, which keeps papyra's wasm out of its bundle.",
+      "dependencies": ["@build-qube/papyra@^0.5.0"],
+      "files": [
+        {
+          "path": "src/lib/pdf-default-engine.ts",
+          "type": "registry:lib"
+        }
+      ]
+    },
+    {
       "name": "pdf-engine",
       "type": "registry:component",
       "title": "Engine",
       "description": "Chooses what opens and renders PDFs for every viewer below it \u2014 papyra's own by default, or another engine such as pdf.js or a native one in an app shell \u2014 and a guard that says, in the engine's words, why it cannot run here.",
       "dependencies": ["@build-qube/papyra@^0.5.0", "lucide-react"],
-      "registryDependencies": ["alert"],
+      "registryDependencies": ["alert", "{{REGISTRY}}/pdf-default-engine.json"],
       "files": [
         {
           "path": "src/components/pdf-engine.tsx",

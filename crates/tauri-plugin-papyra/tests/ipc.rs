@@ -22,6 +22,7 @@ fn context() -> tauri::Context<tauri::test::MockRuntime> {
   const COMMANDS: &[&str] = &[
     "open",
     "close",
+    "open_count",
     "page_text",
     "outline",
     "links",
@@ -135,7 +136,7 @@ fn opens_reads_and_closes_through_ipc() {
     )
     .unwrap(),
   );
-  assert!(text["lines"].as_array().unwrap().len() > 0);
+  assert!(!text["lines"].as_array().unwrap().is_empty());
   assert!(text["undecodedGlyphs"].is_number());
   let links = json(
     call(
@@ -148,8 +149,10 @@ fn opens_reads_and_closes_through_ipc() {
   );
   assert!(links.is_array());
 
-  assert_eq!(app.state::<tauri_plugin_papyra::Documents>().len(), 1);
+  let count = |webview| json(call(webview, "open_count", InvokeBody::default(), &[]).unwrap());
+  assert_eq!(count(&webview), 1);
   call(&webview, "close", args(serde_json::json!({})), &[]).unwrap();
+  assert_eq!(count(&webview), 0);
   assert!(app.state::<tauri_plugin_papyra::Documents>().is_empty());
   let gone = call(&webview, "outline", args(serde_json::json!({})), &[]).unwrap_err();
   assert!(gone.as_str().unwrap().contains("no open document"));

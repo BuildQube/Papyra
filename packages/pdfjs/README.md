@@ -10,10 +10,11 @@ same viewer on pdf.js there.
 ## Install
 
 ```bash
-npm install @build-qube/papyra-pdfjs pdfjs-dist
+npm install @build-qube/papyra-pdfjs @build-qube/papyra pdfjs-dist
 ```
 
-`pdfjs-dist` is a peer dependency, and is not loaded until the first document opens.
+`@build-qube/papyra` (0.5.0 or later) and `pdfjs-dist` are peer dependencies, so the
+app holds one copy of each; pdf.js is not loaded until the first document opens.
 
 ## Use
 
@@ -21,7 +22,7 @@ Name it in the viewer's engine provider. With a list, the first engine that can 
 on the page wins — papyra's where the page is isolated, pdf.js everywhere else:
 
 ```tsx
-import { defaultPdfEngine } from '@build-qube/papyra/core';
+import { defaultPdfEngine } from '@build-qube/papyra/engine';
 import { PdfjsEngine } from '@build-qube/papyra-pdfjs';
 import { PdfEngineProvider } from '@/components/pdf-engine';
 

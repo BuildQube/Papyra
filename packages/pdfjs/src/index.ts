@@ -3,7 +3,7 @@
  *
  * ```tsx
  * import { PdfEngineProvider } from '@/components/pdf-engine';
- * import { defaultPdfEngine } from '@build-qube/papyra/core';
+ * import { defaultPdfEngine } from '@build-qube/papyra/engine';
  * import { PdfjsEngine } from '@build-qube/papyra-pdfjs';
  *
  * <PdfEngineProvider engine={[defaultPdfEngine, new PdfjsEngine({ workerSrc })]}>

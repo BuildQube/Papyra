@@ -37,13 +37,12 @@
     "test": "bun test test/unit",
     "test:integration": "bun test test/integration"
   },
-  "dependencies": {
-    "@build-qube/papyra": "0.4.0"
-  },
   "peerDependencies": {
+    "@build-qube/papyra": "^0.5.0",
     "pdfjs-dist": "^6.2.0"
   },
   "devDependencies": {
+    "@build-qube/papyra": "0.4.0",
     "pdfjs-dist": "^6.2.108",
     "typescript": "^7.0.2"
   }

@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-open-count"
+description = "Enables the open_count command without any pre-configured scope."
+commands.allow = ["open_count"]
+
+[[permission]]
+identifier = "deny-open-count"
+description = "Denies the open_count command without any pre-configured scope."
+commands.deny = ["open_count"]

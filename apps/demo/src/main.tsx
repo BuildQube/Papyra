@@ -1,4 +1,4 @@
-import { defaultPdfEngine } from '@build-qube/papyra/core';
+import { defaultPdfEngine } from '@build-qube/papyra/engine';
 import { PdfjsEngine } from '@build-qube/papyra-pdfjs';
 import { RouterProvider } from '@tanstack/react-router';
 import { PdfEngineProvider } from '@workspace/pdf-viewer/components/pdf-engine';

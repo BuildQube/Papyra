@@ -133,8 +133,8 @@ export class Document implements PdfDoc {
    * method throws afterwards. Optional — an unreachable document is collected — but
    * it frees the caches at once rather than whenever the collector gets to them.
    */
-  close(): void {
-    this.#engine.close(this.#doc);
+  close(): Promise<void> {
+    return this.#engine.close(this.#doc);
   }
 
   /** Pages queued but not yet started, pages rendering, and the longest wait so far. */

@@ -32,6 +32,10 @@ export type PdfFileViewOptions = Omit<
   'doc' | 'store' | 'className' | 'fullscreen' | 'fileName' | 'fileSize'
 >;
 
+/** Nothing waits on a close, so a failure is reported rather than thrown. */
+const reportClose = (error: unknown) =>
+  console.error('file preview: closing a PDF failed', error);
+
 type State =
   | { status: 'opening' }
   | { status: 'open'; doc: PdfDoc; file: File }
@@ -84,7 +88,7 @@ function OpenedPdf({
     setState({ status: 'opening' });
     engine.open(file, { password }).then(
       (doc) => {
-        if (!live) return engine.close(doc);
+        if (!live) return void engine.close(doc).catch(reportClose);
         opened = doc;
         setState({ status: 'open', doc, file });
       },
@@ -100,7 +104,7 @@ function OpenedPdf({
     return () => {
       live = false;
       // After the viewer below has unmounted: React runs a child's cleanups first.
-      if (opened) engine.close(opened);
+      if (opened) engine.close(opened).catch(reportClose);
     };
     // On `typed`, not the string: the same wrong password twice is still two attempts.
   }, [engine, file, typed]);

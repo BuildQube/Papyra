@@ -64,9 +64,16 @@ describe('@build-qube/papyra/core', () => {
     expect([...graph(`${SRC}/core.ts`).packages]).not.toContain(NATIVE);
   });
 
-  test('reaches the native package only through import()', () => {
-    // PapyraEngine is in /core and does open documents: it gets there lazily.
-    expect([...graph(`${SRC}/core.ts`).lazy]).toContain(NATIVE);
+  test('does not reach the native package even through import()', () => {
+    // A bundler emits the wasm once its graph reaches the loader, lazily or not, so
+    // an app whose viewer runs on another engine would ship it all the same.
+    expect([...graph(`${SRC}/core.ts`).lazy]).not.toContain(NATIVE);
+  });
+
+  test('/engine reaches the native package, and only through import()', () => {
+    const engine = graph(`${SRC}/papyra-engine.ts`);
+    expect([...engine.packages]).not.toContain(NATIVE);
+    expect([...engine.lazy]).toContain(NATIVE);
   });
 
   test('the check can fail', () => {

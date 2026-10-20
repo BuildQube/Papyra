@@ -111,6 +111,31 @@ Measured or decided while implementing; the sections below are kept as written.
   granting the commands an ACL the mock context lacks): raw-body `open`, the header,
   argument names, tagged password errors, `close` freeing the document. The
   protocol handler is tested on tracemonkey in both formats.
+- **Fixes from wiring it into aldoa** (its agent's notes):
+  - `@build-qube/papyra` is a **peer** of both engine packages (`^0.5.0`): as a
+    dependency it installed a second papyra beside the app's, and `instanceof
+    PasswordError` failed across the two, so the password prompt never showed.
+    `.changeset/config.json` sets `onlyUpdatePeerDependentsWhenOutOfRange`, without
+    which changesets would major-bump the fixed group over a peer; a dry run of
+    `changeset version` puts all four packages at 0.5.0.
+  - **`PapyraEngine` left `/core` for `@build-qube/papyra/engine`.** A bundler emits
+    the wasm as soon as its graph reaches the loader — lazily or not, tree-shaken or
+    not — so with the engine in `/core`, importing `rotateSize` shipped 6 MB. The
+    purity test now forbids even a lazy edge. The registry's no-provider default
+    moved into its own item, `pdf-default-engine`, the one file that names papyra's
+    engine; aliasing it took a pdf.js-only viewer build from 22.5 MB to 15.9 MB, with
+    no wasm and no loader.
+  - The host **frees a WebView's documents when it loads a page** (`on_page_load`,
+    by WebView label), since a reload strands every id the old page held.
+  - **`open_count`**, outside `papyra:default`, for an app's leak check.
+  - **`close` is awaitable**: `engine.close(doc)` returns a promise and a backend's
+    `close` may be async, so a host that fails to free a document is heard. The
+    handle still closes synchronously; the viewer logs a failed close.
+  - Documented: an app must set `[profile.dev.package."*"] opt-level = 2` itself
+    (Cargo ignores a dependency's profiles; hayro unoptimised was 1.3–1.7 s a page
+    in a debug simulator build), the crate's Rust 1.92 floor, and the CSP
+    `connect-src` entries the protocol needs.
+  - Not done: `open` from a path or URL rather than bytes over IPC — later.
 
 ## Why
 

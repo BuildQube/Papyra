@@ -407,7 +407,7 @@ export class PdfjsBackend implements PdfBackend {
     return data;
   }
 
-  close(): void {
-    void this.pdf.loadingTask.destroy();
+  close(): Promise<void> {
+    return this.pdf.loadingTask.destroy();
   }
 }

@@ -118,28 +118,26 @@
     "packages/pdfjs": {
       "name": "@build-qube/papyra-pdfjs",
       "version": "0.4.0",
-      "dependencies": {
-        "@build-qube/papyra": "0.4.0",
-      },
       "devDependencies": {
+        "@build-qube/papyra": "0.4.0",
         "pdfjs-dist": "^6.2.108",
         "typescript": "^7.0.2",
       },
       "peerDependencies": {
+        "@build-qube/papyra": "^0.5.0",
         "pdfjs-dist": "^6.2.0",
       },
     },
     "packages/tauri": {
       "name": "@build-qube/papyra-tauri",
       "version": "0.4.0",
-      "dependencies": {
-        "@build-qube/papyra": "0.4.0",
-      },
       "devDependencies": {
+        "@build-qube/papyra": "0.4.0",
         "@tauri-apps/api": "^2.9.0",
         "typescript": "^7.0.2",
       },
       "peerDependencies": {
+        "@build-qube/papyra": "^0.5.0",
         "@tauri-apps/api": "^2.0.0",
       },
     },

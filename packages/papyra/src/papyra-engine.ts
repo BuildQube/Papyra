@@ -74,7 +74,8 @@ async function loadAddon(): Promise<Addon> {
 
 /**
  * papyra's own engine: hayro, compiled into the native addon in Node and into wasm in
- * a browser.
+ * a browser. Imported from `@build-qube/papyra/engine` (or the main entry), never from
+ * `/core`, so an app that never names it ships none of its wasm.
  *
  * Constructing one loads nothing. The addon — in a browser, a wasm module of about
  * 2.5 MB — is fetched by the first {@link PagedEngine.open}, which is what lets a

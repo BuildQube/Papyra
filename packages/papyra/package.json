@@ -27,6 +27,10 @@
     "./core": {
       "types": "./dist/core.d.ts",
       "default": "./dist/core.js"
+    },
+    "./engine": {
+      "types": "./dist/papyra-engine.d.ts",
+      "default": "./dist/papyra-engine.js"
     }
   },
   "files": [

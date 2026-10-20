@@ -5,6 +5,9 @@
 The viewer runs on an engine, chosen by the app, so it can render where papyra's
 wasm cannot — a mobile WebView that is never cross-origin isolated, say.
 
+- New **`pdf-default-engine`** item: the engine a viewer uses when no provider is
+  mounted — papyra's own. An app that never runs papyra's engine aliases this one
+  file to its own engine, and papyra's wasm leaves its bundle (6.5 MB, measured).
 - New **`pdf-engine`** item: `PdfEngineProvider` (an engine, or a list to take the
   first available from), `usePdfEngine()`, and `PdfEngineGuard`, which explains in
   the engine's own words why it cannot run. With no provider, every viewer uses

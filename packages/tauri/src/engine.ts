@@ -255,7 +255,7 @@ export class TauriBackend implements PdfBackend {
     );
   }
 
-  close(): void {
-    void this.#call('close');
+  close(): Promise<void> {
+    return this.#call<void>('close');
   }
 }

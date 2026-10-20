@@ -129,9 +129,11 @@ describe('PdfEngine over another backend', () => {
     const engine = new FakeEngine();
     const doc = await engine.open(BYTES);
     await engine.render(doc, 0).promise;
-    engine.close(doc);
+    await engine.close(doc);
     expect(engine.backend.closed).toBe(true);
     expect(() => engine.render(doc, 0)).toThrow(/closed/);
+    // A second close is a mistake in the caller, reported at once.
+    expect(() => engine.close(doc)).toThrow(/closed/);
   });
 
   test('streams every page, in the order asked', async () => {

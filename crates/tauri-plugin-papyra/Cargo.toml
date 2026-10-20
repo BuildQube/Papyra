@@ -30,5 +30,8 @@ serde_json = "1"
 tauri = { version = "2", features = ["test"] }
 tauri-utils = "2"
 
+# Cargo reads profiles only from the top-level workspace, so this applies to this
+# crate's own tests and nothing else. An app needs the same lines in its own
+# manifest — see the README.
 [profile.dev.package."*"]
 opt-level = 2

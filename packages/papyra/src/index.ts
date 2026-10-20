@@ -19,6 +19,7 @@ export * from './core.js';
 export type { ImageHandle, SvgHandle } from './document.js';
 export { Document, open } from './document.js';
 export { encode, PageImage } from './encode.js';
+export { defaultPdfEngine, PapyraEngine } from './papyra-engine.js';
 export type { Runtime } from './runtime.js';
 export {
   backend,

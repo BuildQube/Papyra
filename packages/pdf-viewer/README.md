@@ -345,6 +345,13 @@ whose pages cannot be cross-origin isolated — a mobile WebView, say — wraps 
 in `<PdfEngineProvider engine={…}>` and changes nothing else. A panel the engine
 cannot fill (`doc.capabilities`) is not offered.
 
+The no-provider default lives in its own item, `pdf-default-engine`, and nothing else
+names papyra's engine. That matters for a bundle: a bundler emits papyra's 6 MB wasm
+as soon as its graph reaches the engine, whether or not it is ever fetched. An app
+that runs every viewer on another engine aliases that one file — in Vite,
+`resolve.alias` with `find: /.*\/pdf-default-engine$/` — to a module exporting its
+own `fallbackPdfEngine`, and ships no wasm.
+
 Every PDF block wraps itself in `PdfEngineGuard`, which asks the engine whether it
 can run here. For papyra's engine that means `SharedArrayBuffer`, so the page must
 be cross-origin isolated, and without the two headers the symptom is a blank area

@@ -2,7 +2,7 @@
 '@build-qube/papyra': minor
 ---
 
-`defaultPdfEngine`, in `@build-qube/papyra/core`: the one `PapyraEngine` that
+`defaultPdfEngine`, in `@build-qube/papyra/engine`: the one `PapyraEngine` that
 `open()` goes through, and the one a viewer uses when the app names none. A document
 belongs to the engine that opened it, so sharing this instance is what lets a
 `Document` from `open()` be passed to an engine-driven viewer as it is.

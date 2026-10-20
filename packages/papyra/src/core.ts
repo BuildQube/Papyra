@@ -2,18 +2,20 @@
  * Everything in papyra that runs without its engine.
  *
  * Painting a rendered bitmap, page geometry, search over extracted text, outline and
- * structure trees, the priority queue, the error types — and the engines:
- * {@link PagedEngine} and {@link PdfEngine} to build one on, and {@link PapyraEngine},
- * which loads papyra's own addon only when it first opens a document.
+ * structure trees, the priority queue, the error types, and {@link PagedEngine} and
+ * {@link PdfEngine} to build an engine on. papyra's own engine is not here but in
+ * `@build-qube/papyra/engine`.
  *
  * The main entry exports all of it too, but importing that loads the engine — on a
  * browser, a wasm module of about 2.5 MB that needs a cross-origin-isolated page to
  * start. Code that only draws pages, or that will hand the opening to another engine,
  * imports from here.
  *
- * Nothing in this module's graph may import `@build-qube/papyra-native` statically;
- * `PapyraEngine` reaches it through `import()`. `test/unit/core.test.ts` walks the
- * graph and fails if anything does.
+ * Nothing in this module's graph may reach `@build-qube/papyra-native` at all, not
+ * even through `import()`: a bundler emits the 6 MB wasm as soon as its graph reaches
+ * the loader, whether or not tree-shaking later drops the code that would fetch it.
+ * So an app whose viewer runs on another engine ships no wasm. `test/unit/core.test.ts`
+ * walks the graph and fails if anything does.
  *
  * @module
  */
@@ -74,7 +76,6 @@ export type {
   OutlineNode,
 } from './outline.js';
 export { buildOutlineTree, walkOutline } from './outline.js';
-export { defaultPdfEngine, PapyraEngine } from './papyra-engine.js';
 export type { JobHandle, JobTiming } from './scheduler.js';
 export { AbortError, DEFAULT_PRIORITY } from './scheduler.js';
 export type { MatchOptions, SearchMatch } from './search.js';

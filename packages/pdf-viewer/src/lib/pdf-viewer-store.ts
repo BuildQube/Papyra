@@ -1,5 +1,4 @@
 import {
-  defaultPdfEngine,
   PasswordError,
   type PdfDoc,
   type PdfEngine,
@@ -7,6 +6,7 @@ import {
   type Rotation,
   type SearchMatch,
 } from '@build-qube/papyra/core';
+import { fallbackPdfEngine } from '@/lib/pdf-default-engine';
 import type { ViewMode } from '@/lib/viewer-zoom';
 
 /** The open document, and the bytes it was opened from. */
@@ -174,8 +174,8 @@ export interface PdfViewerActions {
 /** Options for {@link createPdfViewerStore}. */
 export interface PdfViewerStoreOptions {
   /**
-   * What `load` opens files with. papyra's own by default; `PdfViewerProvider`
-   * passes the one from `PdfEngineProvider`.
+   * What `load` opens files with. `fallbackPdfEngine` — papyra's own — by default;
+   * `PdfViewerProvider` passes the one from `PdfEngineProvider`.
    */
   engine?: PdfEngine;
   /** The view to start in. Defaults to `scroll`. */
@@ -218,6 +218,13 @@ export interface PdfViewerStore {
   readonly actions: PdfViewerActions;
 }
 
+/**
+ * A document that would not close is reported rather than thrown: by then nothing
+ * is waiting on it, and in a host-process engine it is a leak worth seeing.
+ */
+const reportClose = (error: unknown) =>
+  console.error('pdf viewer: closing a document failed', error);
+
 /** Shared so an empty result set does not churn the slice reference. */
 const EMPTY_SEARCH: PdfSearchSlice = { query: '', matches: [], active: null };
 
@@ -236,7 +243,7 @@ export function createPdfViewerStore(
   options: PdfViewerStoreOptions = {},
 ): PdfViewerStore {
   const {
-    engine = defaultPdfEngine,
+    engine = fallbackPdfEngine,
     concurrency = 4,
     view = 'scroll',
     rotation = 0,
@@ -273,7 +280,7 @@ export function createPdfViewerStore(
     const previous = opened;
     opened = next;
     if (previous && previous !== next) {
-      setTimeout(() => engine.close(previous), 0);
+      setTimeout(() => engine.close(previous).catch(reportClose), 0);
     }
   }
 

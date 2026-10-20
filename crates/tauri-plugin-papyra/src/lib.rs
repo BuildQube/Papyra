@@ -30,18 +30,21 @@ use papyra_hayro::{HayroDocument, HayroEngine};
 use tauri::http::{Request, Response, StatusCode};
 use tauri::ipc::{InvokeBody, Response as Bytes};
 use tauri::plugin::{Builder, TauriPlugin};
-use tauri::{Manager, Runtime, State};
+use tauri::webview::PageLoadEvent;
+use tauri::{Manager, Runtime, State, Webview};
 
 use shapes::{Attachment, OutlineEntry, PageLink, PageText, StructEntry, error};
 
-/// The documents this host holds open, by the id the WebView knows them by.
+/// The documents this host holds open, by the id the WebView knows them by, each
+/// with the label of the WebView that opened it.
 ///
-/// Freed only by `close`: a document the WebView forgets to close stays here until
-/// the app exits, which is why the viewer closes what it opens.
+/// Freed by `close`, and all of a WebView's at once when it loads a page: a reload —
+/// dev HMR, recovering from a crash, a session expiring — loses every id the old
+/// page held, and nothing could ever close those documents again.
 #[derive(Default)]
 pub struct Documents {
   next: AtomicU32,
-  open: Mutex<HashMap<u32, Arc<HayroDocument>>>,
+  open: Mutex<HashMap<u32, (String, Arc<HayroDocument>)>>,
 }
 
 impl Documents {
@@ -51,18 +54,28 @@ impl Documents {
       .lock()
       .map_err(|e| e.to_string())?
       .get(&id)
-      .cloned()
+      .map(|(_, doc)| doc.clone())
       .ok_or_else(|| format!("papyra: no open document {id}"))
   }
 
-  fn insert(&self, doc: HayroDocument) -> Result<u32, String> {
+  fn insert(&self, webview: &str, doc: HayroDocument) -> Result<u32, String> {
     let id = self.next.fetch_add(1, Ordering::Relaxed);
     self
       .open
       .lock()
       .map_err(|e| e.to_string())?
-      .insert(id, Arc::new(doc));
+      .insert(id, (webview.to_string(), Arc::new(doc)));
     Ok(id)
+  }
+
+  /// Drop everything one WebView opened; how many that was.
+  fn release(&self, webview: &str) -> usize {
+    let Ok(mut open) = self.open.lock() else {
+      return 0;
+    };
+    let before = open.len();
+    open.retain(|_, (owner, _)| owner != webview);
+    before - open.len()
   }
 
   fn remove(&self, id: u32) -> Result<(), String> {
@@ -97,7 +110,8 @@ const PASSWORD_HEADER: &str = "x-papyra-password";
 /// Open a PDF sent as the raw request body. Answers with its id and every page's
 /// size, its metadata and its version — everything a viewer needs before it renders.
 #[tauri::command]
-async fn open(
+async fn open<R: Runtime>(
+  webview: Webview<R>,
   request: tauri::ipc::Request<'_>,
   docs: State<'_, Documents>,
 ) -> Result<shapes::Opened, String> {
@@ -130,7 +144,7 @@ async fn open(
   })
   .await?;
   Ok(shapes::Opened {
-    id: docs.insert(doc)?,
+    id: docs.insert(webview.label(), doc)?,
     sizes,
     info,
     pdf_version,
@@ -142,6 +156,13 @@ async fn open(
 #[tauri::command]
 fn close(id: u32, docs: State<'_, Documents>) -> Result<(), String> {
   docs.remove(id)
+}
+
+/// How many documents the host holds, across every WebView — for an app's leak check.
+/// Not in `papyra:default`; allow `papyra:allow-open-count` to use it.
+#[tauri::command]
+fn open_count(docs: State<'_, Documents>) -> usize {
+  docs.len()
 }
 
 #[tauri::command]
@@ -315,6 +336,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
     .invoke_handler(tauri::generate_handler![
       open,
       close,
+      open_count,
       page_text,
       outline,
       links,
@@ -332,6 +354,11 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
     .setup(|app, _| {
       app.manage(Documents::default());
       Ok(())
+    })
+    .on_page_load(|webview, payload| {
+      if payload.event() == PageLoadEvent::Started {
+        webview.state::<Documents>().release(webview.label());
+      }
     })
     .build()
 }
@@ -396,7 +423,9 @@ mod tests {
       return;
     };
     let docs = Documents::default();
-    let id = docs.insert(HayroEngine::load(bytes).unwrap()).unwrap();
+    let id = docs
+      .insert("main", HayroEngine::load(bytes).unwrap())
+      .unwrap();
 
     let png = get(&docs, &format!("papyra://localhost/{id}/0?dpi=72"));
     assert_eq!(png.status(), StatusCode::OK);
@@ -419,12 +448,35 @@ mod tests {
   }
 
   #[test]
+  fn a_page_load_releases_only_that_webviews_documents() {
+    let Some(bytes) = corpus("tracemonkey.pdf") else {
+      return;
+    };
+    let docs = Documents::default();
+    let mine = docs
+      .insert("main", HayroEngine::load(bytes.clone()).unwrap())
+      .unwrap();
+    docs
+      .insert("main", HayroEngine::load(bytes.clone()).unwrap())
+      .unwrap();
+    let theirs = docs
+      .insert("other", HayroEngine::load(bytes).unwrap())
+      .unwrap();
+    assert_eq!(docs.release("main"), 2);
+    assert!(docs.get(mine).is_err());
+    assert!(docs.get(theirs).is_ok());
+    assert_eq!(docs.len(), 1);
+  }
+
+  #[test]
   fn answers_unknown_documents_and_pages_with_errors() {
     let Some(bytes) = corpus("tracemonkey.pdf") else {
       return;
     };
     let docs = Documents::default();
-    let id = docs.insert(HayroEngine::load(bytes).unwrap()).unwrap();
+    let id = docs
+      .insert("main", HayroEngine::load(bytes).unwrap())
+      .unwrap();
     assert_eq!(
       get(&docs, "papyra://localhost/99/0").status(),
       StatusCode::NOT_FOUND

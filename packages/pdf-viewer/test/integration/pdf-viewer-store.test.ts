@@ -237,7 +237,9 @@ describe('document ownership', () => {
     let n = 0;
     const engine = {
       open: async () => ({ pageCount: 1, id: n++ }),
-      close: (doc: unknown) => closed.push(doc),
+      close: async (doc: unknown) => {
+        closed.push(doc);
+      },
     };
     return { engine: engine as never, closed };
   }

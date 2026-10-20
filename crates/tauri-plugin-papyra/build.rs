@@ -1,6 +1,7 @@
 const COMMANDS: &[&str] = &[
   "open",
   "close",
+  "open_count",
   "page_text",
   "outline",
   "links",
