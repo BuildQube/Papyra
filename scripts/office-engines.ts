@@ -9,6 +9,7 @@
  *
  *   bun run office status            how far each pin is behind upstream, by crate
  *   bun run office bump [engine]     move a pin to upstream HEAD (or --rev <sha>)
+ *     --fork <owner/repo> --rev <sha>  pin to a fork carrying an unmerged upstream fix
  *   bun run office fidelity          render the corpus, compare with the baseline
  *
  * `fidelity` renders through the **wasm** build under Node, with the same four
@@ -77,19 +78,18 @@ const FILES: readonly {
     name: 'calendar-ru.docx',
     url: `${POI}/document/bib-chernigovka.netdo.ru_download_docs_17459.docx`,
     office: 15,
-    note: 'page 1: floating title overlaps the first table',
+    note: 'one page over Office (16 vs 15); title page, border and texture draw',
   },
   {
     name: 'pcb-paper.docx',
     url: `${POI}/document/bug59058.docx`,
     office: 52,
-    note: 'OMML equations draw as empty boxes',
   },
   {
     name: 'bug65649.docx',
     url: `${POI}/document/bug65649.docx`,
     office: null,
-    note: '42,900 words, table-heavy; its app.xml claims 1 page',
+    note: 'app.xml claims 1 page; blank pages at section breaks, unverified',
   },
   {
     name: 'saut_page.docx',
@@ -192,6 +192,7 @@ const { values: args, positionals } = parseArgs({
   allowPositionals: true,
   options: {
     rev: { type: 'string' },
+    fork: { type: 'string' },
     update: { type: 'boolean', default: false },
     sheets: { type: 'string' },
     width: { type: 'string', default: '240' },
@@ -227,48 +228,107 @@ async function gh<T>(path: string): Promise<T> {
   return JSON.parse(await sh(['gh', 'api', path])) as T;
 }
 
-async function pinnedRevs(): Promise<Record<Engine, string>> {
+interface Pin {
+  /** `owner/name`: upstream, or a fork carrying a fix upstream has not merged. */
+  repo: string;
+  rev: string;
+}
+
+/**
+ * What the manifest pins each engine to. The repo is read rather than assumed, so a
+ * pin on a fork is visible to `status`, and `bump` can say what leaving it drops.
+ */
+async function pins(): Promise<Record<Engine, Pin>> {
   const manifest = await readFile(MANIFEST, 'utf8');
-  const revs = {} as Record<Engine, string>;
-  for (const [engine, { repo }] of Object.entries(ENGINES)) {
+  const out = {} as Record<Engine, Pin>;
+  for (const engine of Object.keys(ENGINES) as Engine[]) {
     const found = new Set(
       [
         ...manifest.matchAll(
-          new RegExp(`github\\.com/${repo}", rev = "([0-9a-f]{40})"`, 'g'),
+          new RegExp(
+            `github\\.com/([\\w.-]+/${engine})", rev = "([0-9a-f]{40})"`,
+            'g',
+          ),
         ),
-      ].map((m) => m[1]),
+      ].map((m) => `${m[1]}@${m[2]}`),
     );
     if (found.size !== 1) {
       throw new Error(
-        `${engine}: expected one rev in ${MANIFEST}, found ${found.size}`,
+        `${engine}: expected one repo and rev in ${MANIFEST}, found ${found.size}`,
       );
     }
-    revs[engine as Engine] = [...found][0] as string;
+    const [repo, rev] = ([...found][0] as string).split('@') as [
+      string,
+      string,
+    ];
+    out[engine] = { repo, rev };
   }
-  return revs;
+  return out;
+}
+
+async function pinnedRevs(): Promise<Record<Engine, string>> {
+  const all = await pins();
+  return Object.fromEntries(
+    Object.entries(all).map(([e, p]) => [e, p.rev]),
+  ) as Record<Engine, string>;
+}
+
+/**
+ * Commits `rev` has that upstream's `base` does not: a fork's unmerged fixes. GitHub
+ * serves a fork's commits through the parent repo, so one compare covers both.
+ */
+async function carried(
+  repo: string,
+  base: string,
+  rev: string,
+): Promise<{ sha: string; commit: { message: string } }[]> {
+  const c = await gh<{
+    ahead_by: number;
+    commits: { sha: string; commit: { message: string } }[];
+  }>(`repos/${repo}/compare/${base}...${rev}`);
+  return c.ahead_by > 0 ? c.commits : [];
 }
 
 async function status(): Promise<void> {
-  const revs = await pinnedRevs();
+  const current = await pins();
   for (const [engine, { repo, crates }] of Object.entries(ENGINES)) {
-    const pinned = revs[engine as Engine];
+    const { repo: pinnedRepo, rev: pinned } = current[engine as Engine];
     const head = await gh<{
       sha: string;
       commit: { committer: { date: string } };
     }>(`repos/${repo}/commits/main`);
+    const fork = pinnedRepo === repo ? '' : ` on fork ${pinnedRepo}`;
     console.log(
-      `\n${engine}  pinned ${pinned.slice(0, 12)}  upstream ${head.sha.slice(0, 12)} (${head.commit.committer.date.slice(0, 10)})`,
+      `\n${engine}  pinned ${pinned.slice(0, 12)}${fork}  upstream ${head.sha.slice(0, 12)} (${head.commit.committer.date.slice(0, 10)})`,
     );
+    if (fork) {
+      const own = await carried(repo, head.sha, pinned);
+      console.log(
+        own.length === 0
+          ? '  the fork carries nothing upstream lacks: bump back to upstream'
+          : `  carries ${own.length} commit(s) upstream has not merged:`,
+      );
+      for (const c of own) {
+        console.log(
+          `    ${c.sha.slice(0, 9)} ${c.commit.message.split('\n')[0]?.slice(0, 90)}`,
+        );
+      }
+    }
     if (head.sha === pinned) {
       console.log('  up to date');
       continue;
     }
     const compare = await gh<{
-      ahead_by: number;
-      files?: { filename: string }[];
+      behind_by: number;
       html_url: string;
-    }>(`repos/${repo}/compare/${pinned}...${head.sha}`);
-    console.log(`  ${compare.ahead_by} commits behind  ${compare.html_url}`);
+    }>(`repos/${repo}/compare/${head.sha}...${pinned}`);
+    if (compare.behind_by === 0) {
+      console.log('  up to date');
+      continue;
+    }
+    console.log(
+      `  ${compare.behind_by} commits behind  https://github.com/${repo}/compare/${pinned}...${head.sha}`,
+    );
     // The compare API lists at most 300 files, so a big gap undercounts — the
     // per-crate commit query below does not.
     const since = (
@@ -305,23 +365,43 @@ async function bump(): Promise<void> {
   if (args.rev && engines.length !== 1) {
     throw new Error('--rev needs a single engine: bump wordcraft --rev <sha>');
   }
-  const revs = await pinnedRevs();
+  if (args.fork && !args.rev) {
+    throw new Error(
+      '--fork needs --rev: pin the fix commit, never a branch that can move',
+    );
+  }
+  const current = await pins();
   let manifest = await readFile(MANIFEST, 'utf8');
   for (const engine of engines) {
     const { repo, probe } = ENGINES[engine];
+    const from = current[engine];
+    const to = args.fork ?? repo;
     const rev =
       args.rev ?? (await gh<{ sha: string }>(`repos/${repo}/commits/main`)).sha;
     if (!/^[0-9a-f]{40}$/.test(rev)) {
       throw new Error(`--rev must be a full 40-character sha, got ${rev}`);
     }
-    if (rev === revs[engine]) {
+    if (rev === from.rev && to === from.repo) {
       console.log(`${engine}: already at ${rev.slice(0, 12)}`);
       continue;
     }
-    manifest = manifest.replaceAll(revs[engine], rev);
+    // Leaving a fork is the point of having one, once upstream has merged its fix;
+    // before then it silently reintroduces the bug the fork existed for.
+    if (from.repo !== repo) {
+      const dropped = await carried(repo, rev, from.rev);
+      for (const c of dropped) {
+        console.warn(
+          `warning: ${engine} ${rev.slice(0, 12)} lacks ${c.sha.slice(0, 9)} from ${from.repo}: ${c.commit.message.split('\n')[0]}`,
+        );
+      }
+    }
+    manifest = manifest.replaceAll(
+      `github.com/${from.repo}", rev = "${from.rev}"`,
+      `github.com/${to}", rev = "${rev}"`,
+    );
     await writeFile(MANIFEST, manifest);
     console.log(
-      `${engine}: ${revs[engine].slice(0, 12)} -> ${rev.slice(0, 12)}`,
+      `${engine}: ${from.rev.slice(0, 12)} -> ${rev.slice(0, 12)}${to === repo ? '' : ` on ${to}`}`,
     );
     // Resolves the new rev into Cargo.lock, and with it any dependency the engine
     // raised; `cargo check` below is what finds the API breaks.

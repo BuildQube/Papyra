@@ -24,6 +24,7 @@ Everything below goes through one tool, `scripts/office-engines.ts`:
 ```bash
 bun run office status                  # how far behind, and which crates moved
 bun run office bump [wordcraft|deckcraft|all] [--rev <40-char sha>]
+bun run office bump wordcraft --fork BuildQube/wordcraft --rev <sha>   # see "Carrying a fix"
 bun run office fidelity                # render the corpus, diff against the baseline
 bun run office fidelity --sheets corpus/office/sheets   # plus a contact sheet per file
 bun run office fidelity --update       # record the result as the new baseline
@@ -65,11 +66,19 @@ bun run office fidelity --update       # record the result as the new baseline
    cargo clippy --workspace --all-targets --color never -- -D warnings; echo "exit=$?"
    cargo fmt --all --check
    bun run --filter @build-qube/papyra test:integration   # includes office.test.ts
+   cargo tree -p papyra-office-bindings --target wasm32-wasip1-threads -i js-sys  # must be empty
    ```
    `--color never` and `echo $?` are not decoration. cargo colours its output whenever
    `CARGO_TERM_COLOR` says so, and a `grep '^error'` over coloured output matches
    nothing, so a failing clippy looks clean. That exact mistake once shipped a red
    lint job to CI.
+
+   The last line is the one that bites. Both engines target the browser as
+   `wasm32-unknown-unknown`, and their wasm check builds only that. Our wasm is
+   WASI, so any `js_sys` call gated on `target_arch = "wasm32"` alone compiles for
+   us and then panics at run time ("cannot call wasm-bindgen imported functions on
+   non-wasm targets"). WordCraft's clock did exactly this in October 2026, and every
+   Word document failed. Native tests cannot see it; `fidelity` does, as a crash.
 
 6. **Measure fidelity.** `bun run office fidelity --sheets corpus/office/sheets`. It
    builds the office wasm and the wrapper (skip with `--no-build`), fetches the corpus
@@ -103,13 +112,38 @@ bun run office fidelity --update       # record the result as the new baseline
    gzip -9c packages/office-bindings/papyra-office.wasm32-wasi.wasm | wc -c
    ```
    It was 4.24 MB gzipped at the first pin (1.35 MB code, ~2.9 MB embedded fonts and
-   hyphenation data). Report a change over about 100 KB either way. Pass the exact
+   hyphenation data), and 5.29 MB after WordCraft `f4299ff`. Report a change over about 100 KB either way. Pass the exact
    file: the directory also holds an unstripped `*.debug.wasm`, and a glob picks up
    both.
 
 9. **Spot-check in a browser** if layout or fonts changed: `bun run --filter
    papyra-demo dev`, open `/components`, and page through the file preview to
    `sample.docx` and `sample.pptx`. The demo needs the wasm build from step 8.
+
+## Carrying a fix on a fork
+
+When upstream breaks something only we hit, don't patch around it in
+`papyra-office`. Fix it upstream, and pin to the fix while the PR waits:
+
+1. Fork into `BuildQube/<engine>` (`gh repo fork storytold/<engine> --org BuildQube
+   --clone=false`). Make one commit on upstream `main`, and push it as a branch.
+2. Open the PR from that branch. storytold restricts OAuth apps, so `gh pr create`
+   is refused, and a person has to open it from the browser at
+   `https://github.com/storytold/<engine>/compare/main...BuildQube:<engine>:<branch>`.
+3. `bun run office bump <engine> --fork BuildQube/<engine> --rev <the fix's sha>`.
+   Always pass the commit, never a branch. **Don't delete the branch** while
+   anything pins it: an unreferenced commit can be garbage-collected, and the pinned
+   rev stops fetching.
+4. `status` then says the pin is on the fork and lists the commits it carries that
+   upstream lacks. Once that list is empty, the fix has merged: a plain
+   `bump <engine>` returns to storytold. `bump` warns about any fork commit the new
+   rev lacks, so leaving too early is visible.
+
+Active forks:
+
+| Engine | Fork commit | Fix | Upstream PR |
+|---|---|---|---|
+| WordCraft | `f4299ff` on `BuildQube/wordcraft` `fix/wasi-clock` | browser clock only on `wasm32-unknown-unknown` | to be opened |
 
 ## Why the check runs on wasm, under Node
 
@@ -140,14 +174,14 @@ which measures the wrong thing.
   one POI commit and fetched into the gitignored `corpus/office`. Never commit them:
   their provenance is mixed, which is why the PDF corpus is fetched the same way.
 
-## Known defects at the first pin
+## Known defects
 
 | File | Defect | Engine |
 |---|---|---|
 | `alterman_security.pptx` | slide 10 renders solid black | DeckCraft |
 | `alterman_security.pptx` | slide 16's WMF picture is a placeholder; WMF/EMF are not decoded | both |
-| `calendar-ru.docx` | page 1's floating title overlaps the table; 13 pages vs Office's 15 | WordCraft |
-| `pcb-paper.docx` | OMML equations draw as empty boxes; 53 pages vs 52 | WordCraft |
+| `calendar-ru.docx` | 16 pages vs Office's 15 (13 before `f4299ff`, which fixed the title overlapping the table) | WordCraft |
+| `bug65649.docx` | blank pages 2, 112, 161, 210 at section breaks since `f4299ff`; not checked against Word | WordCraft |
 | `HowWeRefactor.pptx` | animation builds drawn all at once, so text overlaps | DeckCraft |
 
 Also known, and not visible in the corpus: WordCraft's global decoded-image cache in
