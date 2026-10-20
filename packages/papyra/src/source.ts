@@ -8,7 +8,7 @@ function isBlob(value: unknown): value is Blob {
  * Normalise any accepted input to bytes.
  *
  * Accepts `File` and `Blob` so an `<input type="file">` value can be passed straight
- * through, which is the common case in a viewer.
+ * through, which is the common case in a viewer. An engine's loader starts here.
  */
 export async function toBytes(source: PdfSource): Promise<Uint8Array> {
   if (source instanceof Uint8Array) return source;

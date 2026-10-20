@@ -63,6 +63,7 @@ export {
   PasswordError,
   PasswordRequiredError,
 } from './errors.js';
+export { fingerprint } from './fingerprint.js';
 export type { LinkTarget, PageLink } from './links.js';
 export type {
   DestinationKind,
@@ -75,6 +76,7 @@ export type { JobHandle, JobTiming } from './scheduler.js';
 export { AbortError, DEFAULT_PRIORITY } from './scheduler.js';
 export type { MatchOptions, SearchMatch } from './search.js';
 export { findRanges, searchPageText } from './search.js';
+export { toBytes } from './source.js';
 export type {
   MarkedContent,
   OrderedLine,

@@ -69,8 +69,8 @@ bun run --filter papyra-bench priority  # also: cache, scaling, large-format
 ```
 
 Releases go through changesets: `bun run change` to add one, `bun run release` to publish.
-`@build-qube/papyra` and `@build-qube/papyra-native` are version-locked (`fixed` in
-`.changeset/config.json`); `papyra-demo`, `papyra-bench` and `@workspace/ui` are
+`@build-qube/papyra`, `@build-qube/papyra-native` and `@build-qube/papyra-pdfjs` are
+version-locked (`fixed` in `.changeset/config.json`); `papyra-demo`, `papyra-bench` and `@workspace/ui` are
 ignored. `@workspace/pdf-viewer` is **not** — it is private and never published, but
 `privatePackages: { version: true, tag: false }` gives it a version and a CHANGELOG,
 because its registry items are installed by URL and that changelog is the only record
@@ -146,6 +146,16 @@ undocumented prop fails the build. Each file is its own entry point
 (`entryPointStrategy: "expand"`) since registry items install one at a time — which
 means a `{@link}` across files has no target and cross-item references are code
 spans.
+
+**Engines.** The viewer never calls a document: it calls the engine in scope
+(`usePdfEngine()` from the `pdf-engine` item) with a data-only handle —
+`engine.render(doc, …)`. `PagedEngine`/`PdfEngine` in `packages/papyra/src/engine.ts`
+own the scheduler, caches, `fitWidth` and search; an engine supplies a loader and a
+backend. `@build-qube/papyra/core` is the wasm-free entry engines and the registry
+import from, and `test/unit/core.test.ts` fails if anything in it reaches the native
+package eagerly. `packages/pdfjs` (`@build-qube/papyra-pdfjs`) is the second engine,
+for pages that cannot be cross-origin isolated; `?engine=pdfjs` runs the demo on it.
+`docs/engines-design.md` is the design, and its "As built" section the deviations.
 
 `packages/ui` (`@workspace/ui`) sits outside that stack: it is the private home of
 every shadcn component, consumed as **source** rather than as a build artifact, so

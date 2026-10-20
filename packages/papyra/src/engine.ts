@@ -181,11 +181,19 @@ export interface PagedBackend {
   /** Pages this backend can usefully render at once, when the caller does not say. */
   readonly concurrency?: number;
   /**
+   * Whether {@link renderPage} stops early when its signal aborts.
+   *
+   * Then a render that has started is aborted once nobody waits for it — scrolled
+   * past, say — instead of finishing for a cache nobody may read. Leave it unset when
+   * the work cannot be interrupted, as papyra's own cannot: an unaborted render that
+   * the reader scrolls back to is joined rather than started again.
+   */
+  readonly abortable?: boolean;
+  /**
    * Rasterise one page.
    *
-   * `signal` is the caller's, when it gave one. A backend that can stop a render
-   * part-way may honour it; papyra's own cannot, since interpretation is not
-   * preemptible.
+   * `signal` aborts when the render is no longer wanted, and only for an
+   * {@link abortable} backend.
    */
   renderPage(
     index: number,
@@ -462,9 +470,10 @@ export abstract class PagedEngine<
     const handle = scheduler.submit<PageBitmap>({
       key,
       priority: options.priority ?? DEFAULT_PRIORITY,
-      run: () =>
+      abortable: backend.abortable,
+      run: (signal) =>
         backend
-          .renderPage(index, { dpi, annotations: options.annotations })
+          .renderPage(index, { dpi, annotations: options.annotations }, signal)
           .then((page) => {
             cache.set(key, page);
             return page;

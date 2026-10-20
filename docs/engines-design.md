@@ -2,7 +2,7 @@
 
 Status: **proposal, not implemented.** Nothing here ships until it is approved.
 
-## As built (PR 1–4) — where this supersedes the text below
+## As built (PR 1–5) — where this supersedes the text below
 
 Measured or decided while implementing; the sections below are kept as written.
 
@@ -67,6 +67,29 @@ Measured or decided while implementing; the sections below are kept as written.
   −0.7%, cold render +1.1%, cached render −0.7%, `pageSize` 0.0%, search +0.8% — noise.
   In headless Chrome the viewer, export and components routes render with no console
   errors, through four rapid file swaps in the viewer and eight in the file preview.
+- **Aborting a running render is opt-in, per backend (`abortable`).** §5 had the base
+  abort every running job's signal. For papyra that is a regression, not a no-op:
+  an aborted job must leave the coalescing map, so a page the reader scrolls back to
+  would render twice instead of joining the render already under way. Only a backend
+  that can actually stop part-way declares it — pdf.js, through `renderTask.cancel()`.
+  An aborted job keeps its concurrency slot until it settles.
+- **pdf.js fingerprints with papyra's content hash**, not `fingerprints[0]`: a key
+  that changes with the engine would lose what a viewer remembered per document.
+  `fingerprint` and `toBytes` are exported from `/core` for this.
+- **pdf.js page sizes, measured.** Reading every page's size up front cost 48 ms to
+  open a 100-page file and 68 ms for 1,000 pages (headless Chrome, synthetic
+  one-line pages) — about 20 ms per thousand pages. Not worth a lazy path.
+- **Parity, measured.** `packages/pdfjs/test/integration` opens the corpus and the
+  demo fixtures in both engines and compares page count and sizes, fingerprint,
+  title, labels, outline, attachments, links and search. One real difference:
+  `issue6204.pdf` names its link targets in a PDF 1.1 `/Dests` dictionary, which
+  pdf.js reads and papyra's `dest.rs` does not — a papyra gap, not the adapter's.
+- **The point of it, checked.** On a page served without COOP/COEP, a provider given
+  `[defaultPdfEngine, PdfjsEngine]` chose pdf.js, the `PdfViewer` block rendered,
+  and no wasm or papyra runtime file was fetched — `/core` doing its job.
+- **Performance.** Native A/B against PR 4 (14 documents, 15 rounds, min): open
+  +2.4%, cold render −3.4%, cached render −4.3%, `pageSize` −0.2%, search −0.2% —
+  noise in both directions; `open` does not touch the changed scheduler.
 
 ## Why
 

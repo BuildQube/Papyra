@@ -19,7 +19,14 @@ export interface SchedulerJob<T> {
   /** Identity for coalescing. Two live requests with the same key share one render. */
   key: string;
   priority: number;
-  run: () => Promise<T>;
+  /** The work. `signal` aborts when an `abortable` job loses its last waiter. */
+  run: (signal?: AbortSignal) => Promise<T>;
+  /**
+   * Whether `run` stops early on its signal. Only then is a started job aborted when
+   * nobody waits on it any more; otherwise it runs to the end, and a new request for
+   * the same key joins it rather than starting a second.
+   */
+  abortable?: boolean;
 }
 
 /** Where a job's wall-clock time actually went. */
@@ -48,7 +55,8 @@ export interface JobHandle<T> {
   readonly promise: Promise<T>;
   /**
    * Detach from this job. If nothing else is waiting on it and it has not started,
-   * it is dropped from the queue; if it is already running it is left to finish.
+   * it is dropped from the queue; if it is already running it is left to finish,
+   * unless it was submitted `abortable`, in which case its signal aborts.
    */
   cancel(reason?: string): void;
 }
@@ -61,7 +69,10 @@ interface Entry<T> {
   finishedAt: number;
   /** Insertion order, so equal priorities stay FIFO. */
   seq: number;
-  run: () => Promise<T>;
+  run: (signal?: AbortSignal) => Promise<T>;
+  abortable: boolean;
+  /** Made when an abortable job starts. */
+  controller: AbortController | null;
   waiters: number;
   started: boolean;
   resolve: (value: T) => void;
@@ -111,6 +122,12 @@ export class Scheduler {
   readonly #yieldToUrgent: boolean;
   readonly #pending = new Map<string, Entry<unknown>>();
   readonly #running = new Map<string, Entry<unknown>>();
+  /**
+   * Started jobs that were aborted and have not settled yet. Out of `#running`, so a
+   * new request for the same key starts afresh instead of joining a job on its way
+   * out; still counted against the limit, since they still hold a slot until then.
+   */
+  readonly #aborting = new Set<Entry<unknown>>();
   #seq = 0;
 
   constructor(limit: number, options: SchedulerOptions = {}) {
@@ -123,7 +140,7 @@ export class Scheduler {
   }
 
   get runningCount(): number {
-    return this.#running.size;
+    return this.#running.size + this.#aborting.size;
   }
 
   #hasMoreUrgentRunning(priority: number): boolean {
@@ -168,6 +185,8 @@ export class Scheduler {
       finishedAt: 0,
       seq: this.#seq++,
       run: job.run,
+      abortable: job.abortable ?? false,
+      controller: null,
       waiters: 1,
       started: false,
       resolve,
@@ -199,9 +218,16 @@ export class Scheduler {
         if (detached) return;
         detached = true;
         entry.waiters--;
-        if (entry.waiters > 0 || entry.started) return;
-        this.#pending.delete(entry.key);
-        entry.reject(new AbortError(reason));
+        if (entry.waiters > 0) return;
+        if (!entry.started) {
+          this.#pending.delete(entry.key);
+          entry.reject(new AbortError(reason));
+          return;
+        }
+        if (!entry.controller || this.#running.get(entry.key) !== entry) return;
+        this.#running.delete(entry.key);
+        this.#aborting.add(entry);
+        entry.controller.abort(new AbortError(reason));
       },
     };
   }
@@ -214,7 +240,7 @@ export class Scheduler {
    * binary heap need re-heapification on every change, which is a rich source of bugs.
    */
   #drain(): void {
-    while (this.#running.size < this.#limit && this.#pending.size > 0) {
+    while (this.runningCount < this.#limit && this.#pending.size > 0) {
       let next: Entry<unknown> | undefined;
       for (const entry of this.#pending.values()) {
         if (
@@ -236,11 +262,12 @@ export class Scheduler {
       this.#running.set(next.key, next);
       next.started = true;
       next.startedAt = performance.now();
+      if (next.abortable) next.controller = new AbortController();
 
       // Stamp the finish time before settling, so `timing` is already populated by
       // the time an awaiting caller resumes — a `.finally()` would run after them.
       next
-        .run()
+        .run(next.controller?.signal)
         .then(
           (value) => {
             next.finishedAt = performance.now();
@@ -252,7 +279,7 @@ export class Scheduler {
           },
         )
         .finally(() => {
-          this.#running.delete(next.key);
+          if (!this.#aborting.delete(next)) this.#running.delete(next.key);
           this.#drain();
         });
     }

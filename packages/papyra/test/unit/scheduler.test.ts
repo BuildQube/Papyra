@@ -274,6 +274,86 @@ describe('Scheduler', () => {
     expect(await handle.promise).toBe('finished anyway');
   });
 
+  test('a running job left by its last waiter is joined again, not restarted', async () => {
+    const s = new Scheduler(1);
+    const gate = deferred<string>();
+    let runs = 0;
+    const job = {
+      key: 'r',
+      priority: 0,
+      run: () => {
+        runs++;
+        return gate.promise;
+      },
+    };
+    s.submit(job).cancel('scrolled past');
+    await tick();
+    const again = s.submit(job);
+    gate.resolve('once');
+    expect(await again.promise).toBe('once');
+    expect(runs).toBe(1);
+  });
+
+  test('an abortable running job is aborted when nobody waits, and its slot held until it stops', async () => {
+    const s = new Scheduler(1);
+    const stopped = deferred<string>();
+    let signal: AbortSignal | undefined;
+    const first = s.submit({
+      key: 'r',
+      priority: 0,
+      abortable: true,
+      run: (sig) => {
+        signal = sig;
+        sig?.addEventListener('abort', () => stopped.reject(sig.reason));
+        return stopped.promise;
+      },
+    });
+    first.promise.catch(() => {});
+    await tick();
+    first.cancel('scrolled past');
+    expect(signal?.aborted).toBe(true);
+    expect(signal?.reason).toBeInstanceOf(AbortError);
+
+    // A new request for the page starts a fresh render rather than joining the
+    // aborted one — once the aborted one has given its slot back.
+    let fresh = false;
+    const again = s.submit({
+      key: 'r',
+      priority: 0,
+      abortable: true,
+      run: async () => {
+        fresh = true;
+        return 'fresh';
+      },
+    });
+    expect(fresh).toBe(false);
+    expect(s.runningCount).toBe(1);
+    await tick();
+    expect(await again.promise).toBe('fresh');
+  });
+
+  test('an abortable job still shared by another waiter is not aborted', async () => {
+    const s = new Scheduler(1);
+    const gate = deferred<string>();
+    let signal: AbortSignal | undefined;
+    const job = {
+      key: 'r',
+      priority: 0,
+      abortable: true,
+      run: (sig?: AbortSignal) => {
+        signal = sig;
+        return gate.promise;
+      },
+    };
+    const a = s.submit(job);
+    const b = s.submit(job);
+    await tick();
+    a.cancel();
+    expect(signal?.aborted).toBe(false);
+    gate.resolve('shared');
+    expect(await b.promise).toBe('shared');
+  });
+
   test('failures reach every waiter and free the slot', async () => {
     const s = new Scheduler<string>(1);
     const boom = new Error('render failed');

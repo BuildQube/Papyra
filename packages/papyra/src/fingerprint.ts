@@ -33,7 +33,8 @@ function fnv1a(bytes: Uint8Array, seed: number): number {
  * is for, hashing the bytes is the stronger answer anyway — it also distinguishes two
  * documents that were copied from one another and kept the same `/ID`.
  *
- * @internal
+ * Exported for engines: one that fingerprints with this gives the same file the same
+ * key as papyra's own, so what a viewer remembers survives a change of engine.
  */
 export function fingerprint(bytes: Uint8Array): string {
   const head = bytes.subarray(0, SAMPLE);
