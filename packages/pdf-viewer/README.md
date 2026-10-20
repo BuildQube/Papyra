@@ -207,9 +207,9 @@ a base derived from `PAPYRA_BASE` would let a local build emit items pointing at
 host that does not serve them — a failure only the person installing them would ever
 see.
 
-**The items declare `@build-qube/papyra@^0.3.0`, and keep it current.** They call
-APIs older releases lack — `doc.pageLabels()`, `doc.links()` and `doc.fingerprint`
-arrived in 0.2.0 — so the range is the oldest release that has everything they use.
+**The items declare `@build-qube/papyra@^0.5.0`, and keep it current.** They call
+APIs older releases lack — `@build-qube/papyra/core`, which most of them import,
+arrived in 0.5.0 — so the range is the oldest release that has everything they use.
 An item that needs something newer should raise it in the same change, ahead of the
 release if need be: an install then stops at `npm error notarget`, which is the
 honest failure. An unversioned dependency would install whatever is published and

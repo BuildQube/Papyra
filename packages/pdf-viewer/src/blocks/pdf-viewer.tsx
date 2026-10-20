@@ -1,5 +1,5 @@
 import type { Document } from '@build-qube/papyra';
-import { rotateSize } from '@build-qube/papyra';
+import { rotateSize } from '@build-qube/papyra/core';
 import { useEffect, useMemo, useRef } from 'react';
 import { ContinuousPages } from '@/components/pdf-continuous-pages';
 import { FindBar } from '@/components/pdf-find-bar';

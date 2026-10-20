@@ -1,5 +1,8 @@
 import type { Attachment, Document } from '@build-qube/papyra';
-import { attachmentMediaType, isInvoiceAttachment } from '@build-qube/papyra';
+import {
+  attachmentMediaType,
+  isInvoiceAttachment,
+} from '@build-qube/papyra/core';
 import { DownloadIcon, FileTextIcon, TriangleAlertIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';

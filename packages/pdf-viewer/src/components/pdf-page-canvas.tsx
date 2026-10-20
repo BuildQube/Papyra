@@ -2,7 +2,7 @@ import {
   paintToCanvas,
   type RenderedPage,
   type Rotation,
-} from '@build-qube/papyra';
+} from '@build-qube/papyra/core';
 import { useEffect, useRef } from 'react';
 
 /** Props for {@link PageCanvas}. */

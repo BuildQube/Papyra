@@ -1,5 +1,5 @@
 import type { Document, Quad, StructNode } from '@build-qube/papyra';
-import { lineQuad, readingOrder } from '@build-qube/papyra';
+import { lineQuad, readingOrder } from '@build-qube/papyra/core';
 import { ChevronRightIcon, NetworkIcon, TriangleAlertIcon } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';

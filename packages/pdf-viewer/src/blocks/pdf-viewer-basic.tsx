@@ -1,5 +1,5 @@
 import type { Document, Rotation } from '@build-qube/papyra';
-import { rotateSize } from '@build-qube/papyra';
+import { rotateSize } from '@build-qube/papyra/core';
 import {
   useEffect,
   useImperativeHandle,

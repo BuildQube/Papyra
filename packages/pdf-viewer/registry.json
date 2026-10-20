@@ -32,7 +32,7 @@
       "type": "registry:lib",
       "title": "Viewer store",
       "description": "A subscribable store for the open document, page, view mode, rotation, annotation switch and search results, sliced so a page change does not re-render every panel.",
-      "dependencies": ["@build-qube/papyra@^0.3.0"],
+      "dependencies": ["@build-qube/papyra@^0.5.0"],
       "registryDependencies": ["{{REGISTRY}}/viewer-zoom.json"],
       "files": [
         {
@@ -100,7 +100,7 @@
       "type": "registry:hook",
       "title": "Page labels",
       "description": "The labels a document prints on its pages, when they differ from the index.",
-      "dependencies": ["@build-qube/papyra@^0.3.0"],
+      "dependencies": ["@build-qube/papyra@^0.5.0"],
       "files": [
         {
           "path": "src/hooks/use-pdf-page-labels.ts",
@@ -127,7 +127,7 @@
       "type": "registry:component",
       "title": "Viewer layout",
       "description": "The frame a viewer sits in: a resizable, collapsible sidebar that becomes a drawer on a narrow viewer, toolbar with a full-screen toggle, status line and a native scroll area the zoom gestures can bind to.",
-      "dependencies": ["@build-qube/papyra@^0.3.0"],
+      "dependencies": ["@build-qube/papyra@^0.5.0"],
       "registryDependencies": [
         "drawer",
         "resizable",
@@ -148,7 +148,7 @@
       "type": "registry:block",
       "title": "PDF viewer",
       "description": "A complete viewer: sidebar, toolbar with find, view rotation and a continuous scrolling column. Give it an open document and it works.",
-      "dependencies": ["@build-qube/papyra@^0.3.0"],
+      "dependencies": ["@build-qube/papyra@^0.5.0"],
       "registryDependencies": [
         "{{REGISTRY}}/pdf-continuous-pages.json",
         "{{REGISTRY}}/pdf-find-bar.json",
@@ -172,7 +172,7 @@
       "type": "registry:block",
       "title": "Basic PDF viewer",
       "description": "One page at a time with a pager and zoom. The viewer to embed in a panel or a modal, where the full one would be more furniture than document.",
-      "dependencies": ["@build-qube/papyra@^0.3.0"],
+      "dependencies": ["@build-qube/papyra@^0.5.0"],
       "registryDependencies": [
         "{{REGISTRY}}/pdf-isolation-guard.json",
         "{{REGISTRY}}/pdf-page-class.json",
@@ -193,7 +193,7 @@
       "type": "registry:block",
       "title": "Configurable PDF viewer",
       "description": "One viewer with every feature behind a prop: thumbnails, outline, tags, attachments, search, document properties, and single-page or continuous. Everything off is the basic viewer.",
-      "dependencies": ["@build-qube/papyra@^0.3.0"],
+      "dependencies": ["@build-qube/papyra@^0.5.0"],
       "registryDependencies": [
         "{{REGISTRY}}/pdf-continuous-pages.json",
         "{{REGISTRY}}/pdf-find-bar.json",
@@ -225,7 +225,7 @@
       "type": "registry:block",
       "title": "Page preview",
       "description": "One page, rendered once, with nothing to interact with \u2014 for the places a PDF is a picture rather than a document.",
-      "dependencies": ["@build-qube/papyra@^0.3.0"],
+      "dependencies": ["@build-qube/papyra@^0.5.0"],
       "registryDependencies": [
         "skeleton",
         "{{REGISTRY}}/pdf-isolation-guard.json",
@@ -243,7 +243,7 @@
       "type": "registry:block",
       "title": "Thumbnail picker",
       "description": "Pick a page out of a document: a streaming grid of thumbnails, controlled or not.",
-      "dependencies": ["@build-qube/papyra@^0.3.0"],
+      "dependencies": ["@build-qube/papyra@^0.5.0"],
       "registryDependencies": [
         "{{REGISTRY}}/pdf-isolation-guard.json",
         "{{REGISTRY}}/pdf-thumbnails.json"
@@ -260,7 +260,7 @@
       "type": "registry:block",
       "title": "Preview dialog",
       "description": "A document in a dialog, for previewing an attachment without leaving the page.",
-      "dependencies": ["@build-qube/papyra@^0.3.0"],
+      "dependencies": ["@build-qube/papyra@^0.5.0"],
       "registryDependencies": ["dialog", "{{REGISTRY}}/pdf-viewer-basic.json"],
       "files": [
         {
@@ -274,7 +274,7 @@
       "type": "registry:component",
       "title": "Page canvas",
       "description": "A declarative canvas for small bitmaps, such as thumbnails.",
-      "dependencies": ["@build-qube/papyra@^0.3.0"],
+      "dependencies": ["@build-qube/papyra@^0.5.0"],
       "files": [
         {
           "path": "src/components/pdf-page-canvas.tsx",
@@ -287,7 +287,7 @@
       "type": "registry:component",
       "title": "Page view",
       "description": "The main viewport canvas, painted imperatively so a multi-megabyte page never passes through React state.",
-      "dependencies": ["@build-qube/papyra@^0.3.0"],
+      "dependencies": ["@build-qube/papyra@^0.5.0"],
       "files": [
         {
           "path": "src/components/pdf-page-view.tsx",
@@ -312,7 +312,7 @@
       "type": "registry:component",
       "title": "Link layer",
       "description": "Hit regions over a page for its link annotations, invisible until hovered, mapped through a viewport so they follow a rotated view.",
-      "dependencies": ["@build-qube/papyra@^0.3.0"],
+      "dependencies": ["@build-qube/papyra@^0.5.0"],
       "files": [
         {
           "path": "src/components/pdf-links.tsx",
@@ -325,7 +325,7 @@
       "type": "registry:component",
       "title": "Search highlights",
       "description": "An SVG overlay drawing search hits as quadrilaterals at the text's own angle.",
-      "dependencies": ["@build-qube/papyra@^0.3.0"],
+      "dependencies": ["@build-qube/papyra@^0.5.0"],
       "files": [
         {
           "path": "src/components/pdf-highlights.tsx",
@@ -338,7 +338,7 @@
       "type": "registry:component",
       "title": "Page surface",
       "description": "One page in a scrolling column: its canvas, its link layer and its highlights, rendered at a priority the caller sets.",
-      "dependencies": ["@build-qube/papyra@^0.3.0"],
+      "dependencies": ["@build-qube/papyra@^0.5.0"],
       "registryDependencies": [
         "{{REGISTRY}}/pdf-highlights.json",
         "{{REGISTRY}}/pdf-links.json"
@@ -355,7 +355,7 @@
       "type": "registry:component",
       "title": "Continuous pages",
       "description": "A windowed scrolling column of pages, sized from pageSize() so the column can be scrolled to the end before anything has rendered, and re-flowed for a rotated view without re-rendering one.",
-      "dependencies": ["@build-qube/papyra@^0.3.0"],
+      "dependencies": ["@build-qube/papyra@^0.5.0"],
       "registryDependencies": [
         "{{REGISTRY}}/pdf-page-surface.json",
         "{{REGISTRY}}/viewer-zoom.json",
@@ -373,7 +373,7 @@
       "type": "registry:component",
       "title": "Thumbnails",
       "description": "A streaming thumbnail strip, sized by output width rather than DPI so a large-format drawing cannot exhaust the tab.",
-      "dependencies": ["@build-qube/papyra@^0.3.0"],
+      "dependencies": ["@build-qube/papyra@^0.5.0"],
       "registryDependencies": [
         "button",
         "skeleton",
@@ -392,7 +392,7 @@
       "type": "registry:component",
       "title": "Outline",
       "description": "The document outline as a collapsible tree, opening each node as the document asks.",
-      "dependencies": ["@build-qube/papyra@^0.3.0", "lucide-react"],
+      "dependencies": ["@build-qube/papyra@^0.5.0", "lucide-react"],
       "registryDependencies": [
         "alert",
         "button",
@@ -412,7 +412,7 @@
       "type": "registry:component",
       "title": "Structure",
       "description": "The tag tree of a tagged PDF, and the reading order it declares \u2014 with the count of how many lines that moves.",
-      "dependencies": ["@build-qube/papyra@^0.3.0", "lucide-react"],
+      "dependencies": ["@build-qube/papyra@^0.5.0", "lucide-react"],
       "registryDependencies": [
         "alert",
         "badge",
@@ -434,7 +434,7 @@
       "type": "registry:component",
       "title": "Find bar",
       "description": "Find in document, from the toolbar: a popover with the query, previous/next, match case and whole words. Runs the search outward from the page on screen so the first result is usually the one wanted.",
-      "dependencies": ["@build-qube/papyra@^0.3.0", "lucide-react"],
+      "dependencies": ["@build-qube/papyra@^0.5.0", "lucide-react"],
       "registryDependencies": [
         "badge",
         "button",
@@ -457,7 +457,7 @@
       "type": "registry:component",
       "title": "Search results",
       "description": "The results of the find bar's search as a list of hits with context, for a sidebar panel.",
-      "dependencies": ["@build-qube/papyra@^0.3.0"],
+      "dependencies": ["@build-qube/papyra@^0.5.0"],
       "registryDependencies": ["item"],
       "files": [
         {
@@ -471,7 +471,7 @@
       "type": "registry:component",
       "title": "Viewer sidebar",
       "description": "Pages, outline, tags, attachments and search results in one column, picked from a menu rather than a tab strip. Only the panels asked for exist, and each is kept mounted so a switch does not discard a thumbnail stream or a result set.",
-      "dependencies": ["@build-qube/papyra@^0.3.0", "lucide-react"],
+      "dependencies": ["@build-qube/papyra@^0.5.0", "lucide-react"],
       "registryDependencies": [
         "badge",
         "button",
@@ -518,7 +518,7 @@
       "type": "registry:component",
       "title": "Attachments",
       "description": "The files a document embeds, with an inline preview for text and a save button \u2014 and a hybrid invoice called out by name.",
-      "dependencies": ["@build-qube/papyra@^0.3.0", "lucide-react"],
+      "dependencies": ["@build-qube/papyra@^0.5.0", "lucide-react"],
       "registryDependencies": ["badge", "button", "spinner"],
       "files": [
         {
@@ -532,7 +532,7 @@
       "type": "registry:component",
       "title": "Document properties",
       "description": "The metadata dialog every viewer has: file, title, dates, producer, page size and a content fingerprint.",
-      "dependencies": ["@build-qube/papyra@^0.3.0"],
+      "dependencies": ["@build-qube/papyra@^0.5.0"],
       "registryDependencies": ["dialog", "{{REGISTRY}}/pdf-attachments.json"],
       "files": [
         {
@@ -690,7 +690,7 @@
         "fileRenderer": { "id": "pdf", "export": "pdfRenderer", "label": "PDF" }
       },
       "description": "PDF for the file preview, through papyra: opens the file, asks for a password, and shows the configurable viewer — a continuous column by default, with options for thumbnails, search, properties and the rest.",
-      "dependencies": ["@build-qube/papyra@^0.3.0", "lucide-react"],
+      "dependencies": ["@build-qube/papyra@^0.5.0", "lucide-react"],
       "registryDependencies": [
         "button",
         "empty",

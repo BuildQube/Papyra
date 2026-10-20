@@ -1,5 +1,5 @@
 import type { Document, PageLink, Viewport } from '@build-qube/papyra';
-import { viewportRect } from '@build-qube/papyra';
+import { viewportRect } from '@build-qube/papyra/core';
 import { useEffect, useState } from 'react';
 
 /** Props for {@link Links}. */

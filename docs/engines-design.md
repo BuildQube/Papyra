@@ -2,7 +2,7 @@
 
 Status: **proposal, not implemented.** Nothing here ships until it is approved.
 
-## As built (PR 1–2) — where this supersedes the text below
+## As built (PR 1–3) — where this supersedes the text below
 
 Measured or decided while implementing; the sections below are kept as written.
 
@@ -30,6 +30,14 @@ Measured or decided while implementing; the sections below are kept as written.
   page cold 15.6 / 15.6 ms, cached renders 2.26 / 2.29 ms, cold search 48.8 /
   49.1 ms — identical within noise. `PapyraEngine` from `/core` loaded the wasm
   through `import()` in the browser and produced pixels byte-identical to `Document`.
+- **PR 3 moved 11 files, not every file.** The four that open a file
+  (`file-preview-pdf-view`, `file-preview-tiff-view`, `file-preview-sheet`,
+  `pdf-viewer-store`) call `open`, `openTiff` or `openWorkbook` and stay on the main
+  entry until PR 4 (PDF) and PRs 7–8 (TIFF, sheets) route them through engines.
+  Type-only imports stay too: `Document` is not in `/core`, and an erased import
+  loads nothing either way. Every item's range is `^0.5.0`, the release `/core` ships
+  in, so installing an item stops at `notarget` until that release is published —
+  the honest failure the registry README asks for.
 
 ## Why
 

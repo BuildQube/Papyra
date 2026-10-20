@@ -1,12 +1,12 @@
+import type { Document } from '@build-qube/papyra';
 import {
-  type Document,
   paintToCanvas,
   type Quad,
   type RenderHandle,
   type Rotation,
   type SearchMatch,
   viewport,
-} from '@build-qube/papyra';
+} from '@build-qube/papyra/core';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Highlights } from '@/components/pdf-highlights';
 import { Links } from '@/components/pdf-links';

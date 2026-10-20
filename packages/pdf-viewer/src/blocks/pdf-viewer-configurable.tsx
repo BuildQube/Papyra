@@ -1,5 +1,5 @@
 import type { Document } from '@build-qube/papyra';
-import { viewport as pageViewport, rotateSize } from '@build-qube/papyra';
+import { viewport as pageViewport, rotateSize } from '@build-qube/papyra/core';
 import {
   useEffect,
   useImperativeHandle,

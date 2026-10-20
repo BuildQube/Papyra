@@ -1,5 +1,5 @@
 import type { Document, Rotation, SearchMatch } from '@build-qube/papyra';
-import { rotateSize } from '@build-qube/papyra';
+import { rotateSize } from '@build-qube/papyra/core';
 import {
   type RefObject,
   useCallback,

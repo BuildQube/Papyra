@@ -2,7 +2,7 @@ import {
   paintToCanvas,
   type RenderedPage,
   type Rotation,
-} from '@build-qube/papyra';
+} from '@build-qube/papyra/core';
 import type { CSSProperties } from 'react';
 import { useImperativeHandle, useRef } from 'react';
 
