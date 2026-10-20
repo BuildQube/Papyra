@@ -69,8 +69,8 @@ bun run --filter papyra-bench priority  # also: cache, scaling, large-format
 ```
 
 Releases go through changesets: `bun run change` to add one, `bun run release` to publish.
-`@build-qube/papyra`, `@build-qube/papyra-native` and `@build-qube/papyra-pdfjs` are
-version-locked (`fixed` in `.changeset/config.json`); `papyra-demo`, `papyra-bench` and `@workspace/ui` are
+`@build-qube/papyra`, `@build-qube/papyra-native`, `@build-qube/papyra-pdfjs` and
+`@build-qube/papyra-tauri` are version-locked (`fixed` in `.changeset/config.json`); `papyra-demo`, `papyra-bench` and `@workspace/ui` are
 ignored. `@workspace/pdf-viewer` is **not** — it is private and never published, but
 `privatePackages: { version: true, tag: false }` gives it a version and a CHANGELOG,
 because its registry items are installed by URL and that changelog is the only record
@@ -155,6 +155,10 @@ backend. `@build-qube/papyra/core` is the wasm-free entry engines and the regist
 import from, and `test/unit/core.test.ts` fails if anything in it reaches the native
 package eagerly. `packages/pdfjs` (`@build-qube/papyra-pdfjs`) is the second engine,
 for pages that cannot be cross-origin isolated; `?engine=pdfjs` runs the demo on it.
+`packages/tauri` (`@build-qube/papyra-tauri`) is the third, papyra itself in a Tauri
+app's host process via `crates/tauri-plugin-papyra` — **its own Cargo workspace**,
+outside `cargo … --workspace`, because Tauri on Linux needs webkit2gtk headers; CI
+checks it on macOS (`tauri-plugin` job).
 `docs/engines-design.md` is the design, and its "As built" section the deviations.
 
 `packages/ui` (`@workspace/ui`) sits outside that stack: it is the private home of

@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-outline"
+description = "Enables the outline command without any pre-configured scope."
+commands.allow = ["outline"]
+
+[[permission]]
+identifier = "deny-outline"
+description = "Denies the outline command without any pre-configured scope."
+commands.deny = ["outline"]

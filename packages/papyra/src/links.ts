@@ -53,7 +53,12 @@ export interface PageLink {
   readonly alt: string | null;
 }
 
-/** @internal */
+/**
+ * A link as the bindings report it, as a {@link PageLink}; null when it has no target.
+ *
+ * Exported for engines whose host answers in the native bindings' shapes, as
+ * `tauri-plugin-papyra` does, so they normalise exactly as papyra's own engine does.
+ */
 export function toPageLink(native: NativePageLink): PageLink | null {
   const target = linkTarget(native);
   // The bindings only emit a link with one target or the other, so this is

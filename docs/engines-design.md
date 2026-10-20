@@ -2,7 +2,7 @@
 
 Status: **proposal, not implemented.** Nothing here ships until it is approved.
 
-## As built (PR 1–5) — where this supersedes the text below
+## As built (PR 1–6) — where this supersedes the text below
 
 Measured or decided while implementing; the sections below are kept as written.
 
@@ -90,6 +90,27 @@ Measured or decided while implementing; the sections below are kept as written.
 - **Performance.** Native A/B against PR 4 (14 documents, 15 rounds, min): open
   +2.4%, cold render −3.4%, cached render −4.3%, `pageSize` −0.2%, search −0.2% —
   noise in both directions; `open` does not touch the changed scheduler.
+- **PR 6 is in two halves; this repo's is done.** `crates/tauri-plugin-papyra` and
+  `packages/tauri` are built and tested here; wiring them into aldoa's app and
+  measuring on a phone is the other half.
+- **The plugin answers in the napi bindings' shapes**, not papyra's public ones, so
+  `TauriEngine` normalises with papyra's own `toPageText`, `toPageLink`,
+  `toAttachment`, `buildOutlineTree` and `buildStructTree` — exported from `/core`
+  for it. One normalisation, two hosts.
+- **Its own Cargo workspace.** Tauri on Linux needs webkit2gtk's headers; as a root
+  member every `cargo clippy --workspace` would need them. CI checks it in a
+  `tauri-plugin` job on macOS, which needs nothing extra.
+- **`TauriEngine` is not `abortable`**: aborting the page `fetch` leaves the Rust
+  render running, so abandoning it would only render a revisited page twice.
+- **Both page formats ship**, chosen by `new TauriEngine({ format })`: PNG (encode in
+  Rust, `createImageBitmap` off the main thread) and raw RGBA (`X-Width`/`X-Height`,
+  painted with `putImageData`). PNG is the default until a phone says otherwise.
+- **The password rides in an `x-papyra-password` header**, percent-encoded, because
+  the body is the file's bytes and headers are ASCII.
+- **Tested through Tauri's real IPC dispatch** on the mock runtime (`tests/ipc.rs`,
+  granting the commands an ACL the mock context lacks): raw-body `open`, the header,
+  argument names, tagged password errors, `close` freeing the document. The
+  protocol handler is tested on tracemonkey in both formats.
 
 ## Why
 

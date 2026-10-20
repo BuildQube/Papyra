@@ -6,7 +6,8 @@
     [
       "@build-qube/papyra",
       "@build-qube/papyra-native",
-      "@build-qube/papyra-pdfjs"
+      "@build-qube/papyra-pdfjs",
+      "@build-qube/papyra-tauri"
     ]
   ],
   "linked": [],

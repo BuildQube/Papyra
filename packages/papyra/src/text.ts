@@ -116,7 +116,12 @@ export interface Rect {
   readonly height: number;
 }
 
-/** @internal */
+/**
+ * A page's text as the bindings report it, as a {@link PageText}.
+ *
+ * Exported for engines whose host answers in the native bindings' shapes, as
+ * `tauri-plugin-papyra` does, so they normalise exactly as papyra's own engine does.
+ */
 export function toPageText(page: number, native: NativePageText): PageText {
   return {
     page,

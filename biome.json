@@ -7,7 +7,7 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["**"]
+    "includes": ["**", "!crates/tauri-plugin-papyra/permissions/schemas"]
   },
   "formatter": {
     "enabled": true,

@@ -129,6 +129,20 @@
         "pdfjs-dist": "^6.2.0",
       },
     },
+    "packages/tauri": {
+      "name": "@build-qube/papyra-tauri",
+      "version": "0.4.0",
+      "dependencies": {
+        "@build-qube/papyra": "0.4.0",
+      },
+      "devDependencies": {
+        "@tauri-apps/api": "^2.9.0",
+        "typescript": "^7.0.2",
+      },
+      "peerDependencies": {
+        "@tauri-apps/api": "^2.0.0",
+      },
+    },
     "packages/ui": {
       "name": "@workspace/ui",
       "version": "0.0.0",
@@ -247,6 +261,8 @@
     "@build-qube/papyra-native": ["@build-qube/papyra-native@workspace:packages/bindings"],
 
     "@build-qube/papyra-pdfjs": ["@build-qube/papyra-pdfjs@workspace:packages/pdfjs"],
+
+    "@build-qube/papyra-tauri": ["@build-qube/papyra-tauri@workspace:packages/tauri"],
 
     "@changesets/apply-release-plan": ["@changesets/apply-release-plan@8.0.0", "", { "dependencies": { "@changesets/config": "^4.0.0", "@changesets/format": "^0.1.1", "@changesets/git": "^4.0.0", "@changesets/should-skip-package": "^1.0.0", "@changesets/types": "^7.0.0", "import-meta-resolve": "^4.2.0", "jsonc-parser": "^3.3.1", "semver": "^7.8.1" } }, "sha512-kUd2pbf1w5/AYmBMb0Tt+rkIPCjFJdT0SZMrkOjJT/WV/QbtmvkyB5jkV0oaNPheavprZk+SfUiozUti7TIL2w=="],
 
@@ -681,6 +697,8 @@
     "@tanstack/store": ["@tanstack/store@0.9.3", "", {}, "sha512-8reSzl/qGWGGVKhBoxXPMWzATSbZLZFWhwBAFO9NAyp0TxzfBP0mIrGb8CP8KrQTmvzXlR/vFPPUrHTLBGyFyw=="],
 
     "@taplo/cli": ["@taplo/cli@0.7.0", "", { "bin": { "taplo": "dist/cli.js" } }, "sha512-Ck3zFhQhIhi02Hl6T4ZmJsXdnJE+wXcJz5f8klxd4keRYgenMnip3JDPMGDRLbnC/2iGd8P0sBIQqI3KxfVjBg=="],
+
+    "@tauri-apps/api": ["@tauri-apps/api@2.12.4", "", {}, "sha512-pVmfis+4zT8H0Qhp3xPZx9Ju7kpzvA6rr/PSJPyuwfvucTQ8sVt61NYU9KMkK703UFlYadFmjKA4HhybOtN0gg=="],
 
     "@ts-morph/common": ["@ts-morph/common@0.28.1", "", { "dependencies": { "minimatch": "^10.0.1", "path-browserify": "^1.0.1", "tinyglobby": "^0.2.14" } }, "sha512-W74iWf7ILp1ZKNYXY5qbddNaml7e9Sedv5lvU1V8lftlitkc9Pq1A+jlH23ltDgWYeZFFEqGCD1Ies9hqu3O+g=="],
 

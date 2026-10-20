@@ -79,7 +79,8 @@ export class EncryptedWorkbookError extends Error {
 /**
  * Rethrow a load failure as itself, or as the typed error it was tagged as.
  *
- * @internal
+ * Exported for engines whose host answers in the native bindings' shapes, as
+ * `tauri-plugin-papyra` does, so they normalise exactly as papyra's own engine does.
  */
 export function rethrowLoadError(error: unknown): never {
   const message = error instanceof Error ? error.message : String(error);

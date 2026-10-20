@@ -51,7 +51,12 @@ export interface Attachment {
   readonly relationship: string | null;
 }
 
-/** @internal */
+/**
+ * An attachment as the bindings report it, as an {@link Attachment} at `index`.
+ *
+ * Exported for engines whose host answers in the native bindings' shapes, as
+ * `tauri-plugin-papyra` does, so they normalise exactly as papyra's own engine does.
+ */
 export function toAttachment(
   native: NativeAttachment,
   index: number,

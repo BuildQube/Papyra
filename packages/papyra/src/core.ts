@@ -22,6 +22,7 @@ export type { Attachment } from './attachments.js';
 export {
   attachmentMediaType,
   isInvoiceAttachment,
+  toAttachment,
 } from './attachments.js';
 export type { CacheStats } from './cache.js';
 export type { PaintOptions } from './canvas.js';
@@ -62,9 +63,11 @@ export {
   IncorrectPasswordError,
   PasswordError,
   PasswordRequiredError,
+  rethrowLoadError,
 } from './errors.js';
 export { fingerprint } from './fingerprint.js';
 export type { LinkTarget, PageLink } from './links.js';
+export { toPageLink } from './links.js';
 export type {
   DestinationKind,
   OutlineDestination,
@@ -106,6 +109,7 @@ export {
   quadBounds,
   scaleQuad,
   scaleRect,
+  toPageText,
 } from './text.js';
 export type {
   DocumentMetadata,
