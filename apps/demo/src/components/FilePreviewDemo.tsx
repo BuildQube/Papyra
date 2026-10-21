@@ -17,6 +17,7 @@ import { docxRenderer } from '@/components/file-preview-docx';
 import { imageRenderer } from '@/components/file-preview-image';
 import { markdownRenderer } from '@/components/file-preview-markdown';
 import { pdfRenderer } from '@/components/file-preview-pdf';
+import { pptxRenderer } from '@/components/file-preview-pptx';
 import { spreadsheetRenderer } from '@/components/file-preview-spreadsheet';
 import { tiffRenderer } from '@/components/file-preview-tiff';
 import { videoRenderer } from '@/components/file-preview-video';
@@ -24,6 +25,27 @@ import type { RendererId } from '@/lib/file-preview-core';
 import coreSource from '@/lib/file-preview-core?raw';
 import type { FileSource, RemoteFile } from '@/lib/file-preview-source';
 import { BlockPreview } from './BlockPreview.js';
+
+/**
+ * Metric-compatible stand-ins for the Office fonts — Carlito for Calibri, Caladea
+ * for Cambria, Arimo for Arial, Tinos for Times New Roman — from Google Fonts at a
+ * pinned commit. Without them a browser has no font with Calibri's widths, and a
+ * Word document's line and page breaks drift from where Word puts them.
+ */
+const OFFICE_FONTS = [
+  'carlito/Carlito-Regular.ttf',
+  'carlito/Carlito-Bold.ttf',
+  'carlito/Carlito-Italic.ttf',
+  'carlito/Carlito-BoldItalic.ttf',
+  'caladea/Caladea-Regular.ttf',
+  'caladea/Caladea-Bold.ttf',
+  'arimo/Arimo%5Bwght%5D.ttf',
+  'tinos/Tinos-Regular.ttf',
+  'tinos/Tinos-Bold.ttf',
+].map(
+  (f) =>
+    `https://cdn.jsdelivr.net/gh/google/fonts@51303ca9e8ac9dcea7b12d307ba568fd0e6fcfca/ofl/${f}`,
+);
 
 const RENDERERS = [
   pdfRenderer,
@@ -33,7 +55,8 @@ const RENDERERS = [
   audioRenderer,
   spreadsheetRenderer,
   csvRenderer,
-  docxRenderer,
+  docxRenderer.with({ engine: 'papyra', fonts: OFFICE_FONTS }),
+  pptxRenderer.with({ fonts: OFFICE_FONTS }),
   markdownRenderer,
   codeRenderer,
 ] as const;
@@ -271,6 +294,8 @@ export function FilePreviewDemo() {
     // whose first sheet is 36x24in at 200 dpi — 34.6 MP, twice the decode cap.
     `${base}drawing.tif`,
     `${base}sample.docx`,
+    // DeckCraft's own sample deck, saved by `deckcraft-cli run --sample --save`.
+    `${base}sample.pptx`,
     ...local,
     // No CORS headers on that server, so the browser will not hand over the bytes.
     'https://example.com/report.pdf',

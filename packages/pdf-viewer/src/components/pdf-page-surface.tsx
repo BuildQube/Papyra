@@ -1,5 +1,6 @@
 import {
   type PageBitmap,
+  type PagedDoc,
   type PdfDoc,
   paintToCanvas,
   type Quad,
@@ -9,15 +10,27 @@ import {
   viewport,
 } from '@build-qube/papyra/core';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { usePdfEngine } from '@/components/pdf-engine';
+import { usePagedEngine } from '@/components/pdf-engine';
 import { Highlights } from '@/components/pdf-highlights';
 import { Links } from '@/components/pdf-links';
 import { cn } from '@/lib/utils';
 
+/**
+ * Whether the overlay may ask for this page's links. Only a PDF engine reads links,
+ * and asking one about another engine's document throws, so the capability decides
+ * rather than the overlay finding out.
+ */
+function hasLinks(doc: PagedDoc): doc is PdfDoc {
+  return doc.capabilities.links;
+}
+
 /** Props for {@link PageSurface}. */
 export interface PageSurfaceProps {
-  /** The open document. */
-  doc: PdfDoc;
+  /**
+   * The open document: a PDF, or any engine's pages — a Word document, say, under a
+   * `PagedEngineProvider`. Links are drawn when its capabilities include them.
+   */
+  doc: PagedDoc;
   /** The 0-based page this surface renders. */
   index: number;
   /** Where this page sits in the scrolled column, in CSS pixels. */
@@ -96,7 +109,7 @@ export const PageSurface = memo(function PageSurface({
   const job = useRef<RenderHandle<PageBitmap> | null>(null);
   const [painted, setPainted] = useState(false);
   const [pending, setPending] = useState(false);
-  const engine = usePdfEngine();
+  const engine = usePagedEngine();
 
   useEffect(() => {
     if (renderWidth <= 0) return;
@@ -182,7 +195,7 @@ export const PageSurface = memo(function PageSurface({
           {index + 1}
         </div>
       )}
-      {painted && pageWidth > 0 && (
+      {painted && pageWidth > 0 && hasLinks(doc) && (
         <Links
           doc={doc}
           index={index}

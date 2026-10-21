@@ -1,4 +1,4 @@
-import type { PdfEngine } from '@build-qube/papyra/core';
+import type { PagedEngine, PdfEngine } from '@build-qube/papyra/core';
 import { TriangleAlertIcon } from 'lucide-react';
 import { createContext, type ReactNode, use, useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -50,6 +50,46 @@ export function PdfEngineProvider({
  */
 export function usePdfEngine(): PdfEngine {
   return use(PdfEngineContext);
+}
+
+/**
+ * The engine the page column renders through, when that is not the PDF engine.
+ * Unset everywhere but under {@link PagedEngineProvider}.
+ */
+const PagedEngineContext = createContext<PagedEngine | null>(null);
+
+/** Props for {@link PagedEngineProvider}. */
+export interface PagedEngineProviderProps {
+  /** The engine that opened the documents shown below: papyra's office engine, say. */
+  engine: PagedEngine;
+  /** The page column. */
+  children: ReactNode;
+}
+
+/**
+ * Renders the page column below it through an engine that only draws pages — Word
+ * and PowerPoint through papyra's office engine — rather than the PDF engine.
+ *
+ * Only the page surfaces read it. Everything that needs a PDF (links, text, the
+ * outline) keeps using {@link usePdfEngine}, and the surface draws no link overlay
+ * for a document whose capabilities say it has none, so a document from this engine
+ * never reaches a PDF command.
+ */
+export function PagedEngineProvider({
+  engine,
+  children,
+}: PagedEngineProviderProps) {
+  return <PagedEngineContext value={engine}>{children}</PagedEngineContext>;
+}
+
+/**
+ * The engine the page surfaces render with: the one a {@link PagedEngineProvider}
+ * set, else the PDF engine in scope.
+ */
+export function usePagedEngine(): PagedEngine {
+  const paged = use(PagedEngineContext);
+  const pdf = use(PdfEngineContext);
+  return paged ?? pdf;
 }
 
 /** Props for {@link PdfEngineGuard}. */

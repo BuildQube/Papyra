@@ -14,7 +14,8 @@ import { defineRenderer } from '@/lib/file-preview-core';
  * it falls through to the download card.
  *
  * About 55 KB gzipped (`docx-preview` and `jszip`), fetched only when a Word document
- * is opened.
+ * is opened. `docxRenderer.with({ engine: 'papyra' })` swaps in a real pagination by
+ * papyra over WordCraft instead — see `DocxFileViewOptions`.
  */
 export const docxRenderer = defineRenderer({
   id: 'docx',
@@ -26,5 +27,6 @@ export const docxRenderer = defineRenderer({
     'application/vnd.ms-word.document.macroenabled.12',
     'application/vnd.ms-word.template.macroenabled.12',
   ],
-  load: () => import('./file-preview-docx-view').then((m) => m.DocxFileView),
+  load: () =>
+    import('./file-preview-docx-engine').then((m) => m.DocxEngineView),
 });

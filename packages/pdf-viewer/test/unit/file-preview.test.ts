@@ -319,6 +319,12 @@ describe('laziness', () => {
   // The whole point of the split: holding a renderer must not pull in its view. A
   // static import of the view (or of papyra, or shiki) from a descriptor would put
   // it in every bundle that lists the format, used or not.
+  // Views that are not named after their descriptor: Word picks its engine first,
+  // and PowerPoint shares the office view with Word's papyra engine.
+  const SHARED_VIEW: Record<string, string> = {
+    'file-preview-docx': './file-preview-docx-engine',
+    'file-preview-pptx': './file-preview-office-view',
+  };
   test.each([
     'file-preview-pdf',
     'file-preview-image',
@@ -330,6 +336,7 @@ describe('laziness', () => {
     'file-preview-tiff',
     'file-preview-markdown',
     'file-preview-docx',
+    'file-preview-pptx',
   ])('%s imports only the core statically', async (name) => {
     const source = await readFile(
       join(import.meta.dir, '../../src/components', `${name}.ts`),
@@ -345,7 +352,7 @@ describe('laziness', () => {
     expect(statics).toEqual(['@/lib/file-preview-core']);
     // Relative, so it survives `shadcn add` untouched: the two files install side
     // by side, and an alias inside `import()` is not one the CLI promises to rewrite.
-    expect(dynamics).toEqual([`./${name}-view`]);
+    expect(dynamics).toEqual([SHARED_VIEW[name] ?? `./${name}-view`]);
   });
 
   // Not the PDF view: loading it loads papyra, which loads the addon, which this

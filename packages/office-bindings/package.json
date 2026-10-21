@@ -1,0 +1,54 @@
+{
+  "name": "@build-qube/papyra-office-native",
+  "version": "0.4.0",
+  "private": true,
+  "description": "Node-API bindings for papyra's Word and PowerPoint renderer — prefer @build-qube/papyra/office",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BuildQube/papyra.git",
+    "directory": "packages/office-bindings"
+  },
+  "main": "index.js",
+  "types": "index.d.ts",
+  "browser": "browser.js",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "browser.js"
+  ],
+  "napi": {
+    "binaryName": "papyra-office",
+    "targets": [
+      "aarch64-apple-darwin",
+      "x86_64-apple-darwin",
+      "x86_64-unknown-linux-gnu",
+      "aarch64-unknown-linux-gnu",
+      "x86_64-pc-windows-msvc",
+      "wasm32-wasip1-threads"
+    ],
+    "wasm": {
+      "optionalDependency": true,
+      "browser": {
+        "fs": false,
+        "asyncInit": true
+      }
+    }
+  },
+  "engines": {
+    "node": ">= 18"
+  },
+  "scripts": {
+    "build": "napi build --platform --release",
+    "build:debug": "napi build --platform",
+    "build:wasm": "napi build --platform --release --target wasm32-wasip1-threads",
+    "clean": "rm -rf *.node *.wasm index.js index.d.ts browser.js papyra-office.wasi*.* wasi-worker*.mjs npm"
+  },
+  "devDependencies": {
+    "@emnapi/core": "2.0.0-alpha.4",
+    "@emnapi/runtime": "2.0.0-alpha.4",
+    "@napi-rs/cli": "^3.8.6",
+    "@napi-rs/wasm-runtime": "^1.2.3",
+    "emnapi": "2.0.0-alpha.4"
+  }
+}
