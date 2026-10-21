@@ -69,8 +69,8 @@ bun run --filter papyra-bench priority  # also: cache, scaling, large-format
 ```
 
 Releases go through changesets: `bun run change` to add one, `bun run release` to publish.
-`@build-qube/papyra` and `@build-qube/papyra-native` are version-locked (`fixed` in
-`.changeset/config.json`); `papyra-demo`, `papyra-bench` and `@workspace/ui` are
+`@build-qube/papyra`, `@build-qube/papyra-native`, `@build-qube/papyra-pdfjs` and
+`@build-qube/papyra-tauri` are version-locked (`fixed` in `.changeset/config.json`); `papyra-demo`, `papyra-bench` and `@workspace/ui` are
 ignored. `@workspace/pdf-viewer` is **not** — it is private and never published, but
 `privatePackages: { version: true, tag: false }` gives it a version and a CHANGELOG,
 because its registry items are installed by URL and that changelog is the only record
@@ -124,7 +124,7 @@ real CLI rather than guessed — see `packages/pdf-viewer/README.md`:
 - Sibling items are named by **absolute URL**: a bare `registryDependencies` entry
   always means an official shadcn item. `scripts/build-registry.ts` substitutes
   `{{REGISTRY}}` and turbo runs it before the demo's build, so the items ship with
-  the site. The items pin `@build-qube/papyra@^0.3.0`, the oldest release with
+  the site. The items pin `@build-qube/papyra@^0.5.0`, the oldest release with
   every API they call; an item needing something newer raises the range in the
   same change. They are **written against Base UI** and served from `r/`;
   `scripts/radix.ts` rewrites them (`render` → `asChild`, `keepMounted` →
@@ -146,6 +146,20 @@ undocumented prop fails the build. Each file is its own entry point
 (`entryPointStrategy: "expand"`) since registry items install one at a time — which
 means a `{@link}` across files has no target and cross-item references are code
 spans.
+
+**Engines.** The viewer never calls a document: it calls the engine in scope
+(`usePdfEngine()` from the `pdf-engine` item) with a data-only handle —
+`engine.render(doc, …)`. `PagedEngine`/`PdfEngine` in `packages/papyra/src/engine.ts`
+own the scheduler, caches, `fitWidth` and search; an engine supplies a loader and a
+backend. `@build-qube/papyra/core` is the wasm-free entry engines and the registry
+import from, and `test/unit/core.test.ts` fails if anything in it reaches the native
+package eagerly. `packages/pdfjs` (`@build-qube/papyra-pdfjs`) is the second engine,
+for pages that cannot be cross-origin isolated; `?engine=pdfjs` runs the demo on it.
+`packages/tauri` (`@build-qube/papyra-tauri`) is the third, papyra itself in a Tauri
+app's host process via `crates/tauri-plugin-papyra` — **its own Cargo workspace**,
+outside `cargo … --workspace`, because Tauri on Linux needs webkit2gtk headers; CI
+checks it on macOS (`tauri-plugin` job).
+`docs/engines-design.md` is the design, and its "As built" section the deviations.
 
 `packages/ui` (`@workspace/ui`) sits outside that stack: it is the private home of
 every shadcn component, consumed as **source** rather than as a build artifact, so

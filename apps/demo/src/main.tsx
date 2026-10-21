@@ -1,4 +1,7 @@
+import { defaultPdfEngine } from '@build-qube/papyra/engine';
+import { PdfjsEngine } from '@build-qube/papyra-pdfjs';
 import { RouterProvider } from '@tanstack/react-router';
+import { PdfEngineProvider } from '@workspace/pdf-viewer/components/pdf-engine';
 import { PdfViewerProvider } from '@workspace/pdf-viewer/components/pdf-viewer-provider';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -15,6 +18,21 @@ if (!globalThis.crossOriginIsolated) {
   );
 }
 
+/**
+ * `?engine=pdfjs` runs every viewer on pdf.js instead of papyra, for comparing the
+ * two on one document. Read once: a document belongs to the engine that opened it,
+ * so the engine is fixed for the page's life, and changing it means a reload.
+ */
+const engine =
+  new URLSearchParams(location.search).get('engine') === 'pdfjs'
+    ? new PdfjsEngine({
+        workerSrc: new URL(
+          'pdfjs-dist/build/pdf.worker.mjs',
+          import.meta.url,
+        ).toString(),
+      })
+    : defaultPdfEngine;
+
 createRoot(el).render(
   <StrictMode>
     {/* Dark by default, not `system`: this is a dark tool, and a page of white
@@ -22,9 +40,11 @@ createRoot(el).render(
     <ThemeProvider defaultTheme="dark" storageKey="papyra-theme">
       {/* Above the router on purpose: the open document — and its 128 MB render cache —
           must survive navigation between the viewer and the export view. */}
-      <PdfViewerProvider view="page">
-        <RouterProvider router={router} />
-      </PdfViewerProvider>
+      <PdfEngineProvider engine={engine}>
+        <PdfViewerProvider view="page">
+          <RouterProvider router={router} />
+        </PdfViewerProvider>
+      </PdfEngineProvider>
     </ThemeProvider>
   </StrictMode>,
 );

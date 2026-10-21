@@ -1,4 +1,4 @@
-import type { Document } from '@build-qube/papyra';
+import type { PdfDoc } from '@build-qube/papyra/core';
 import type { ReactElement } from 'react';
 import { PdfViewerBasic } from '@/components/pdf-viewer-basic';
 import {
@@ -13,7 +13,7 @@ import {
 /** Props for {@link PdfPreviewDialog}. */
 export interface PdfPreviewDialogProps {
   /** The open document. */
-  doc: Document;
+  doc: PdfDoc;
   /** The heading. Usually the file name. */
   title: string;
   /** A line under the heading — a size, a date, whatever the app knows. */

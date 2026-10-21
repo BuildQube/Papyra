@@ -1,7 +1,12 @@
-import type { Attachment, Document } from '@build-qube/papyra';
-import { attachmentMediaType, isInvoiceAttachment } from '@build-qube/papyra';
+import {
+  type Attachment,
+  attachmentMediaType,
+  isInvoiceAttachment,
+  type PdfDoc,
+} from '@build-qube/papyra/core';
 import { DownloadIcon, FileTextIcon, TriangleAlertIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { usePdfEngine } from '@/components/pdf-engine';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
@@ -10,7 +15,7 @@ import { cn } from '@/lib/utils';
 /** Props for {@link Attachments}. */
 export interface AttachmentsProps {
   /** The open document. */
-  doc: Document;
+  doc: PdfDoc;
   /** Classes for the wrapper. */
   className?: string;
 }
@@ -35,19 +40,20 @@ const PREVIEW_LIMIT = 16 * 1024;
 export function Attachments({ doc, className }: AttachmentsProps) {
   const [files, setFiles] = useState<readonly Attachment[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const engine = usePdfEngine();
 
   useEffect(() => {
     let cancelled = false;
     setFiles(null);
     setError(null);
-    doc.attachments().then(
+    engine.attachments(doc).then(
       (found) => !cancelled && setFiles(found),
       (e: Error) => !cancelled && setError(e.message),
     );
     return () => {
       cancelled = true;
     };
-  }, [doc]);
+  }, [engine, doc]);
 
   if (error) {
     return (
@@ -79,17 +85,18 @@ export function Attachments({ doc, className }: AttachmentsProps) {
   );
 }
 
-function AttachmentRow({ doc, file }: { doc: Document; file: Attachment }) {
+function AttachmentRow({ doc, file }: { doc: PdfDoc; file: Attachment }) {
   const [preview, setPreview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+  const engine = usePdfEngine();
   const type = attachmentMediaType(file);
 
   async function bytes(): Promise<Uint8Array> {
     setBusy(true);
     setFailed(null);
     try {
-      return await doc.attachmentData(file.index);
+      return await engine.attachmentData(doc, file.index);
     } finally {
       setBusy(false);
     }

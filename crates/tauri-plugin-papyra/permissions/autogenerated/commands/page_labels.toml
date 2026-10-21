@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-page-labels"
+description = "Enables the page_labels command without any pre-configured scope."
+commands.allow = ["page_labels"]
+
+[[permission]]
+identifier = "deny-page-labels"
+description = "Denies the page_labels command without any pre-configured scope."
+commands.deny = ["page_labels"]

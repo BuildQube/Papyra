@@ -1,17 +1,18 @@
 import {
-  type Document,
-  open,
   PasswordError,
+  type PdfDoc,
+  type PdfEngine,
   type Quad,
   type Rotation,
   type SearchMatch,
-} from '@build-qube/papyra';
+} from '@build-qube/papyra/core';
+import { fallbackPdfEngine } from '@/lib/pdf-default-engine';
 import type { ViewMode } from '@/lib/viewer-zoom';
 
 /** The open document, and the bytes it was opened from. */
 export interface PdfDocumentSlice {
-  /** The parsed PDF, with its render cache attached. */
-  doc: Document;
+  /** The parsed PDF. Commands on it go through the engine that opened it. */
+  doc: PdfDoc;
   /**
    * The file's own bytes, when the store opened it.
    *
@@ -139,6 +140,7 @@ export interface PdfViewerActions {
    *
    * For callers that opened the PDF themselves — which is every block in this
    * registry, since opening a file is the application's job and not a viewer's.
+   * The caller keeps it, too: the store closes only the documents `load` opened.
    */
   setDocument(document: PdfDocumentSlice | null): void;
   /** Move to a page. Clamped to the open document. */
@@ -171,6 +173,11 @@ export interface PdfViewerActions {
 
 /** Options for {@link createPdfViewerStore}. */
 export interface PdfViewerStoreOptions {
+  /**
+   * What `load` opens files with. `fallbackPdfEngine` — papyra's own — by default;
+   * `PdfViewerProvider` passes the one from `PdfEngineProvider`.
+   */
+  engine?: PdfEngine;
   /** The view to start in. Defaults to `scroll`. */
   view?: ViewMode;
   /** The rotation to start at. Defaults to upright. */
@@ -211,6 +218,13 @@ export interface PdfViewerStore {
   readonly actions: PdfViewerActions;
 }
 
+/**
+ * A document that would not close is reported rather than thrown: by then nothing
+ * is waiting on it, and in a host-process engine it is a leak worth seeing.
+ */
+const reportClose = (error: unknown) =>
+  console.error('pdf viewer: closing a document failed', error);
+
 /** Shared so an empty result set does not churn the slice reference. */
 const EMPTY_SEARCH: PdfSearchSlice = { query: '', matches: [], active: null };
 
@@ -229,6 +243,7 @@ export function createPdfViewerStore(
   options: PdfViewerStoreOptions = {},
 ): PdfViewerStore {
   const {
+    engine = fallbackPdfEngine,
     concurrency = 4,
     view = 'scroll',
     rotation = 0,
@@ -251,6 +266,24 @@ export function createPdfViewerStore(
 
   const listeners = new Set<() => void>();
 
+  /** The document `load` opened, which is the store's to close. */
+  let opened: PdfDoc | null = null;
+
+  /**
+   * Close the store's own document once it has been replaced.
+   *
+   * On a timer, not now: subscribers learn of the new document on React's schedule,
+   * and until they have, a mounted thumbnail strip or search can still ask the old one
+   * for a page — which on a closed document throws.
+   */
+  function release(next: PdfDoc | null): void {
+    const previous = opened;
+    opened = next;
+    if (previous && previous !== next) {
+      setTimeout(() => engine.close(previous).catch(reportClose), 0);
+    }
+  }
+
   function commit(next: PdfViewerState): void {
     if (next === state) return;
     state = next;
@@ -262,10 +295,11 @@ export function createPdfViewerStore(
       commit({ ...state, error: null });
       try {
         const bytes = new Uint8Array(await file.arrayBuffer());
-        const doc = await open(
+        const doc = await engine.open(
           file,
           password === undefined ? { concurrency } : { concurrency, password },
         );
+        release(doc);
         commit({
           ...state,
           document: { doc, bytes, name: file.name },
@@ -288,6 +322,7 @@ export function createPdfViewerStore(
 
     setDocument(document) {
       if (document === state.document) return;
+      release(null);
       commit({
         ...state,
         document,

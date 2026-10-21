@@ -1,7 +1,13 @@
-import type { Document, Quad, StructNode } from '@build-qube/papyra';
-import { lineQuad, readingOrder } from '@build-qube/papyra';
+import {
+  lineQuad,
+  type PdfDoc,
+  type Quad,
+  readingOrder,
+  type StructNode,
+} from '@build-qube/papyra/core';
 import { ChevronRightIcon, NetworkIcon, TriangleAlertIcon } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { usePdfEngine } from '@/components/pdf-engine';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -24,7 +30,7 @@ import { cn } from '@/lib/utils';
 /** Props for {@link Structure}. */
 export interface StructureProps {
   /** The open document. */
-  doc: Document;
+  doc: PdfDoc;
   /** The page on screen, 0-based. The order view describes this page. */
   current: number;
   /** Called with a 0-based page index when the reader picks an element. */
@@ -66,6 +72,7 @@ export function Structure({
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [picked, setPicked] = useState<StructNode | null>(null);
+  const engine = usePdfEngine();
 
   useEffect(() => {
     let cancelled = false;
@@ -73,8 +80,8 @@ export function Structure({
     setError(null);
     setPicked(null);
     const started = performance.now();
-    doc
-      .structTree()
+    engine
+      .structTree(doc)
       .then((nodes) => {
         if (cancelled) return;
         setElapsed(performance.now() - started);
@@ -84,7 +91,7 @@ export function Structure({
     return () => {
       cancelled = true;
     };
-  }, [doc]);
+  }, [engine, doc]);
 
   // Clearing on unmount matters: the panel stays mounted across tab changes, but a
   // new document must not leave the previous one's outline on the page.
@@ -100,7 +107,7 @@ export function Structure({
     onSelect(page);
     // The quads come from the page's own text, so this is a cache hit after the
     // first pick on a page — `pageText` is memoised per page inside the document.
-    const text = await doc.pageText(page);
+    const text = await engine.pageText(doc, page);
     const mine = new Set(
       node.content.filter((c) => c.page === page).map((c) => c.mcid),
     );
@@ -289,18 +296,19 @@ function ReadingOrder({
   tree,
   page,
 }: {
-  doc: Document;
+  doc: PdfDoc;
   tree: readonly StructNode[];
   page: number;
 }) {
   const [lines, setLines] = useState<string[] | null>(null);
   const [ordered, setOrdered] = useState<{ text: string; role: string }[]>([]);
   const [declared, setDeclared] = useState(true);
+  const engine = usePdfEngine();
 
   useEffect(() => {
     let cancelled = false;
     setLines(null);
-    doc.pageText(page).then(
+    engine.pageText(doc, page).then(
       (text) => {
         if (cancelled) return;
         setLines(text.lines.map((line) => line.text));
@@ -316,7 +324,7 @@ function ReadingOrder({
     return () => {
       cancelled = true;
     };
-  }, [doc, tree, page]);
+  }, [engine, doc, tree, page]);
 
   const moved = useMemo(() => {
     if (!lines) return 0;

@@ -1,5 +1,4 @@
-import type { Document } from '@build-qube/papyra';
-import { open } from '@build-qube/papyra';
+import { type Document, open, type PdfDoc } from '@build-qube/papyra';
 import { usePdfDocument } from '@workspace/pdf-viewer/hooks/use-pdf-viewer';
 import { useEffect, useState } from 'react';
 
@@ -31,7 +30,7 @@ function openSample(base: string): Promise<Document> {
  * own document in it beats browsing it with ours — and the bundled sample otherwise,
  * so the page works on a cold visit.
  */
-export function usePreviewDocument(): Document | null {
+export function usePreviewDocument(): PdfDoc | null {
   const loaded = usePdfDocument();
   const [fallback, setFallback] = useState<Document | null>(null);
 

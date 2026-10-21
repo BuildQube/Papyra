@@ -1,0 +1,49 @@
+{
+  "name": "@build-qube/papyra-pdfjs",
+  "version": "0.4.0",
+  "description": "A pdf.js engine for papyra's viewer, for pages that cannot run papyra's wasm",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BuildQube/papyra.git",
+    "directory": "packages/pdfjs"
+  },
+  "keywords": [
+    "pdf",
+    "pdfjs",
+    "papyra",
+    "viewer"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "test": "bun test test/unit",
+    "test:integration": "bun test test/integration"
+  },
+  "peerDependencies": {
+    "@build-qube/papyra": "^0.5.0",
+    "pdfjs-dist": "^6.2.0"
+  },
+  "devDependencies": {
+    "@build-qube/papyra": "0.4.0",
+    "pdfjs-dist": "^6.2.108",
+    "typescript": "^7.0.2"
+  }
+}

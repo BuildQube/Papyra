@@ -66,3 +66,15 @@ export function init(options: { threads?: number } = {}): void {
     // Already built (another copy of the library got there first). Harmless.
   }
 }
+
+/**
+ * Renders in flight at once when the caller does not say: the runtime's own
+ * concurrency natively, and {@link MAX_WASM_CONCURRENCY} on wasm.
+ *
+ * @internal
+ */
+export function defaultConcurrency(): number {
+  return currentRuntime() === 'wasm'
+    ? MAX_WASM_CONCURRENCY
+    : hardwareConcurrency();
+}

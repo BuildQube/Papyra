@@ -1,11 +1,16 @@
-import type { Document, PageLink, Viewport } from '@build-qube/papyra';
-import { viewportRect } from '@build-qube/papyra';
+import {
+  type PageLink,
+  type PdfDoc,
+  type Viewport,
+  viewportRect,
+} from '@build-qube/papyra/core';
 import { useEffect, useState } from 'react';
+import { usePdfEngine } from '@/components/pdf-engine';
 
 /** Props for {@link Links}. */
 export interface LinksProps {
   /** The open document. */
-  doc: Document;
+  doc: PdfDoc;
   /** The 0-based page whose annotations to read. */
   index: number;
   /**
@@ -38,18 +43,19 @@ export interface LinksProps {
  */
 export function Links({ doc, index, pageViewport, onSelect }: LinksProps) {
   const [links, setLinks] = useState<readonly PageLink[]>([]);
+  const engine = usePdfEngine();
 
   useEffect(() => {
     let cancelled = false;
     setLinks([]);
-    doc.links(index).then(
+    engine.links(doc, index).then(
       (next) => !cancelled && setLinks(next),
       () => !cancelled && setLinks([]),
     );
     return () => {
       cancelled = true;
     };
-  }, [doc, index]);
+  }, [engine, doc, index]);
 
   if (links.length === 0) return null;
 

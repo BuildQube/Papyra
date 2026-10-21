@@ -7,7 +7,7 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["**"]
+    "includes": ["**", "!crates/tauri-plugin-papyra/permissions/schemas"]
   },
   "formatter": {
     "enabled": true,
@@ -61,6 +61,7 @@
     {
       "includes": [
         "apps/demo/src/components/theme-provider.tsx",
+        "packages/pdf-viewer/src/components/pdf-engine.tsx",
         "packages/pdf-viewer/src/components/pdf-viewer-provider.tsx",
         "packages/pdf-viewer/src/components/file-preview-docx-view.tsx"
       ],

@@ -1,6 +1,6 @@
-import type { Document, RenderedPage } from '@build-qube/papyra';
+import type { PageBitmap, PdfDoc } from '@build-qube/papyra/core';
 import { useEffect, useState } from 'react';
-import { PdfIsolationGuard } from '@/components/pdf-isolation-guard';
+import { PdfEngineGuard, usePdfEngine } from '@/components/pdf-engine';
 import { PageCanvas } from '@/components/pdf-page-canvas';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 /** Props for {@link PagePreview}. */
 export interface PagePreviewProps {
   /** The open document. */
-  doc: Document;
+  doc: PdfDoc;
   /** Which page to show, 0-based. */
   page?: number;
   /**
@@ -45,11 +45,12 @@ export function PagePreview({
   priority = 2,
   className,
 }: PagePreviewProps) {
-  const [bitmap, setBitmap] = useState<RenderedPage | null>(null);
+  const [bitmap, setBitmap] = useState<PageBitmap | null>(null);
+  const engine = usePdfEngine();
 
   useEffect(() => {
     setBitmap(null);
-    const job = doc.render(page, { fitWidth: width, priority });
+    const job = engine.render(doc, page, { fitWidth: width, priority });
     let cancelled = false;
     job.promise.then(
       (rendered) => !cancelled && setBitmap(rendered),
@@ -61,7 +62,7 @@ export function PagePreview({
       cancelled = true;
       job.cancel('preview replaced');
     };
-  }, [doc, page, width, priority]);
+  }, [engine, doc, page, width, priority]);
 
   // The page's own aspect ratio, so the placeholder occupies exactly the space the
   // render will and nothing reflows when it arrives.
@@ -69,7 +70,7 @@ export function PagePreview({
   const ratio = `${size.width} / ${size.height}`;
 
   return (
-    <PdfIsolationGuard>
+    <PdfEngineGuard>
       {bitmap ? (
         <PageCanvas
           className={cn('block h-auto w-full bg-white', className)}
@@ -81,6 +82,6 @@ export function PagePreview({
           style={{ aspectRatio: ratio }}
         />
       )}
-    </PdfIsolationGuard>
+    </PdfEngineGuard>
   );
 }

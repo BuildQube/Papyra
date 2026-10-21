@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-page-text"
+description = "Enables the page_text command without any pre-configured scope."
+commands.allow = ["page_text"]
+
+[[permission]]
+identifier = "deny-page-text"
+description = "Denies the page_text command without any pre-configured scope."
+commands.deny = ["page_text"]

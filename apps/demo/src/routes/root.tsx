@@ -1,5 +1,6 @@
 import { backend, currentRuntime } from '@build-qube/papyra';
 import { Link, Outlet, useMatchRoute, useSearch } from '@tanstack/react-router';
+import { usePdfEngine } from '@workspace/pdf-viewer/components/pdf-engine';
 import { PasswordPrompt } from '@workspace/pdf-viewer/components/pdf-password-prompt';
 import { Properties } from '@workspace/pdf-viewer/components/pdf-properties';
 import {
@@ -48,6 +49,7 @@ export function RootShell() {
   usePageUrlSync();
 
   const matchRoute = useMatchRoute();
+  const engine = usePdfEngine();
   const standalone =
     !!matchRoute({ to: '/docs' }) || !!matchRoute({ to: '/components' });
 
@@ -61,7 +63,9 @@ export function RootShell() {
             papyra
           </h1>
           <Badge variant="secondary">{currentRuntime()}</Badge>
-          <Badge variant="secondary">{backend()}</Badge>
+          <Badge variant="secondary">
+            {engine.id === 'papyra' ? backend() : engine.id}
+          </Badge>
 
           <nav className="flex items-center gap-1">
             <NavLink to="/" exact>

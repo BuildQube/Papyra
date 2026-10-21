@@ -1,3 +1,4 @@
+import type { JobHandle } from './scheduler.js';
 import type { MatchOptions } from './search.js';
 
 /** Anything we can turn into PDF bytes. `File` is a `Blob`, so it is covered. */
@@ -113,12 +114,22 @@ export interface RenderedPage {
   readonly data: Uint8Array;
 }
 
+/**
+ * A rendered page in whichever form its engine produces it.
+ *
+ * papyra's own engine hands back {@link RenderedPage} — RGBA bytes, painted with
+ * `putImageData`. An engine that rasterises somewhere else (pdf.js on an
+ * `OffscreenCanvas`, a host process serving images) hands back an `ImageBitmap`,
+ * which a canvas draws without a copy. {@link paintToCanvas} takes either.
+ */
+export type PageBitmap = RenderedPage | ImageBitmap;
+
 /** One result from {@link Document.stream}, tagged with the page it came from. */
-export interface StreamedPage {
+export interface StreamedPage<P extends PageBitmap = RenderedPage> {
   /** Index of the page in the document. */
   readonly page: number;
   /** The rendered pixels. */
-  readonly bitmap: RenderedPage;
+  readonly bitmap: P;
 }
 
 /** Page dimensions in PDF points (1/72 inch). */
@@ -218,4 +229,16 @@ export interface SearchOptions extends MatchOptions {
   priority?: number;
   /** Abort the search. Pages already being extracted are left to finish. */
   signal?: AbortSignal;
+}
+
+/** A queued render, plus whether it was served from cache without rendering at all. */
+export interface RenderHandle<P extends PageBitmap = RenderedPage>
+  extends JobHandle<P> {
+  /**
+   * The page was already in the cache and nothing was queued.
+   *
+   * `promise` still resolves normally, so this only matters for instrumentation —
+   * a cache hit costs none of the ~93ms floor a real render does.
+   */
+  readonly cached: boolean;
 }

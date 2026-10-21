@@ -2,6 +2,8 @@ import { describe, expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  Document,
+  defaultPdfEngine,
   IncorrectPasswordError,
   lineQuad,
   open,
@@ -528,5 +530,24 @@ describeWithCorpus('rotated viewports, against real documents', () => {
       6,
     );
     expect(Math.abs(turned.x1 - turned.x0)).toBeCloseTo(0, 6);
+  });
+});
+
+describeWithCorpus('papyra as an engine', () => {
+  test('opens to a Document, which open() and the engine both accept', async () => {
+    const bytes = readFileSync(join(CORPUS, 'basicapi.pdf'));
+    const doc = await defaultPdfEngine.open(bytes);
+    expect(doc).toBeInstanceOf(Document);
+    const viaEngine = await defaultPdfEngine.render(doc, 0, { fitWidth: 100 })
+      .promise;
+    const viaDocument = await doc.render(0, { fitWidth: 100 }).promise;
+    expect(viaEngine).toBe(viaDocument); // one cache behind both names
+  });
+
+  test('closing through the engine closes the Document too', async () => {
+    const doc = await load('basicapi.pdf');
+    defaultPdfEngine.close(doc);
+    expect(() => doc.render(0)).toThrow('closed');
+    expect(() => doc.close()).toThrow('closed');
   });
 });

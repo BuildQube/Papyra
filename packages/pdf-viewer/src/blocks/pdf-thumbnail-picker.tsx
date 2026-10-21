@@ -1,13 +1,13 @@
-import type { Document } from '@build-qube/papyra';
+import type { PdfDoc } from '@build-qube/papyra/core';
 import { useState } from 'react';
-import { PdfIsolationGuard } from '@/components/pdf-isolation-guard';
+import { PdfEngineGuard } from '@/components/pdf-engine';
 import { Thumbnails } from '@/components/pdf-thumbnails';
 import { cn } from '@/lib/utils';
 
 /** Props for {@link ThumbnailPicker}. */
 export interface ThumbnailPickerProps {
   /** The open document. */
-  doc: Document;
+  doc: PdfDoc;
   /** The selected page, 0-based. Leave it out to let the picker hold its own. */
   value?: number;
   /** The page to start on when uncontrolled. */
@@ -47,7 +47,7 @@ export function ThumbnailPicker({
   const selected = value ?? own;
 
   return (
-    <PdfIsolationGuard>
+    <PdfEngineGuard>
       <Thumbnails
         className={cn('overflow-y-auto', className)}
         columns={columns}
@@ -60,6 +60,6 @@ export function ThumbnailPicker({
           onChange?.(page);
         }}
       />
-    </PdfIsolationGuard>
+    </PdfEngineGuard>
   );
 }

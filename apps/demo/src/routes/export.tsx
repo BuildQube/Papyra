@@ -4,7 +4,7 @@ import type {
   JobTiming,
   RasterFormat,
 } from '@build-qube/papyra';
-import { PageImage } from '@build-qube/papyra';
+import { Document, PageImage } from '@build-qube/papyra';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import {
   type PageImageHandle,
@@ -78,7 +78,9 @@ export function ExportRoute() {
   const [timing, setTiming] = useState<Timing | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const doc = loaded?.doc;
+  // Exporting is papyra's own — `imageHandle` and `svgHandle` are not engine
+  // commands — and the store's document is a `Document` whenever papyra opened it.
+  const doc = loaded?.doc instanceof Document ? loaded.doc : undefined;
 
   useEffect(() => {
     if (!doc) return;

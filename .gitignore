@@ -1,5 +1,6 @@
 # rust
 /target
+/crates/tauri-plugin-papyra/target
 **/*.rs.bk
 # An instrumented addon left over from `bun run coverage` writes one of these on
 # exit, into whatever directory the process ran in, whenever LLVM_PROFILE_FILE is

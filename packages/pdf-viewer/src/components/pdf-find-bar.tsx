@@ -1,6 +1,7 @@
-import type { Document, SearchMatch } from '@build-qube/papyra';
+import type { PdfDoc, PdfEngine, SearchMatch } from '@build-qube/papyra/core';
 import { ChevronDownIcon, ChevronUpIcon, SearchIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { usePdfEngine } from '@/components/pdf-engine';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
@@ -27,7 +28,7 @@ import {
 /** Props for {@link FindBar}. */
 export interface FindBarProps {
   /** The open document. */
-  doc: Document;
+  doc: PdfDoc;
   /** The page on screen, 0-based. The search starts here and works outward. */
   current: number;
   /** What is being searched for. Empty means nothing is. */
@@ -101,6 +102,7 @@ export function FindBar({
   const [running, setRunning] = useState(false);
   const [elapsed, setElapsed] = useState<number | null>(null);
   const [unsearchable, setUnsearchable] = useState(0);
+  const engine = usePdfEngine();
   const trigger = useRef<HTMLButtonElement>(null);
   const origin = useRef(current);
 
@@ -122,7 +124,7 @@ export function FindBar({
     void (async () => {
       const found: SearchMatch[] = [];
       try {
-        for await (const match of doc.search(query, {
+        for await (const match of engine.search(doc, query, {
           order: outward(origin.current, doc.pageCount),
           limit: LIMIT,
           signal: abort.signal,
@@ -136,14 +138,14 @@ export function FindBar({
         onMatches(found);
         setElapsed(performance.now() - started);
         if (found.length > 0) onActive(found[0] ?? null);
-        setUnsearchable(await countUnsearchable(doc));
+        setUnsearchable(await countUnsearchable(engine, doc, abort.signal));
       } finally {
         if (!abort.signal.aborted) setRunning(false);
       }
     })();
 
     return () => abort.abort();
-  }, [doc, query, caseSensitive, wholeWords]);
+  }, [engine, doc, query, caseSensitive, wholeWords]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -309,10 +311,15 @@ export function FindBar({
  * lie in the direction that matters. "No results" and "this cannot be read" look
  * identical to a user otherwise, and only one of them is worth rephrasing for.
  */
-async function countUnsearchable(doc: Document): Promise<number> {
+async function countUnsearchable(
+  engine: PdfEngine,
+  doc: PdfDoc,
+  signal: AbortSignal,
+): Promise<number> {
   let count = 0;
-  for (let i = 0; i < doc.pageCount; i++) {
-    if ((await doc.pageText(i)).undecodedGlyphs > 0) count++;
+  // Checked per page: a new query or a closed document must not wait out the rest.
+  for (let i = 0; i < doc.pageCount && !signal.aborted; i++) {
+    if ((await engine.pageText(doc, i)).undecodedGlyphs > 0) count++;
   }
   return count;
 }

@@ -74,9 +74,12 @@ jobs:
               - 'packages/ui/**'
             smoke:
               - 'packages/papyra/**'
+              - 'packages/pdfjs/**'
+              - 'packages/tauri/**'
               - 'apps/bench/**'
             demo:
               - 'packages/papyra/**'
+              - 'packages/pdfjs/**'
               - 'packages/pdf-viewer/**'
               - 'packages/ui/**'
               - 'packages/docs-gen/**'
@@ -192,6 +195,30 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace
 
+  # tauri-plugin-papyra is its own Cargo workspace, outside `cargo clippy --workspace`
+  # and `cargo test --workspace`: Tauri on Linux needs webkit2gtk's development
+  # headers, which nothing else here installs. macOS needs nothing extra.
+  tauri-plugin:
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: crates/tauri-plugin-papyra
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: 1.3.11 }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: crates/tauri-plugin-papyra }
+      # The protocol tests render tracemonkey.pdf, and skip without the corpus.
+      - run: bun install --frozen-lockfile && bun run corpus
+        working-directory: .
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+
   # The wrapper's pure-TypeScript units. cache.ts and scheduler.ts have no imports
   # at all, so this needs no addon, no Rust and no build — run it directly rather
   # than through `turbo run test`, whose `test` task dependsOn `build`.
@@ -204,6 +231,7 @@ jobs:
         with: { bun-version: 1.3.11 }
       - run: bun install --frozen-lockfile
       - run: bun run --filter @build-qube/papyra test
+      - run: bun run --filter @build-qube/papyra-pdfjs test
 
   # One job for both languages, because the Rust half depends on the TypeScript half:
   # `packages/bindings` has no `#[test]` in it and the render path is only reachable
@@ -493,6 +521,10 @@ jobs:
       # text extraction and search against the pdf.js corpus. `unit-test` above runs
       # with no artifact, so these cannot live alongside the pure units.
       - run: bun run --filter @build-qube/papyra test:integration
+      # pdf.js against papyra on the same corpus, for everything but pixels.
+      - run: bun run --filter @build-qube/papyra-pdfjs test:integration
+      # TauriEngine against a mocked plugin: the IPC contract, from the JS side.
+      - run: bun run --filter @build-qube/papyra-tauri test:integration
       - run: bun run --filter papyra-bench smoke
 
   # deploy-demo.yml only runs on main, so without this a demo that no longer builds
@@ -513,6 +545,8 @@ jobs:
           name: bindings-wasm32-wasip1-threads
           path: packages/bindings
       - run: bun run --filter @build-qube/papyra build
+      # The demo imports it; it needs papyra's types, hence after.
+      - run: bun run --filter @build-qube/papyra-pdfjs build
       - name: Build demo
         run: bun run --filter papyra-demo build
         env:
@@ -533,6 +567,7 @@ jobs:
       - typecheck
       - registry
       - rust-test
+      - tauri-plugin
       - unit-test
       - coverage
       - build

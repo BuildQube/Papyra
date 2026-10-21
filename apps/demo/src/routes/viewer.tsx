@@ -1,7 +1,11 @@
-import type { Document } from '@build-qube/papyra';
-import { viewport as pageViewportFor, rotateSize } from '@build-qube/papyra';
+import {
+  Document,
+  viewport as pageViewportFor,
+  rotateSize,
+} from '@build-qube/papyra';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { ContinuousPages } from '@workspace/pdf-viewer/components/pdf-continuous-pages';
+import { usePdfEngine } from '@workspace/pdf-viewer/components/pdf-engine';
 import { FindBar } from '@workspace/pdf-viewer/components/pdf-find-bar';
 import { Highlights } from '@workspace/pdf-viewer/components/pdf-highlights';
 import { Links } from '@workspace/pdf-viewer/components/pdf-links';
@@ -112,6 +116,7 @@ export function ViewerRoute() {
   const showProperties = useShowProperties();
   useViewUrlSync();
   const doc = loaded?.doc;
+  const engine = usePdfEngine();
 
   const viewport = useRef<HTMLDivElement>(null);
   const anchor = useRef<ZoomAnchor | null>(null);
@@ -203,7 +208,7 @@ export function ViewerRoute() {
     const started = performance.now();
     setTiming(null);
 
-    const job = doc.render(index, {
+    const job = engine.render(doc, index, {
       fitWidth: pixelWidth,
       priority: 0,
       annotations,
@@ -228,7 +233,7 @@ export function ViewerRoute() {
           visible,
         };
         setSize({ w: rendered.width, h: rendered.height });
-        setCacheHits(doc.cache.hits);
+        setCacheHits(engine.cacheStats(doc).hits);
         setTiming(t);
         probe.current?.(t);
       })
@@ -240,7 +245,7 @@ export function ViewerRoute() {
     };
     // `rotation` is here to repaint, not to re-render: the resubmission is a cache
     // hit, which the status line's "cached" count shows.
-  }, [doc, index, pixelWidth, mode, rotation, annotations, setError]);
+  }, [engine, doc, index, pixelWidth, mode, rotation, annotations, setError]);
 
   useEffect(() => {
     const n = probeCount;
@@ -311,7 +316,10 @@ export function ViewerRoute() {
       }
       status={
         mode === 'scroll'
-          ? doc && <QueueStatus doc={doc} scale={zoom.scale} />
+          ? // The queue readout is papyra's own: other engines keep theirs elsewhere.
+            doc instanceof Document && (
+              <QueueStatus doc={doc} scale={zoom.scale} />
+            )
           : timing && (
               <span className="text-xs text-muted-foreground">
                 canvas · page {index + 1} · {formatZoom(zoom.scale)}

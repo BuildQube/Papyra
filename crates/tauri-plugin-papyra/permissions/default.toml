@@ -1,0 +1,15 @@
+"$schema" = "schemas/schema.json"
+
+[default]
+description = "Everything the viewer's TauriEngine calls: opening, reading and closing documents. Pages are served over the papyra:// protocol, which needs no permission."
+permissions = [
+  "allow-open",
+  "allow-close",
+  "allow-page-text",
+  "allow-outline",
+  "allow-links",
+  "allow-page-labels",
+  "allow-attachments",
+  "allow-attachment-data",
+  "allow-struct-tree",
+]

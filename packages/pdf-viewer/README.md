@@ -207,9 +207,9 @@ a base derived from `PAPYRA_BASE` would let a local build emit items pointing at
 host that does not serve them — a failure only the person installing them would ever
 see.
 
-**The items declare `@build-qube/papyra@^0.3.0`, and keep it current.** They call
-APIs older releases lack — `doc.pageLabels()`, `doc.links()` and `doc.fingerprint`
-arrived in 0.2.0 — so the range is the oldest release that has everything they use.
+**The items declare `@build-qube/papyra@^0.5.0`, and keep it current.** They call
+APIs older releases lack — `@build-qube/papyra/core`, which most of them import,
+arrived in 0.5.0 — so the range is the oldest release that has everything they use.
 An item that needs something newer should raise it in the same change, ahead of the
 release if need be: an install then stops at `npm error notarget`, which is the
 honest failure. An unversioned dependency would install whatever is published and
@@ -332,13 +332,32 @@ The zoom shortcuts (⌘/ctrl + scroll, pinch, ⌘/ctrl +/−) are a tooltip on t
 select rather than a line in the toolbar: the select is where a reader looks for
 zoom, and the toolbar has better uses for the width.
 
-Blocks take a `Document`, never a `File`. Opening a PDF means owning a file input, a
-password prompt and a policy for failures, all of which belong to the application.
+Blocks take an open document, never a `File`. Opening a PDF means owning a file
+input, a password prompt and a policy for failures, all of which belong to the
+application.
 
-Every block wraps itself in `PdfIsolationGuard`. papyra's browser build needs
-`SharedArrayBuffer`, so the page must be cross-origin isolated, and without the two
-headers the symptom is a blank area and a console message nobody reads. The guard
-turns that into a two-line config change.
+**Engines.** Every command a viewer sends — render, stream, search, text, outline,
+links — goes through the engine in scope: `usePdfEngine()`, from `pdf-engine`, which
+is papyra's own wasm engine unless a `PdfEngineProvider` above names another. A
+document belongs to the engine that opened it, and `open()` uses that same default
+engine, so a `Document` the app opened itself works with no provider at all. An app
+whose pages cannot be cross-origin isolated — a mobile WebView, say — wraps its root
+in `<PdfEngineProvider engine={…}>` and changes nothing else. A panel the engine
+cannot fill (`doc.capabilities`) is not offered.
+
+The no-provider default lives in its own item, `pdf-default-engine`, and nothing else
+names papyra's engine. That matters for a bundle: a bundler emits papyra's 6 MB wasm
+as soon as its graph reaches the engine, whether or not it is ever fetched. An app
+that runs every viewer on another engine aliases that one file — in Vite,
+`resolve.alias` with `find: /.*\/pdf-default-engine$/` — to a module exporting its
+own `fallbackPdfEngine`, and ships no wasm.
+
+Every PDF block wraps itself in `PdfEngineGuard`, which asks the engine whether it
+can run here. For papyra's engine that means `SharedArrayBuffer`, so the page must
+be cross-origin isolated, and without the two headers the symptom is a blank area
+and a console message nobody reads. The guard turns that into a two-line config
+change. `PdfIsolationGuard` stays for TIFF and spreadsheets, which call papyra
+directly whatever PDF engine is chosen.
 
 ## The showcase
 

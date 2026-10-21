@@ -1,4 +1,4 @@
-import type { Document } from '@build-qube/papyra';
+import type { PdfDoc } from '@build-qube/papyra/core';
 import { Attachments } from '@/components/pdf-attachments';
 import {
   Dialog,
@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
 /** Props for {@link Properties}. */
 export interface PropertiesProps {
   /** The open document. */
-  doc: Document;
+  doc: PdfDoc;
   /**
    * The file name, which the document itself does not carry. Shown as a dash when
    * the caller does not know it either.
@@ -81,6 +81,9 @@ export function Properties({
           <Row label="Page count" value={String(doc.pageCount)} />
           <Row label={`Page size (page ${page + 1})`} value={pageSize(size)} />
           <Row label="Fingerprint" value={doc.fingerprint} mono />
+          {/* Which engine drew this — the first question about a bug report from a
+              phone, where it is not papyra's wasm. */}
+          <Row label="Engine" value={doc.engine} mono />
         </dl>
 
         {/* Renders nothing unless the document carries files, so every other document
