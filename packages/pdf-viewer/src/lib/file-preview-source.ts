@@ -490,6 +490,19 @@ export function resolveFile(
   );
 }
 
+/**
+ * The whole file if it is already in hand — the source itself, or the cache's copy —
+ * and `undefined` rather than a download when it is not. Synchronous, for a click
+ * handler that must not lose the tap's user activation to an `await`.
+ */
+export function heldFile(
+  source: FileSource,
+  cache: FileCache = defaultFileCache,
+): File | undefined {
+  if (source instanceof Blob) return toFile(source, sourceInfo(source));
+  return cache.get(sourceKey(source));
+}
+
 /** A source's first {@link HEAD_BYTES} bytes, and what is known about it. */
 export interface Inspected extends SourceInfo {
   /** The first bytes, for sniffing. Shorter when the file is. */
@@ -651,7 +664,7 @@ export async function downloadSource(
   const { url, release } = await resolveUrl(source, { cache });
   const a = document.createElement('a');
   a.href = url;
-  a.download = cache.get(sourceKey(source))?.name ?? name;
+  a.download = heldFile(source, cache)?.name ?? name;
   // A cross-origin link ignores `download` and navigates instead; a new tab keeps
   // the preview where it was.
   a.target = '_blank';

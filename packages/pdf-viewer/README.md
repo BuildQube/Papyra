@@ -318,6 +318,15 @@ The preview also has a full-screen button (`fullscreen={false}` hides it), which
 the same `use-fullscreen` hook as the viewer layout: a fixed takeover plus the
 Fullscreen API on the *page*, so popovers that portal to `body` stay visible.
 
+**Share and download.** The preview's download button shares instead wherever the
+platform takes files — `navigator.canShare({ files })`, which is true in iOS
+WKWebView, where `<a download>` does nothing — and only once the file is already in
+hand: `share()` needs the tap's user activation, which an awaited download would
+spend. A file still downloading, or one a video streams rather than holds, gets the
+anchor download. These are not engine commands, so every format has them; an app
+with its own (a native share, say) wraps the tree in
+`<FileActionsProvider actions={{ share }}>` from `file-preview-actions`.
+
 Timings — the thumbnail stream, the outline and tag reads, a search — are hidden
 unless `displayRenderTime` is set, on any viewer and on the file preview; so is the
 preview's file size, behind `displaySize` — though not in the properties dialog,

@@ -10,6 +10,7 @@ import {
   MaximizeIcon,
   MinimizeIcon,
   RotateCwIcon,
+  ShareIcon,
   ShieldXIcon,
 } from 'lucide-react';
 import {
@@ -24,6 +25,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { useFileAction } from '@/components/file-preview-actions';
 import { Button } from '@/components/ui/button';
 import {
   Empty,
@@ -47,9 +49,9 @@ import {
 } from '@/lib/file-preview-core';
 import {
   defaultFileCache,
-  downloadSource,
   type FileCache,
   type FileSource,
+  heldFile,
   inspectSource,
   resolveFile,
   resolveUrl,
@@ -222,14 +224,7 @@ export function FilePreview<const R extends readonly FileRenderer[]>({
                 </p>
               )}
             </div>
-            <Button
-              aria-label={`Download ${info.name}`}
-              onClick={() => void downloadSource(source, { cache })}
-              size="icon-sm"
-              variant="ghost"
-            >
-              <DownloadIcon />
-            </Button>
+            <DownloadButton cache={cache} name={info.name} source={source} />
             {fullscreen && (
               <Button
                 aria-label={full ? 'Exit full screen' : 'Full screen'}
@@ -421,13 +416,7 @@ function FileBody({
       return <Loading />;
     case 'loading':
       return (
-        <Loading
-          label={
-            source instanceof Blob || cache.get(sourceKey(source))
-              ? undefined
-              : 'Downloading…'
-          }
-        />
+        <Loading label={heldFile(source, cache) ? undefined : 'Downloading…'} />
       );
     case 'unsupported':
       return (
@@ -655,20 +644,30 @@ function Loading({ label }: { label?: string }) {
   );
 }
 
+/**
+ * Share or download, whichever the platform does with a file in hand: the label
+ * goes on the button, or — given a `name` — into an icon-only button's `aria-label`.
+ */
 function DownloadButton({
   source,
   cache,
+  name,
 }: {
   source: FileSource;
   cache: FileCache;
+  name?: string;
 }) {
+  const action = useFileAction(source, cache);
+  const label = action.kind === 'share' ? 'Share' : 'Download';
   return (
     <Button
-      onClick={() => void downloadSource(source, { cache })}
-      variant="outline"
+      aria-label={name === undefined ? undefined : `${label} ${name}`}
+      onClick={() => void action.run()}
+      size={name === undefined ? undefined : 'icon-sm'}
+      variant={name === undefined ? 'outline' : 'ghost'}
     >
-      <DownloadIcon />
-      Download
+      {action.kind === 'share' ? <ShareIcon /> : <DownloadIcon />}
+      {name === undefined && label}
     </Button>
   );
 }
