@@ -56,7 +56,7 @@ interface Anchor {
 
 /** Props for {@link ContinuousPages}. */
 export interface ContinuousPagesProps {
-  /** The open document: a PDF, or any engine's pages under a `PagedEngineProvider`. */
+  /** The open document: a PDF, or any engine's pages under a `PageEngineScope`. */
   doc: PagedDoc;
   /** The scrolling element. Owned by the layout, shared with the zoom gestures. */
   viewport: RefObject<HTMLElement | null>;

@@ -319,10 +319,10 @@ describe('laziness', () => {
   // The whole point of the split: holding a renderer must not pull in its view. A
   // static import of the view (or of papyra, or shiki) from a descriptor would put
   // it in every bundle that lists the format, used or not.
-  // Views that are not named after their descriptor: Word picks its engine first,
-  // and PowerPoint shares the office view with Word's papyra engine.
+  // Views that are not named after their descriptor: paged Word and PowerPoint
+  // share the office view.
   const SHARED_VIEW: Record<string, string> = {
-    'file-preview-docx': './file-preview-docx-engine',
+    'file-preview-docx-paged': './file-preview-office-view',
     'file-preview-pptx': './file-preview-office-view',
   };
   test.each([
@@ -336,6 +336,7 @@ describe('laziness', () => {
     'file-preview-tiff',
     'file-preview-markdown',
     'file-preview-docx',
+    'file-preview-docx-paged',
     'file-preview-pptx',
   ])('%s imports only the core statically', async (name) => {
     const source = await readFile(

@@ -13,7 +13,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { audioRenderer } from '@/components/file-preview-audio';
 import { codeRenderer } from '@/components/file-preview-code';
 import { csvRenderer } from '@/components/file-preview-csv';
-import { docxRenderer } from '@/components/file-preview-docx';
+import { docxPagedRenderer } from '@/components/file-preview-docx-paged';
 import { imageRenderer } from '@/components/file-preview-image';
 import { markdownRenderer } from '@/components/file-preview-markdown';
 import { pdfRenderer } from '@/components/file-preview-pdf';
@@ -55,7 +55,7 @@ const RENDERERS = [
   audioRenderer,
   spreadsheetRenderer,
   csvRenderer,
-  docxRenderer.with({ engine: 'papyra', fonts: OFFICE_FONTS }),
+  docxPagedRenderer.with({ fonts: OFFICE_FONTS }),
   pptxRenderer.with({ fonts: OFFICE_FONTS }),
   markdownRenderer,
   codeRenderer,

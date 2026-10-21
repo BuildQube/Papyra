@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { encode, type RenderedPage } from '../../src/index.js';
-import { OfficeEngine, officeEngine } from '../../src/office.js';
+import { officeEngine, PapyraOfficeEngine } from '../../src/office.js';
 
 const ROOT = join(import.meta.dir, '..', '..', '..', '..');
 const docx = () =>
@@ -70,7 +70,9 @@ describe('officeEngine', () => {
 
   test('a document belongs to the engine that opened it, until closed', async () => {
     const doc = await officeEngine.open(docx());
-    expect(() => new OfficeEngine().render(doc, 0)).toThrow(/another engine/);
+    expect(() => new PapyraOfficeEngine().render(doc, 0)).toThrow(
+      /another engine/,
+    );
     await officeEngine.close(doc);
     expect(() => officeEngine.render(doc, 0)).toThrow(/closed/);
   });

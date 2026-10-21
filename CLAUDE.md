@@ -260,11 +260,13 @@ The features beyond rendering follow the same split:
   Costs +91 KB gzipped of wasm (2.39 → 2.48 MB).
 - **Word and PowerPoint (experimental).** `crates/papyra-office` renders `.docx` over
   WordCraft and `.pptx` over DeckCraft, pure-Rust engines pinned by git rev. It ships
-  as its own addon (`packages/office-bindings`, about 4.2 MB of wasm gzipped) so a
-  PDF-only consumer downloads none of it, and `@build-qube/papyra/office` makes an
-  `OfficeDocument` a `PageSource` that the PDF viewer's continuous column takes
-  unchanged. Code that only draws pages imports `@build-qube/papyra/view`, never the
-  main entry, which loads the PDF engine. Fidelity is measured on the wasm build,
+  as its own addon (`packages/office-bindings`, about 5.7 MB of wasm gzipped) so a
+  PDF-only consumer downloads none of it. `@build-qube/papyra/office` is
+  `PapyraOfficeEngine`, a `PagedEngine` with `RENDER_ONLY` capabilities, which
+  `import()`s the addon on first use; the viewer's page column renders through it
+  under a `PageEngineScope`, and draws no link overlay because the capabilities
+  say there are none. Paged Word is its own renderer (`docxPagedRenderer`) beside
+  docx-preview's. Fidelity is measured on the wasm build,
   never natively: native catalogs the host's fonts, so its pagination differs from
   machine to machine.
 - **Text and search.** `crates/papyra-hayro/src/text.rs` implements

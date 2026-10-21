@@ -18,7 +18,7 @@ import type {
 /** What an office file is: a Word document, or a PowerPoint deck. */
 export type OfficeKind = 'word' | 'slides';
 
-/** An open Word document or PowerPoint deck. Get one from {@link OfficeEngine.open}. */
+/** An open Word document or PowerPoint deck. Get one from {@link PapyraOfficeEngine.open}. */
 export interface OfficeDoc extends PagedDoc {
   /** `'word'` or `'slides'`. Pages in a document, slides in a deck — hidden ones too. */
   readonly kind: OfficeKind;
@@ -38,26 +38,6 @@ let native: Promise<Native> | undefined;
 function loadNative(): Promise<Native> {
   native ??= import('@build-qube/papyra-office-native');
   return native;
-}
-
-/**
- * Make a TrueType or OpenType font available to the Word and PowerPoint engines.
- *
- * **Call it before opening a document.** A document names fonts like Calibri that
- * cannot be shipped, so each engine substitutes — and a substitute with different
- * widths moves every line break after it. Carlito, Caladea and Liberation Sans/Serif
- * are metric-compatible with Calibri, Cambria and Arial/Times New Roman, and both
- * engines already prefer them by name. A browser has no system fonts at all, so
- * without this, Word text falls back to Source Sans and slide text to Ubuntu Light.
- *
- * Returns how many faces were read; 0 means the bytes were not a font.
- */
-export async function addOfficeFont(source: PdfSource): Promise<number> {
-  const [{ addFont }, bytes] = await Promise.all([
-    loadNative(),
-    toBytes(source),
-  ]);
-  return addFont(bytes);
 }
 
 /** The addon's document, as a {@link PagedBackend}. */
@@ -113,20 +93,43 @@ class OfficeBackend implements PagedBackend {
  * A file is recognised by its declared main part, not its name, so a renamed
  * workbook or plain zip is refused. A Word document is paginated once, while
  * opening. The office addon is its own wasm module — about 5.7 MB gzipped — fetched
- * by the first open, so naming this engine costs nothing until then.
+ * by the first open or font, so importing `/office` costs nothing until then.
  *
  * Experimental: the engines are young, and a real-world file may lay out differently
  * from Office.
  *
  * @example
  * ```ts
- * await addOfficeFont(await (await fetch('/fonts/Carlito-Regular.ttf')).bytes());
+ * await officeEngine.addFont(await (await fetch('/fonts/Carlito-Regular.ttf')).bytes());
  * const doc = await officeEngine.open(file);
  * paintToCanvas(await officeEngine.render(doc, 0, { fitWidth: 1200 }).promise, canvas);
  * ```
  */
-export class OfficeEngine extends PagedEngine<OfficeDoc, OfficeBackend> {
+export class PapyraOfficeEngine extends PagedEngine<OfficeDoc, OfficeBackend> {
   readonly id = 'papyra-office';
+
+  /**
+   * Make a TrueType or OpenType font available to the Word and PowerPoint layout,
+   * for every document opened **after** this call.
+   *
+   * A document names fonts like Calibri that cannot be shipped, so each engine
+   * substitutes — and a substitute with different widths moves every line break after
+   * it. Carlito, Caladea and Liberation Sans/Serif are metric-compatible with Calibri,
+   * Cambria and Arial/Times New Roman, and both engines already prefer them by name. A
+   * browser has no system fonts at all, so without this, Word text falls back to
+   * Source Sans and slide text to Ubuntu Light.
+   *
+   * On the engine because fonts belong to whatever runs the layout: this wasm module
+   * here, a host process for another engine. Fetches the module if no document has
+   * yet. Returns how many faces were read; 0 means the bytes were not a font.
+   */
+  async addFont(source: PdfSource): Promise<number> {
+    const [{ addFont }, bytes] = await Promise.all([
+      loadNative(),
+      toBytes(source),
+    ]);
+    return addFont(bytes);
+  }
 
   availability(): Availability {
     // `undefined` outside a browser (Node, Bun), where the native addon needs nothing.
@@ -165,4 +168,5 @@ export class OfficeEngine extends PagedEngine<OfficeDoc, OfficeBackend> {
 }
 
 /** The office engine, shared so every view opens into one queue per document. */
-export const officeEngine: OfficeEngine = /* @__PURE__ */ new OfficeEngine();
+export const officeEngine: PapyraOfficeEngine =
+  /* @__PURE__ */ new PapyraOfficeEngine();

@@ -3,15 +3,10 @@ import {
   rotateSize,
   type SearchMatch,
 } from '@build-qube/papyra/core';
-import {
-  addOfficeFont,
-  type OfficeDoc,
-  officeEngine,
-} from '@build-qube/papyra/office';
+import { type OfficeDoc, officeEngine } from '@build-qube/papyra/office';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ContinuousPages } from '@/components/pdf-continuous-pages';
-import { PagedEngineProvider } from '@/components/pdf-engine';
-import { PdfIsolationGuard } from '@/components/pdf-isolation-guard';
+import { EngineGuard, PageEngineScope } from '@/components/pdf-engine';
 import { Spinner } from '@/components/ui/spinner';
 import { ZoomBar } from '@/components/viewer-zoom-bar';
 import { useZoom, type ZoomAnchor } from '@/hooks/use-viewer-zoom';
@@ -49,7 +44,7 @@ function registerFonts(urls: readonly string[]): Promise<void> {
         // fall back to what they have.
         done = fetch(url)
           .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(r.status)))
-          .then((b) => addOfficeFont(new Uint8Array(b)))
+          .then((b) => officeEngine.addFont(new Uint8Array(b)))
           .then(
             () => undefined,
             (e: unknown) => console.warn(`papyra: font ${url} not loaded`, e),
@@ -74,7 +69,7 @@ type Opened =
  * land where Word puts them, given the fonts (see {@link OfficeFileViewOptions.fonts}).
  * Experimental, as the engines are.
  *
- * Loaded by `pptxRenderer`, and by `docxRenderer` with `engine: 'papyra'` — import
+ * Loaded by `pptxRenderer` and `docxPagedRenderer` — import
  * those, not this, so papyra stays out of the bundle until a file is opened.
  */
 export function OfficeFileView({
@@ -82,9 +77,9 @@ export function OfficeFileView({
   options,
 }: FileViewProps<OfficeFileViewOptions>) {
   return (
-    <PdfIsolationGuard>
+    <EngineGuard engine={officeEngine}>
       <OpenedOffice file={file} fonts={options.fonts} />
-    </PdfIsolationGuard>
+    </EngineGuard>
   );
 }
 
@@ -137,9 +132,9 @@ function OpenedOffice({
       throw opened.error;
     case 'open':
       return (
-        <PagedEngineProvider engine={officeEngine}>
+        <PageEngineScope engine={officeEngine}>
           <OfficePages doc={opened.doc} />
-        </PagedEngineProvider>
+        </PageEngineScope>
       );
   }
 }

@@ -15,10 +15,12 @@ import { join } from 'node:path';
 import { crc32, deflateSync } from 'node:zlib';
 
 const job = JSON.parse(readFileSync(0, 'utf8'));
-const { addOfficeFont, openOffice } = await import(job.wrapper);
+const { officeEngine } = await import(job.wrapper);
 
 for (const font of readdirSync(job.fonts).sort()) {
-  await addOfficeFont(new Uint8Array(readFileSync(join(job.fonts, font))));
+  await officeEngine.addFont(
+    new Uint8Array(readFileSync(join(job.fonts, font))),
+  );
 }
 
 /** A page with almost nothing on it — what a font or part that failed to resolve looks like. */
@@ -99,7 +101,7 @@ for (const { name, path } of job.files) {
   const result = { name, pages: 0, blank: [], solid: [], failed: [] };
   try {
     const t0 = performance.now();
-    const doc = await openOffice(new Uint8Array(readFileSync(path)));
+    const doc = await officeEngine.open(new Uint8Array(readFileSync(path)));
     result.kind = doc.kind;
     result.pages = doc.pageCount;
     result.openMs = Math.round(performance.now() - t0);
@@ -107,7 +109,8 @@ for (const { name, path } of job.files) {
     const t1 = performance.now();
     for (let i = 0; i < doc.pageCount; i++) {
       try {
-        const page = await doc.renderPage(i, { fitWidth: job.width });
+        const page = await officeEngine.render(doc, i, { fitWidth: job.width })
+          .promise;
         if (inkShare(page.data) < 0.001) result.blank.push(i + 1);
         else if (solidShare(page.data) > 0.98) result.solid.push(i + 1);
         rendered.push(page);

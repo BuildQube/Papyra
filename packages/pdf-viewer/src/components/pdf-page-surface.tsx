@@ -10,7 +10,7 @@ import {
   viewport,
 } from '@build-qube/papyra/core';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { usePagedEngine } from '@/components/pdf-engine';
+import { usePageEngine } from '@/components/pdf-engine';
 import { Highlights } from '@/components/pdf-highlights';
 import { Links } from '@/components/pdf-links';
 import { cn } from '@/lib/utils';
@@ -28,7 +28,7 @@ function hasLinks(doc: PagedDoc): doc is PdfDoc {
 export interface PageSurfaceProps {
   /**
    * The open document: a PDF, or any engine's pages — a Word document, say, under a
-   * `PagedEngineProvider`. Links are drawn when its capabilities include them.
+   * `PageEngineScope`. Links are drawn when its capabilities include them.
    */
   doc: PagedDoc;
   /** The 0-based page this surface renders. */
@@ -109,7 +109,7 @@ export const PageSurface = memo(function PageSurface({
   const job = useRef<RenderHandle<PageBitmap> | null>(null);
   const [painted, setPainted] = useState(false);
   const [pending, setPending] = useState(false);
-  const engine = usePagedEngine();
+  const engine = usePageEngine();
 
   useEffect(() => {
     if (renderWidth <= 0) return;

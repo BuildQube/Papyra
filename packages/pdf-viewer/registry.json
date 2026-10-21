@@ -962,20 +962,15 @@
           "byName": true
         }
       },
-      "description": "Word documents (docx, docm, dotx, dotm) for the file preview, laid out by docx-preview in a sandboxed frame that runs no script and loads nothing remote. Approximate layout, or a real pagination by papyra over WordCraft with engine: 'papyra'; legacy .doc is not supported.",
+      "description": "Word documents (docx, docm, dotx, dotm) for the file preview, laid out by docx-preview in a sandboxed frame that runs no script and loads nothing remote. Approximate layout; legacy .doc is not supported.",
       "dependencies": ["docx-preview@^0.4.1", "jszip@^3.10.1"],
       "registryDependencies": [
         "spinner",
-        "{{REGISTRY}}/file-preview-core.json",
-        "{{REGISTRY}}/file-preview-office-view.json"
+        "{{REGISTRY}}/file-preview-core.json"
       ],
       "files": [
         {
           "path": "src/components/file-preview-docx.ts",
-          "type": "registry:component"
-        },
-        {
-          "path": "src/components/file-preview-docx-engine.tsx",
           "type": "registry:component"
         },
         {
@@ -988,14 +983,13 @@
       "name": "file-preview-office-view",
       "type": "registry:component",
       "title": "Office page view",
-      "description": "The view behind the PowerPoint renderer and the Word renderer's papyra engine: a document or deck laid out and drawn by papyra in Rust over WordCraft and DeckCraft, in the PDF viewer's continuous column with its zoom bar. Experimental.",
+      "description": "The view behind the PowerPoint and paged Word renderers: a document or deck laid out and drawn by papyra in Rust over WordCraft and DeckCraft, in the PDF viewer's continuous column with its zoom bar. Experimental.",
       "dependencies": ["@build-qube/papyra@^0.5.0"],
       "registryDependencies": [
         "spinner",
         "{{REGISTRY}}/file-preview-core.json",
         "{{REGISTRY}}/pdf-continuous-pages.json",
         "{{REGISTRY}}/pdf-engine.json",
-        "{{REGISTRY}}/pdf-isolation-guard.json",
         "{{REGISTRY}}/viewer-zoom.json",
         "{{REGISTRY}}/viewer-zoom-bar.json",
         "{{REGISTRY}}/use-viewer-zoom.json"
@@ -1003,6 +997,30 @@
       "files": [
         {
           "path": "src/components/file-preview-office-view.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
+      "name": "file-preview-docx-paged",
+      "type": "registry:component",
+      "title": "Word renderer (paged)",
+      "meta": {
+        "fileRenderer": {
+          "id": "docx-paged",
+          "export": "docxPagedRenderer",
+          "label": "Word",
+          "byName": true
+        }
+      },
+      "description": "Word documents (docx, docm, dotx, dotm) for the file preview, paginated and drawn by papyra in Rust over WordCraft, as Word would print them. The alternative to the docx-preview renderer; list whichever comes first. Experimental; legacy .doc is not supported.",
+      "registryDependencies": [
+        "{{REGISTRY}}/file-preview-core.json",
+        "{{REGISTRY}}/file-preview-office-view.json"
+      ],
+      "files": [
+        {
+          "path": "src/components/file-preview-docx-paged.ts",
           "type": "registry:component"
         }
       ]
