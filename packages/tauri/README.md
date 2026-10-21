@@ -18,6 +18,10 @@ the app owns them. Two copies of papyra would break `instanceof` across them —
 password error from one is not a `PasswordError` of the other, and the viewer's
 password prompt never appears.
 
+Linking an unreleased papyra (`file:` or `link:`) reports its checked-in version,
+which can be below the peer range; bun then installs a second, published copy to
+satisfy it. Force the linked one with an `overrides` entry for `@build-qube/papyra`.
+
 In the app's Rust crate:
 
 ```rust

@@ -751,10 +751,16 @@ Decided since (2026-10-20):
   The JS side adds an engine class per format to `@build-qube/papyra-tauri`.
 - **Download, share and open-with are not engine commands.** They are what a
   *platform* does with a file, not how a format is read, so they get their own
-  context in the file preview (`download`, `share`, `openWith`; the browser's anchor
-  download by default), and a Tauri implementation over the dialog, fs and opener
-  plugins. Coupling them to engines would make every format need an engine to get a
-  share button.
+  context in the file preview. Coupling them to engines would make every format need
+  an engine to get a share button. On an iOS simulator (aldoa, 2026-10-20) the Web
+  Share API is the whole implementation: `navigator.canShare({ files })` is true in
+  WKWebView and `share()` opens the system sheet (Save to Files, Print, other apps;
+  cancel rejects with `AbortError`). `<a download>` does nothing there, and the opener
+  plugin's `openPath` fails (2.5.5) and could only `UIApplication.open` a file anyway,
+  which presents no sheet for the app's own sandbox. So the default is `share()` when
+  `canShare` says yes, else the anchor download, with no Tauri plugin. `share()` needs
+  the tap's user activation, so the bytes must already be in hand when the button is
+  pressed. Android is untested.
 - **No WebP page format or image export through engines** until a viewer needs one;
   papyra's `renderImage`/`encode` already export WebP.
 - The plugin follows the `tauri plugin new` layout (`commands.rs`, `models.rs`,
