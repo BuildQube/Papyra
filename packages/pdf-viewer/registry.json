@@ -983,7 +983,7 @@
       "name": "file-preview-office-view",
       "type": "registry:component",
       "title": "Office page view",
-      "description": "The view behind the PowerPoint and paged Word renderers: a document or deck laid out and drawn by papyra in Rust over WordCraft and DeckCraft, in the PDF viewer's continuous column with its zoom bar. Experimental.",
+      "description": "The view behind the PowerPoint and paged Word renderers: a document or deck laid out and drawn by papyra in Rust over WordCraft and DeckCraft, in the PDF viewer's continuous column with its zoom bar. Experimental. Requires @build-qube/papyra-office-native, the optional peer @build-qube/papyra/office loads, which is not on npm yet: until it is, this item resolves only inside the papyra repo.",
       "dependencies": ["@build-qube/papyra@^0.5.0"],
       "registryDependencies": [
         "spinner",
@@ -1013,7 +1013,7 @@
           "byName": true
         }
       },
-      "description": "Word documents (docx, docm, dotx, dotm) for the file preview, paginated and drawn by papyra in Rust over WordCraft, as Word would print them. The alternative to the docx-preview renderer; list whichever comes first. Experimental; legacy .doc is not supported.",
+      "description": "Word documents (docx, docm, dotx, dotm) for the file preview, paginated and drawn by papyra in Rust over WordCraft, as Word would print them. The alternative to the docx-preview renderer; list whichever comes first. Experimental; legacy .doc is not supported. Requires @build-qube/papyra-office-native, the optional peer @build-qube/papyra/office loads, which is not on npm yet: until it is, this item resolves only inside the papyra repo.",
       "registryDependencies": [
         "{{REGISTRY}}/file-preview-core.json",
         "{{REGISTRY}}/file-preview-office-view.json"
@@ -1037,7 +1037,7 @@
           "byName": true
         }
       },
-      "description": "PowerPoint decks (pptx, pptm, potx, ppsx) for the file preview, drawn slide by slide by papyra in Rust over DeckCraft. Experimental; legacy .ppt is not supported.",
+      "description": "PowerPoint decks (pptx, pptm, potx, ppsx) for the file preview, drawn slide by slide by papyra in Rust over DeckCraft. Experimental; legacy .ppt is not supported. Requires @build-qube/papyra-office-native, the optional peer @build-qube/papyra/office loads, which is not on npm yet: until it is, this item resolves only inside the papyra repo.",
       "registryDependencies": [
         "{{REGISTRY}}/file-preview-core.json",
         "{{REGISTRY}}/file-preview-office-view.json"
