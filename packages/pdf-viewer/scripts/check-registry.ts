@@ -75,9 +75,18 @@ const server = Bun.serve({
     const style = path.split('/')[2];
     if (style) requested.add(style);
     const file = Bun.file(join(scratch, path));
-    return (await file.exists())
-      ? new Response(file)
-      : new Response('not found', { status: 404 });
+    if (!(await file.exists()))
+      return new Response('not found', { status: 404 });
+    if (args.published) return new Response(file);
+    // The workspace copy is linked in after install, so the range only has to
+    // resolve — and before a release it names a version npm does not have yet.
+    return new Response(
+      (await file.text()).replaceAll(
+        /"@build-qube\/papyra@[^"]*"/g,
+        '"@build-qube/papyra"',
+      ),
+      { headers: { 'Content-Type': file.type } },
+    );
   },
 });
 const registryUrl = `http://localhost:${server.port}/r`;

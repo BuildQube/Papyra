@@ -545,6 +545,8 @@ jobs:
           name: bindings-wasm32-wasip1-threads
           path: packages/bindings
       - run: bun run --filter @build-qube/papyra build
+      # The demo imports it; it needs papyra's types, hence after.
+      - run: bun run --filter @build-qube/papyra-pdfjs build
       - name: Build demo
         run: bun run --filter papyra-demo build
         env:

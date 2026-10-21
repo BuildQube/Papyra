@@ -12,6 +12,10 @@ use tauri::http::{Request, Response, StatusCode};
 use crate::Documents;
 use crate::error::Error;
 
+/// The TypeScript wrapper's `MAX_PIXELS`, held here too: any page in the WebView can
+/// fetch this scheme, and an unbounded `dpi` would allocate gigabytes in the host.
+const MAX_PIXELS: f64 = 100_000_000.0;
+
 /// How a page is sent back. PNG costs an encode here and a decode in the WebView;
 /// raw RGBA costs neither and is four times the bytes over an in-process channel.
 /// Which wins depends on the phone, so the caller picks.
@@ -48,7 +52,12 @@ fn parse(path: &str, query: Option<&str>) -> Option<PageRequest> {
   for pair in query.unwrap_or("").split('&').filter(|p| !p.is_empty()) {
     let (key, value) = pair.split_once('=')?;
     match key {
-      "dpi" => request.dpi = value.parse().ok().filter(|d: &f32| *d > 0.0)?,
+      "dpi" => {
+        request.dpi = value
+          .parse()
+          .ok()
+          .filter(|d: &f32| d.is_finite() && *d > 0.0)?
+      }
       "annots" => request.annotations = value != "0",
       "format" => {
         request.format = match value {
@@ -90,6 +99,22 @@ pub(crate) fn render(docs: &Documents, request: &Request<Vec<u8>>) -> Response<V
     Ok(doc) => doc,
     Err(e) => return failure(StatusCode::NOT_FOUND, e.to_string()),
   };
+  let pixels = match doc.page_size(page.page) {
+    Ok(size) => {
+      let scale = f64::from(page.dpi) / 72.0;
+      (f64::from(size.width) * scale).floor() * (f64::from(size.height) * scale).floor()
+    }
+    Err(e) => return failure(StatusCode::UNPROCESSABLE_ENTITY, Error::from(e).to_string()),
+  };
+  if pixels > MAX_PIXELS {
+    return failure(
+      StatusCode::PAYLOAD_TOO_LARGE,
+      format!(
+        "papyra: {pixels} pixels at {} dpi is over the 100 MP cap",
+        page.dpi
+      ),
+    );
+  }
   let options = RenderOptions {
     annotations: page.annotations,
     ..RenderOptions::at_dpi(page.dpi)
@@ -165,6 +190,8 @@ mod tests {
       ("/1/2", Some("dpi=-5")),
       ("/1/2", Some("format=webp")),
       ("/1/2", Some("dpi")),
+      ("/1/2", Some("dpi=inf")),
+      ("/1/2", Some("dpi=NaN")),
     ] {
       assert_eq!(parse(path, query), None, "{path}?{query:?}");
     }
@@ -228,6 +255,10 @@ mod tests {
     assert_eq!(
       get(&docs, &format!("papyra://localhost/{id}/999")).status(),
       StatusCode::UNPROCESSABLE_ENTITY
+    );
+    assert_eq!(
+      get(&docs, &format!("papyra://localhost/{id}/0?dpi=100000")).status(),
+      StatusCode::PAYLOAD_TOO_LARGE
     );
     assert_eq!(
       get(&docs, "papyra://localhost/nope").status(),
