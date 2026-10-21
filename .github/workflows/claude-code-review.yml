@@ -1,27 +1,42 @@
 name: Claude Code Review
 
+# Runs ONCE per PR: on open, reopen, or when a draft is marked ready. Pushes do
+# not re-trigger it; further feedback comes from an @claude mention (claude.yml).
+#
+# A direct prompt, not the /code-review plugin: the plugin fans out to
+# background subagents, the headless session ends before they report, and the
+# run goes green having posted nothing. Do not reintroduce `plugins:`, a
+# slash-command prompt, or `Task`/`Agent` in the allowlist.
+#
+# This repo is PUBLIC. Never enable `show_full_output`, and keep the allowlist
+# read-only: the reviewer runs against PR head content, so nothing here builds,
+# installs, or reaches `gh api`.
+#
+# Tag-mode validation means a PR that edits this file is not reviewed by it —
+# the run exits in seconds. That is intended: a PR cannot rewrite the
+# reviewer's instructions and then be reviewed by the rewrite.
+
 on:
   pull_request:
-    types: [opened, synchronize, ready_for_review, reopened]
-    # Optional: Only run on specific file changes
-    # paths:
-    #   - "src/**/*.ts"
-    #   - "src/**/*.tsx"
-    #   - "src/**/*.js"
-    #   - "src/**/*.jsx"
+    types: [opened, ready_for_review, reopened]
 
 jobs:
   claude-review:
-    # Optional: Filter by PR author
-    # if: |
-    #   github.event.pull_request.user.login == 'external-contributor' ||
-    #   github.event.pull_request.user.login == 'new-developer' ||
-    #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
+    # Fork PRs get no secrets, so the action would fail rather than review.
+    # Drafts get their one review when marked ready.
+    if: |
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !github.event.pull_request.draft
 
     runs-on: ubuntu-latest
+    # Job-level on purpose: a reopen or ready-for-review right after open would
+    # otherwise stack two reviews of the same PR.
+    concurrency:
+      group: claude-review-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     permissions:
       contents: read
-      pull-requests: read
+      pull-requests: write # inline comments and the summary
       issues: read
       id-token: write
 
@@ -29,17 +44,82 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          # Full history so `git log`/`git blame` can tell new risk from old.
+          fetch-depth: 0
 
       - name: Run Claude Code Review
         id: claude-review
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
-          plugins: 'code-review@claude-code-plugins'
-          prompt: '/code-review:code-review --comment ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
-          claude_args: '--allowedTools "mcp__github_inline_comment__create_inline_comment"'
+
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Review this pull request in a SINGLE EXHAUSTIVE PASS, yourself,
+            in THIS session — do not spawn agents or defer anything to a
+            "later pass". This runs once per PR; afterwards the only way to
+            get more Claude feedback is an explicit @claude mention.
+
+            `CLAUDE.md` is already in your context. Its "Things that will
+            surprise you" section is the list of invariants this codebase
+            has broken before; check the diff against every one that applies.
+
+            How to run it:
+            - Read the diff with one command: `gh pr diff <PR NUMBER>`. One
+              command per Bash call — pipes, `;`, `&&` and redirects are
+              refused by the allowlist even when each half is allowed.
+            - Read EVERY changed file end-to-end with Read/Grep/Glob, and
+              the callers of anything whose signature or export changed.
+            - Before keeping a finding, try to disprove it against the code:
+              look for the guard you think is missing, and name the change
+              that would turn a new test red. Drop what you cannot confirm.
+
+            Papyra-specific checks:
+            - napi tasks never return `Buffer` (it needs `globalThis.Buffer`,
+              absent in browsers); they return `Uint8Array`.
+            - Anything walking the PDF object graph uses a visited set, not
+              a depth cap. PDF text strings go through `decode_text_string`,
+              never `from_utf8_lossy` or Latin-1.
+            - `papyra-core` stays engine-agnostic: no hayro types in it.
+              The bindings stay thin; ergonomics belong in TypeScript.
+            - rayon paths (`renderPages`, `indexText`) stay native-only;
+              wasm goes per-page through the scheduler.
+            - Render cache keys include every option that changes pixels
+              (see `annotationKey()`); a missing dimension serves stale bitmaps.
+            - Typed errors cross napi as `papyra/...` message tags; the Rust
+              `map_err` and `errors.ts` must change together.
+            - Untrusted input (PDF, xlsx, TIFF) must reject, not panic or
+              allocate from a size the file declares. No calamine
+              `worksheet_range` for xlsx/xlsb; zip reads stay bounded.
+            - `test/unit` must not import the wrapper entrypoint
+              (`document.ts` loads the native addon); type-only imports are fine.
+            - Every exported TS member and registry prop needs a doc comment
+              (TypeDoc fails the build otherwise).
+            - `packages/pdf-viewer` files import via `@/…` only, never
+              `@workspace/…`; sibling items are absolute `{{REGISTRY}}` URLs;
+              an item using a newer papyra API raises its `^0.3.0` range.
+            - Generated files are not hand-edited: the napi `index.js` /
+              `index.d.ts`, `apps/demo/public/papyra-api.json`.
+            - Hot render/text paths: flag added per-page allocations,
+              copies, or boundary crossings — performance must not regress.
+            - A publishable-package change without a changeset.
+
+            Publishing (read before you start):
+            - `mcp__github_inline_comment__create_inline_comment` for each
+              finding on a line in the diff.
+            - One top-level summary at the end: Write it to
+              `claude-review.md`, then run
+              `gh pr comment <PR NUMBER> --body-file claude-review.md`.
+              Never `--body "$(...)"` or a heredoc — the permission matcher
+              refuses substitution, and the review is lost.
+            - Publish findings as you confirm them. A run that ends without
+              posting has produced nothing.
+            - No nitpicks or praise. If the PR is clean, say so in one short
+              summary and stop.
+
+          claude_args: |
+            --allowedTools "Read,Write,Grep,Glob,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr checks:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git blame:*),Bash(git grep:*),Bash(ls:*),Bash(wc:*)"
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
-
