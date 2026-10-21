@@ -23,35 +23,48 @@ export interface FileActions {
   download: (source: FileSource, cache: FileCache) => Promise<void>;
 }
 
-/**
- * The Web Share API where it takes files — iOS WKWebView included, which is the
- * whole implementation there, since `<a download>` does nothing in it — else an
- * anchor download.
- */
-export const webFileActions: FileActions = {
-  canShare: (file) =>
-    globalThis.navigator?.canShare?.({ files: [file] }) ?? false,
+/** The default: an anchor download, and no share. */
+export const downloadFileActions: FileActions = {
+  canShare: () => false,
   share: (file) => navigator.share({ files: [file] }),
   download: (source, cache) => downloadSource(source, { cache }),
 };
 
-const FileActionsContext = createContext<FileActions>(webFileActions);
+/**
+ * The Web Share API where it takes files, else the download. For an iOS WKWebView
+ * host, where `<a download>` does nothing and the share sheet is how a file is
+ * saved. Not the default because desktop Safari and Chrome take files too, and
+ * the macOS sheet has no plain save to disk.
+ */
+export const shareFileActions: FileActions = {
+  ...downloadFileActions,
+  canShare: (file) =>
+    globalThis.navigator?.canShare?.({ files: [file] }) ?? false,
+};
+
+const FileActionsContext = createContext<FileActions>(downloadFileActions);
 
 /** Props for {@link FileActionsProvider}. */
 export interface FileActionsProviderProps {
-  /** Replaces the default actions it names; the rest stay the web's. */
+  /**
+   * Replaces the default actions it names; the rest stay the download. Pass
+   * `shareFileActions` to share where the platform can, or your own `share`.
+   */
   actions: Partial<FileActions>;
   /** The tree whose file previews use them. */
   children: ReactNode;
 }
 
-/** Sets what every file preview below it does to share and download a file. */
+/**
+ * Sets what every file preview below it does to share and download a file. With
+ * none, previews download.
+ */
 export function FileActionsProvider({
   actions,
   children,
 }: FileActionsProviderProps) {
   return (
-    <FileActionsContext value={{ ...webFileActions, ...actions }}>
+    <FileActionsContext value={{ ...downloadFileActions, ...actions }}>
       {children}
     </FileActionsContext>
   );

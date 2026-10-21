@@ -318,14 +318,17 @@ The preview also has a full-screen button (`fullscreen={false}` hides it), which
 the same `use-fullscreen` hook as the viewer layout: a fixed takeover plus the
 Fullscreen API on the *page*, so popovers that portal to `body` stay visible.
 
-**Share and download.** The preview's download button shares instead wherever the
-platform takes files — `navigator.canShare({ files })`, which is true in iOS
-WKWebView, where `<a download>` does nothing — and only once the file is already in
-hand: `share()` needs the tap's user activation, which an awaited download would
-spend. A file still downloading, or one a video streams rather than holds, gets the
-anchor download. These are not engine commands, so every format has them; an app
-with its own (a native share, say) wraps the tree in
-`<FileActionsProvider actions={{ share }}>` from `file-preview-actions`.
+**Share and download.** The preview's download button is an anchor download unless
+a `FileActionsProvider` from `file-preview-actions` says otherwise. An iOS WKWebView
+host — a Tauri app — needs it to: `<a download>` does nothing there, and the share
+sheet is how a file is saved. One line opts in:
+`<FileActionsProvider actions={shareFileActions}>`. The button then shares when
+`navigator.canShare({ files })` is true and the file is already in hand, since
+`share()` needs the tap's user activation and an awaited download would spend it; a
+file still downloading, or one a video streams rather than holds, still downloads.
+It is not the default because desktop Safari and Chrome can share files too, and the
+macOS sheet has no plain save to disk. These are not engine commands, so every format
+has them; `actions={{ share }}` supplies an app's own share instead.
 
 Timings — the thumbnail stream, the outline and tag reads, a search — are hidden
 unless `displayRenderTime` is set, on any viewer and on the file preview; so is the

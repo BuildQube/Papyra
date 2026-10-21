@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  downloadFileActions,
   type FileActions,
   fileAction,
+  shareFileActions,
 } from '@/components/file-preview-actions';
 import { FileCache, resolveFile } from '@/lib/file-preview-source';
 
@@ -67,4 +69,20 @@ describe('fileAction', () => {
     );
     await expect(failing.run()).rejects.toBe(denied);
   });
+});
+
+test('only the opt-in actions share, even where the platform could', () => {
+  const real = globalThis.navigator.canShare;
+  globalThis.navigator.canShare = () => true;
+  try {
+    const file = new File(['x'], 'a.txt');
+    expect(fileAction(downloadFileActions, file, new FileCache()).kind).toBe(
+      'download',
+    );
+    expect(fileAction(shareFileActions, file, new FileCache()).kind).toBe(
+      'share',
+    );
+  } finally {
+    globalThis.navigator.canShare = real;
+  }
 });

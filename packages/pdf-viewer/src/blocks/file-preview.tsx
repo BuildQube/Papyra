@@ -224,7 +224,7 @@ export function FilePreview<const R extends readonly FileRenderer[]>({
                 </p>
               )}
             </div>
-            <DownloadButton cache={cache} name={info.name} source={source} />
+            <DownloadButton cache={cache} iconFor={info.name} source={source} />
             {fullscreen && (
               <Button
                 aria-label={full ? 'Exit full screen' : 'Full screen'}
@@ -645,29 +645,29 @@ function Loading({ label }: { label?: string }) {
 }
 
 /**
- * Share or download, whichever the platform does with a file in hand: the label
- * goes on the button, or — given a `name` — into an icon-only button's `aria-label`.
+ * Share or download, whichever the platform does with a file in hand. `iconFor`
+ * makes it an icon-only button labelled for that file name.
  */
 function DownloadButton({
   source,
   cache,
-  name,
+  iconFor,
 }: {
   source: FileSource;
   cache: FileCache;
-  name?: string;
+  iconFor?: string;
 }) {
   const action = useFileAction(source, cache);
   const label = action.kind === 'share' ? 'Share' : 'Download';
   return (
     <Button
-      aria-label={name === undefined ? undefined : `${label} ${name}`}
+      aria-label={iconFor === undefined ? undefined : `${label} ${iconFor}`}
       onClick={() => void action.run()}
-      size={name === undefined ? undefined : 'icon-sm'}
-      variant={name === undefined ? 'outline' : 'ghost'}
+      size={iconFor === undefined ? undefined : 'icon-sm'}
+      variant={iconFor === undefined ? 'outline' : 'ghost'}
     >
       {action.kind === 'share' ? <ShareIcon /> : <DownloadIcon />}
-      {name === undefined && label}
+      {iconFor === undefined && label}
     </Button>
   );
 }
