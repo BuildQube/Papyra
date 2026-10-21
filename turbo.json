@@ -24,7 +24,8 @@
         "*.cts",
         "*.mjs",
         "browser.js",
-        "papyra.wasi-browser.js"
+        // Named per addon: papyra.wasi-browser.js, papyra-office.wasi-browser.js.
+        "*.wasi-browser.js"
       ]
     },
     // TypeDoc cannot run on this repo's TypeScript 7 (its compiler API is gone, and
@@ -57,6 +58,9 @@
       "dependsOn": [
         "^build",
         "@build-qube/papyra-native#build:wasm",
+        // The file preview opens Word and PowerPoint through the office addon's
+        // wasm, which vite aliases to its gitignored browser glue.
+        "@build-qube/papyra-office-native#build:wasm",
         "@workspace/pdf-viewer#build:registry"
       ],
       // PAPYRA_BASE sets vite's base path. Turbo strips env vars a task has not
