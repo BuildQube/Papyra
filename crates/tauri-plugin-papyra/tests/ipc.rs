@@ -320,6 +320,26 @@ fn a_sparse_sheet_is_cut_to_what_maxcells_holds_dense() {
     .unwrap(),
   );
   let id = opened["id"].as_u64().unwrap();
+  // However high the app sets the cap, a dense window stays within the default.
+  let generous = json(
+    call(
+      &webview,
+      "open_workbook",
+      InvokeBody::Raw(fixture("papyra-tables/tests/fixtures/extent.xlsx")),
+      &[("x-papyra-options", "%7B%22maxCells%22%3A10000000000%7D")],
+    )
+    .unwrap(),
+  );
+  let refused = call(
+    &webview,
+    "window",
+    InvokeBody::Json(serde_json::json!({
+      "id": generous["id"], "sheet": 0, "rowStart": 0, "rowEnd": 1_048_576, "colStart": 0, "colEnd": 16_384,
+    })),
+    &[],
+  )
+  .unwrap_err();
+  assert!(refused.as_str().unwrap().contains("cell cap"));
   let sheet = json(
     call(
       &webview,

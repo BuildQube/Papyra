@@ -47,7 +47,8 @@ export async function openTiff(
       const query = new URLSearchParams();
       if (maxWidth !== undefined) query.set('maxWidth', String(maxWidth));
       if (maxPixels !== undefined) {
-        query.set('maxPixels', String(Math.floor(maxPixels)));
+        // Clamped as the host would, so a huge value is not written as `1e+21`.
+        query.set('maxPixels', String(Math.floor(Math.min(maxPixels, 1e8))));
       }
       return fetchPage(`${pages}${index}?${query}`, format);
     },

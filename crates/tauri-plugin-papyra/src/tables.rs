@@ -70,7 +70,9 @@ pub(crate) async fn open_workbook<R: Runtime>(
     o.max_cells,
   )
   .map_err(Error::Options)?;
-  let max_cells = options.max_cells;
+  // A window is dense, so its cap is also what the host can allocate: never past
+  // the default, however high the app sets `maxCells` for the sparse sheet.
+  let max_cells = options.max_cells.min(papyra_tables::DEFAULT_MAX_CELLS);
   let book = blocking(move || Ok(papyra_tables::Workbook::load(bytes, &options)?)).await?;
   let book = Arc::new(book);
   Ok(WorkbookOpened {
