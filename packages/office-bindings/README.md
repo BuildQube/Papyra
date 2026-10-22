@@ -2,7 +2,7 @@
 
 **Experimental.** The Word and PowerPoint renderer behind
 [papyra](https://www.npmjs.com/package/@build-qube/papyra): Node-API bindings over
-[WordCraft](https://github.com/BuildQube/wordcraft) and
+[WordCraft](https://github.com/storytold/wordcraft) and
 [DeckCraft](https://github.com/storytold/deckcraft), pure-Rust engines
 that lay out and draw `.docx` and `.pptx` pages, built as a native addon per platform
 and as a wasm module for the browser.
@@ -30,8 +30,9 @@ paintToCanvas(await officeEngine.render(doc, 0, { fitWidth: 1200 }).promise, can
   `.potx`, `.ppsx` and their macro-enabled twins). Pages only: no text, links or
   outline. A real-world file may still lay out differently from Office.
 - **Fonts decide pagination.** A browser has no system fonts, so register
-  metric-compatible substitutes — Carlito, Caladea, Liberation Sans and Serif — with
-  `officeEngine.addFont` before opening, or every line break moves.
+  metric-compatible substitutes — Carlito, Caladea, Arimo and Tinos, for Calibri,
+  Cambria, Arial and Times New Roman — with `officeEngine.addFont` before opening, or
+  every line break moves.
 - **Its own wasm.** A separate module from papyra's PDF one, about 5.7 MB gzipped as
   measured at the current engine pin, so a PDF-only app never downloads it. Like the
   PDF build, it needs a cross-origin-isolated page.
