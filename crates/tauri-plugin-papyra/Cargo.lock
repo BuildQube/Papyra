@@ -2451,7 +2451,6 @@ dependencies = [
 name = "papyra-hayro"
 version = "0.0.1"
 dependencies = [
- "bytemuck",
  "hayro",
  "hayro-interpret",
  "hayro-svg",

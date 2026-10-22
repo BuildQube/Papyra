@@ -107,6 +107,9 @@ impl<'a> Device<'a> for TextCollector {
   fn draw_glyph_run(&mut self, run: &GlyphRun<'_, 'a>, props: DrawProps<'a>, _: &DrawMode) {
     // `DrawMode::Invisible` is deliberately not filtered: an OCR layer over a scanned
     // page is invisible text, and it is the only text such a page has.
+    // Innermost first: a `/Span` inside a `/P` tags its glyphs with the span, which is
+    // the more specific and therefore more useful element of the two.
+    let mcid = self.marked_content.iter().rev().find_map(|frame| *frame);
     for glyph in run.glyphs() {
       let Some(text) = unicode_of(glyph).filter(|t| !t.is_empty()) else {
         self.undecoded += 1;
@@ -135,9 +138,7 @@ impl<'a> Device<'a> for TextCollector {
         dir: (ax / along, ay / along),
         size,
         nominal_advance: nominal_advance(glyph) * along * UNITS_PER_EM,
-        // Innermost first: a `/Span` inside a `/P` tags its glyphs with the span, which
-        // is the more specific and therefore more useful element of the two.
-        mcid: self.marked_content.iter().rev().find_map(|frame| *frame),
+        mcid,
       });
     }
   }

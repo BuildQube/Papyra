@@ -18,6 +18,7 @@ pub use text::extract as extract_text;
 
 use hayro::{PixmapSettings, RenderCache, RenderSettings};
 use hayro_interpret::InterpreterSettings;
+use hayro_syntax::page::Page;
 use hayro_syntax::{DecryptionError, LoadPdfError, Pdf};
 use papyra_core::{
   Attachment, Bitmap, Document, Engine, Link, Metadata, OutlineItem, PageSize, PageText,
@@ -93,13 +94,7 @@ impl HayroDocument {
       .iter()
       .map(|&i| {
         let page = pages.get(i).ok_or(PapyraError::PageOutOfRange(i))?;
-        Ok(to_bitmap(hayro::render(
-          page,
-          &cache,
-          &interp,
-          &RenderSettings::default(),
-          &settings,
-        )))
+        Ok(render(page, &cache, &interp, &settings))
       })
       .collect()
   }
@@ -123,13 +118,7 @@ impl HayroDocument {
       .par_iter()
       .map_init(RenderCache::new, |cache, &i| {
         let page = pages.get(i).ok_or(PapyraError::PageOutOfRange(i))?;
-        Ok(to_bitmap(hayro::render(
-          page,
-          cache,
-          &interp,
-          &RenderSettings::default(),
-          &settings,
-        )))
+        Ok(render(page, cache, &interp, &settings))
       })
       .collect()
   }
@@ -191,7 +180,13 @@ fn svg_settings(opts: &RenderOptions) -> hayro_svg::SvgRenderSettings {
   }
 }
 
-fn to_bitmap(pixmap: hayro::vello_cpu::Pixmap) -> Bitmap {
+fn render<'a>(
+  page: &'a Page<'a>,
+  cache: &RenderCache<'a>,
+  interp: &InterpreterSettings,
+  settings: &PixmapSettings,
+) -> Bitmap {
+  let pixmap = hayro::render(page, cache, interp, &RenderSettings::default(), settings);
   let width = pixmap.width() as u32;
   let height = pixmap.height() as u32;
   Bitmap {
@@ -271,13 +266,12 @@ impl Document for HayroDocument {
     let pages = self.pdf.pages();
     let page = pages.get(index).ok_or(PapyraError::PageOutOfRange(index))?;
     let cache = RenderCache::new();
-    Ok(to_bitmap(hayro::render(
+    Ok(render(
       page,
       &cache,
       &interpreter_settings(opts),
-      &RenderSettings::default(),
       &pixmap_settings(opts),
-    )))
+    ))
   }
 }
 
@@ -360,12 +354,12 @@ mod svg {
   /// geometry is still geometry and not a raster of it.
   #[test]
   fn fills_stay_vector() {
-    // Not a `re`: hayro-svg writes an axis-aligned rectangle as `<rect>`.
-    let svg = doc("1 0 0 rg 100 100 m 300 100 l 200 400 l f")
+    let svg = doc("1 0 0 rg 100 100 200 300 re f")
       .page_svg(0, &RenderOptions::default())
       .unwrap();
 
-    assert!(svg.contains("<path "), "{svg}");
+    // hayro-svg writes an axis-aligned rectangle as `<rect>`, anything else as `<path>`.
+    assert!(svg.contains("<rect ") || svg.contains("<path "), "{svg}");
     assert!(svg.contains("#ff0000"), "{svg}");
     assert!(!svg.contains("<image "), "{svg}");
   }

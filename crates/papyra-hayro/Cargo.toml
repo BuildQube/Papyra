@@ -19,6 +19,5 @@ hayro-interpret = { workspace = true }
 # standard 14 as outlines, and without it a non-embedding page converts to nothing.
 hayro-svg = { workspace = true }
 hayro-syntax = { workspace = true }
-bytemuck = { workspace = true }
 kurbo = { workspace = true }
 rayon = { workspace = true }
