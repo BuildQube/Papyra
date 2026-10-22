@@ -28,6 +28,44 @@
         "*.wasi-browser.js"
       ]
     },
+    // The office addon compiles crates outside its package — papyra-office, and
+    // through it WordCraft and DeckCraft at whatever revision Cargo.lock pins — so
+    // those join its inputs. Otherwise an engine bump hashes the same as before and
+    // the deploy serves the cached wasm it replaced.
+    "@build-qube/papyra-office-native#build": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "src/**",
+        "**/*.rs",
+        "Cargo.toml",
+        "package.json",
+        "../../crates/papyra-office/src/**",
+        "../../crates/papyra-office/Cargo.toml",
+        "../../crates/papyra-core/src/**",
+        "../../Cargo.lock"
+      ],
+      "outputs": ["*.node", "index.js", "index.d.ts", "browser.js"]
+    },
+    "@build-qube/papyra-office-native#build:wasm": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "src/**",
+        "**/*.rs",
+        "Cargo.toml",
+        "../../crates/papyra-office/src/**",
+        "../../crates/papyra-office/Cargo.toml",
+        "../../crates/papyra-core/src/**",
+        "../../Cargo.lock"
+      ],
+      "outputs": [
+        "*.wasm",
+        "*.cjs",
+        "*.cts",
+        "*.mjs",
+        "browser.js",
+        "*.wasi-browser.js"
+      ]
+    },
     // TypeDoc cannot run on this repo's TypeScript 7 (its compiler API is gone, and
     // TypeStrong/typedoc#3098 has no timeline), so papyra-docs-gen pins its own
     // TypeScript 5 and emits the API model the /docs route fetches. It reaches both

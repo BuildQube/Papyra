@@ -57,6 +57,7 @@ if (FLAVOURS.length === 0) throw new Error(`unknown flavour: ${args.only}`);
 
 const pkg = join(import.meta.dir, '..');
 const papyra = join(pkg, '../papyra');
+const officeNative = join(pkg, '../office-bindings');
 if (
   !args.published &&
   !(await Bun.file(join(papyra, 'dist/index.d.ts')).exists())
@@ -79,17 +80,37 @@ const server = Bun.serve({
       return new Response('not found', { status: 404 });
     if (args.published) return new Response(file);
     // The workspace copy is linked in after install, so the range only has to
-    // resolve — and before a release it names a version npm does not have yet.
-    return new Response(
-      (await file.text()).replaceAll(
-        /"@build-qube\/papyra@[^"]*"/g,
-        '"@build-qube/papyra"',
-      ),
-      { headers: { 'Content-Type': file.type } },
-    );
+    // resolve — and before a release it names a version npm does not have yet. The
+    // office addon is not on npm at all before its first release, so it is dropped
+    // from what gets installed and linked in the same way.
+    return Response.json(unreleased(await file.json()));
   },
 });
 const registryUrl = `http://localhost:${server.port}/r`;
+
+/** An item's npm dependencies as they can install ahead of a release. */
+function unreleased<T>(json: T): T {
+  const fix = (deps: unknown) =>
+    Array.isArray(deps)
+      ? deps
+          .filter(
+            (d) => !String(d).startsWith('@build-qube/papyra-office-native'),
+          )
+          .map((d) =>
+            String(d).startsWith('@build-qube/papyra@')
+              ? '@build-qube/papyra'
+              : d,
+          )
+      : deps;
+  const item = (i: Record<string, unknown>) =>
+    'dependencies' in i ? { ...i, dependencies: fix(i.dependencies) } : i;
+  const doc = json as Record<string, unknown>;
+  return (
+    Array.isArray(doc.items)
+      ? { ...doc, items: (doc.items as Record<string, unknown>[]).map(item) }
+      : item(doc)
+  ) as T;
+}
 
 function run(cmd: string[], cwd: string, env?: Record<string, string>) {
   console.log(`$ ${cmd.join(' ')}`);
@@ -183,9 +204,14 @@ try {
     }
 
     if (!args.published) {
-      const linked = join(fixture, 'node_modules/@build-qube/papyra');
-      await rm(linked, { recursive: true, force: true });
-      await symlink(papyra, linked, 'dir');
+      for (const [name, dir] of [
+        ['papyra', papyra],
+        ['papyra-office-native', officeNative],
+      ] as const) {
+        const linked = join(fixture, 'node_modules/@build-qube', name);
+        await rm(linked, { recursive: true, force: true });
+        await symlink(dir, linked, 'dir');
+      }
     }
 
     const tsc = await run(

@@ -4,9 +4,17 @@ import {
   type SearchMatch,
 } from '@build-qube/papyra/core';
 import { type OfficeDoc, officeEngine } from '@build-qube/papyra/office';
+import { FileIcon } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ContinuousPages } from '@/components/pdf-continuous-pages';
 import { EngineGuard, PageEngineScope } from '@/components/pdf-engine';
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
 import { ZoomBar } from '@/components/viewer-zoom-bar';
 import { useZoom, type ZoomAnchor } from '@/hooks/use-viewer-zoom';
@@ -131,12 +139,33 @@ function OpenedOffice({
       // offers it as a download.
       throw opened.error;
     case 'open':
+      // A valid file can have none — a deck or template with no slides yet — and the
+      // column sizes itself from the first page.
+      if (opened.doc.pageCount === 0) return <NoPages kind={opened.doc.kind} />;
       return (
         <PageEngineScope engine={officeEngine}>
           <OfficePages doc={opened.doc} />
         </PageEngineScope>
       );
   }
+}
+
+function NoPages({ kind }: { kind: OfficeDoc['kind'] }) {
+  return (
+    <Empty className="flex-1">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <FileIcon />
+        </EmptyMedia>
+        <EmptyTitle>{kind === 'slides' ? 'No slides' : 'No pages'}</EmptyTitle>
+        <EmptyDescription>
+          {kind === 'slides'
+            ? 'This deck has no slides to show.'
+            : 'This document has no pages to show.'}
+        </EmptyDescription>
+      </EmptyHeader>
+    </Empty>
+  );
 }
 
 /** No search for office documents yet, so every page draws no matches. */

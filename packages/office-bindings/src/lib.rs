@@ -34,22 +34,37 @@ fn map_err(e: papyra_office::OfficeError) -> Error {
   Error::new(Status::GenericFailure, e.to_string())
 }
 
-/// `"wasm"` in a browser, `"native"` otherwise.
-#[napi]
-pub fn runtime() -> &'static str {
-  if cfg!(target_family = "wasm") {
-    "wasm"
-  } else {
-    "native"
+pub struct AddFontTask {
+  bytes: Option<Vec<u8>>,
+}
+
+impl Task for AddFontTask {
+  type Output = u32;
+  type JsValue = u32;
+
+  fn compute(&mut self) -> Result<Self::Output> {
+    Ok(papyra_office::add_font(self.bytes.take().unwrap_or_default()) as u32)
+  }
+
+  fn resolve(&mut self, _env: Env, added: Self::Output) -> Result<Self::JsValue> {
+    Ok(added)
   }
 }
 
 /// Register a TrueType or OpenType font with both engines, for documents opened
-/// after this call. Returns the number of faces read; 0 means the bytes were not a
-/// usable font.
-#[napi]
-pub fn add_font(data: Uint8Array) -> u32 {
-  papyra_office::add_font(data.to_vec()) as u32
+/// after this call. Resolves to the number of faces added: 0 when the bytes are not
+/// a usable font, or every face in them was already registered.
+///
+/// A task, not a synchronous call, though it is quick: it takes each engine's global
+/// font lock, which a worker laying out or rendering a page may hold. On
+/// wasm32-wasip1-threads a contended lock is `memory.atomic.wait32`, which a browser
+/// refuses on the main thread — the instance aborts. On a worker it just waits.
+#[napi(ts_return_type = "Promise<number>")]
+pub fn add_font(data: Uint8Array) -> AsyncTask<AddFontTask> {
+  ensure_heap_reserved();
+  AsyncTask::new(AddFontTask {
+    bytes: Some(data.to_vec()),
+  })
 }
 
 pub struct LoadOfficeTask {
@@ -67,7 +82,7 @@ impl Task for LoadOfficeTask {
 
   fn resolve(&mut self, _env: Env, out: Self::Output) -> Result<Self::JsValue> {
     Ok(OfficeDocument {
-      inner: Arc::new(out),
+      inner: Some(Arc::new(out)),
     })
   }
 }
@@ -83,25 +98,34 @@ pub fn load_office(data: Uint8Array) -> AsyncTask<LoadOfficeTask> {
 
 #[napi]
 pub struct OfficeDocument {
-  inner: Arc<papyra_office::OfficeDocument>,
+  /// `None` once closed. Renders already running hold their own `Arc`, so the model
+  /// is freed when the last of them finishes.
+  inner: Option<Arc<papyra_office::OfficeDocument>>,
 }
 
 #[napi]
 impl OfficeDocument {
+  fn doc(&self) -> Result<&Arc<papyra_office::OfficeDocument>> {
+    self
+      .inner
+      .as_ref()
+      .ok_or_else(|| Error::new(Status::GenericFailure, "document is closed"))
+  }
+
   /// `"word"` or `"slides"`.
   #[napi(getter)]
-  pub fn kind(&self) -> &'static str {
-    self.inner.kind().as_str()
+  pub fn kind(&self) -> Result<&'static str> {
+    Ok(self.doc()?.kind().as_str())
   }
 
   #[napi(getter)]
-  pub fn page_count(&self) -> u32 {
-    self.inner.page_count() as u32
+  pub fn page_count(&self) -> Result<u32> {
+    Ok(self.doc()?.page_count() as u32)
   }
 
   #[napi]
   pub fn page_size(&self, index: u32) -> Result<PageDimensions> {
-    let s = self.inner.page_size(index as usize).map_err(map_err)?;
+    let s = self.doc()?.page_size(index as usize).map_err(map_err)?;
     Ok(PageDimensions {
       width: f64::from(s.width),
       height: f64::from(s.height),
@@ -110,12 +134,21 @@ impl OfficeDocument {
 
   /// Draw one page at `scale` pixels per point, off the JS thread.
   #[napi(ts_return_type = "Promise<RenderedPage>")]
-  pub fn render_page(&self, index: u32, scale: f64) -> AsyncTask<RenderOfficeTask> {
-    AsyncTask::new(RenderOfficeTask {
-      doc: self.inner.clone(),
+  pub fn render_page(&self, index: u32, scale: f64) -> Result<AsyncTask<RenderOfficeTask>> {
+    Ok(AsyncTask::new(RenderOfficeTask {
+      doc: self.doc()?.clone(),
       index: index as usize,
       scale: scale as f32,
-    })
+    }))
+  }
+
+  /// Drop the laid-out document now rather than whenever the JS wrapper is collected.
+  /// A deck's model and a Word document's pages live in the wasm heap, and growing a
+  /// shared heap while workers run is what `ensure_heap_reserved` exists to avoid.
+  /// Idempotent; every other method throws afterwards.
+  #[napi]
+  pub fn close(&mut self) {
+    self.inner = None;
   }
 }
 

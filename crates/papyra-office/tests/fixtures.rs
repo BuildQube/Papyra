@@ -1,5 +1,5 @@
-//! `sample.docx` is the demo's own (`apps/demo/public`, from
-//! `scripts/make-sample-docx.ts`); `sample.pptx` is DeckCraft's built-in sample deck,
+//! Both are the demo's own, in `apps/demo/public`: `sample.docx` from
+//! `scripts/make-sample-docx.ts`, and `sample.pptx` DeckCraft's built-in sample deck,
 //! saved by `deckcraft-cli run --sample --save`.
 
 use papyra_office::{OfficeDocument, OfficeError, OfficeKind};
@@ -15,9 +15,9 @@ fn docx() -> Vec<u8> {
 fn pptx() -> Vec<u8> {
   std::fs::read(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/tests/fixtures/sample.pptx"
+    "/../../apps/demo/public/sample.pptx"
   ))
-  .expect("sample.pptx")
+  .expect("demo sample.pptx")
 }
 
 /// Share of pixels that are not paper-white. A blank page — the failure mode when a

@@ -48,12 +48,22 @@ const OUT = join(ROOT, 'coverage');
  * `fixtures.rs` is `#[cfg(test)] mod fixtures` — a PDF builder used only by the
  * outline and text tests. It is 100% covered by construction and only inflates the
  * total. The registry paths keep dependencies out; the wrapper already excludes
- * them from instrumentation, but a proc-macro expansion can still name one.
+ * them from instrumentation, but a proc-macro expansion can still name one. `git/`
+ * is the same for git-pinned ones: WordCraft and DeckCraft.
+ *
+ * The office crates are left out entirely. Their addon is built plain, not
+ * instrumented, for the wrapper's office tests, so it would report at 0% and drag the
+ * total down without saying why — the failure this script exists to prevent.
+ * Instrumenting it as a second `--object`, as `packages/bindings` is, is the way to
+ * bring them in.
  */
 const RUST_IGNORE = [
   '/\\.cargo/registry/',
+  '/\\.cargo/git/',
   '/rustc/',
   'crates/papyra-hayro/src/fixtures\\.rs',
+  'crates/papyra-office/',
+  'packages/office-bindings/',
 ].join('|');
 
 /**
@@ -226,7 +236,11 @@ const stageEnv = (stage: string) => ({
 });
 
 console.log('coverage: cargo test');
-await $`cargo test --workspace --profile coverage`.env(stageEnv('cargo-test'));
+// Not the office crates: see RUST_IGNORE. Excluding them here also saves compiling
+// WordCraft and DeckCraft a second time, instrumented, for a number nobody reads.
+await $`cargo test --workspace --exclude papyra-office --exclude papyra-office-bindings --profile coverage`.env(
+  stageEnv('cargo-test'),
+);
 console.log(`  ${await countProfraw()} profraw so far`);
 
 // Drives the napi surface directly: rendering, page sizes, the encoders.

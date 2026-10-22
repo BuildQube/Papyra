@@ -282,7 +282,8 @@ jobs:
       # drives the Rust render path.
       - run: bun run corpus
       # The wrapper's office tests need the office addon. It is built plain, not
-      # instrumented: the office crates are not part of the coverage report yet.
+      # instrumented, and scripts/coverage.ts leaves the office crates out of both its
+      # cargo test stage and the report, so they neither count nor drag the total.
       - run: bun run --filter @build-qube/papyra-office-native build
       - run: bun run coverage
       # The delta column compares against the last green run on main. Advisory: the

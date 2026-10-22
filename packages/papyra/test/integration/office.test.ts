@@ -8,9 +8,7 @@ const ROOT = join(import.meta.dir, '..', '..', '..', '..');
 const docx = () =>
   readFileSync(join(ROOT, 'apps', 'demo', 'public', 'sample.docx'));
 const pptx = () =>
-  readFileSync(
-    join(ROOT, 'crates', 'papyra-office', 'tests', 'fixtures', 'sample.pptx'),
-  );
+  readFileSync(join(ROOT, 'apps', 'demo', 'public', 'sample.pptx'));
 
 const render = (
   doc: Parameters<typeof officeEngine.render>[0],
@@ -49,7 +47,7 @@ describe('officeEngine', () => {
       /not a Word document/,
     );
     const doc = await officeEngine.open(docx());
-    expect(() => officeEngine.render(doc, 2)).toThrow(RangeError);
+    expect(() => officeEngine.render(doc, 2)).toThrow(/out of range/);
     expect(() => officeEngine.render(doc, 0, { dpi: 72 * 100 })).toThrow(
       /fitWidth/,
     );
@@ -66,6 +64,22 @@ describe('officeEngine', () => {
     const again = officeEngine.render(doc, 0, { fitWidth: 400 });
     expect(again.cached).toBe(true);
     expect(await again.promise).toBe(pa);
+  });
+
+  test('addFont is a task, and bytes that are not a font add nothing', async () => {
+    const added = officeEngine.addFont(new Uint8Array([1, 2, 3]));
+    expect(added).toBeInstanceOf(Promise);
+    expect(await added).toBe(0);
+  });
+
+  test('closing frees the native document', async () => {
+    const native = await import('@build-qube/papyra-office-native');
+    const doc = await native.loadOffice(docx());
+    expect(doc.pageCount).toBe(2);
+    doc.close();
+    doc.close();
+    expect(() => doc.pageCount).toThrow(/closed/);
+    expect(() => doc.renderPage(0, 1)).toThrow(/closed/);
   });
 
   test('a document belongs to the engine that opened it, until closed', async () => {

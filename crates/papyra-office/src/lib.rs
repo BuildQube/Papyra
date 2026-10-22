@@ -78,9 +78,7 @@ pub struct OfficeDocument {
 /// differs. Matched on the declared type rather than a part name, since writers may
 /// name the main part anything.
 fn sniff(bytes: &[u8]) -> Option<OfficeKind> {
-  if !deckcraft_pptx::sniff(bytes) {
-    return None;
-  }
+  // `None` for anything that is not a zip with that entry, so no separate zip check.
   let types = content_types(bytes)?;
   if types.contains("wordprocessingml.document.main")
     || types.contains("wordprocessingml.template.main")
@@ -217,8 +215,9 @@ impl OfficeDocument {
 
 /// Make a font available to both engines, for every document opened **after** this
 /// call — WordCraft caches each family's resolution, so a document already laid out
-/// keeps the substitute it got. Returns how many faces the file held (a `.ttc` may
-/// hold several); 0 means it was not a font either engine could read.
+/// keeps the substitute it got. Returns how many faces were added (a `.ttc` may hold
+/// several): 0 when it was not a font either engine could read, or every face in it
+/// was already registered, since both engines skip a face they have.
 pub fn add_font(bytes: Vec<u8>) -> usize {
   let word = wordcraft_fonts::FontDb::global().add_font(bytes.clone());
   let slides = deckcraft_fonts::FontDb::global().add_font(bytes);

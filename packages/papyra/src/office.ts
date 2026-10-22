@@ -36,7 +36,12 @@ type Native = typeof import('@build-qube/papyra-office-native');
 let native: Promise<Native> | undefined;
 
 function loadNative(): Promise<Native> {
-  native ??= import('@build-qube/papyra-office-native');
+  native ??= import('@build-qube/papyra-office-native').catch((e: unknown) => {
+    // A failed fetch of a 5.7 MB module is often transient: let the next open retry
+    // rather than leave office disabled until a reload.
+    native = undefined;
+    throw e;
+  });
   return native;
 }
 
@@ -47,8 +52,6 @@ class OfficeBackend implements PagedBackend {
   readonly capabilities = RENDER_ONLY;
   readonly concurrency = CONCURRENCY;
   readonly #native: NativeOfficeDocument;
-  /** Sizes are fixed once laid out, and a scrolling column asks for every one. */
-  readonly #sizes: (PageSize | undefined)[] = [];
 
   constructor(native: NativeOfficeDocument) {
     this.#native = native;
@@ -61,15 +64,7 @@ class OfficeBackend implements PagedBackend {
    * document's sections may each set their own.
    */
   pageSize(index: number): PageSize {
-    if (!Number.isInteger(index) || index < 0 || index >= this.pageCount) {
-      throw new RangeError(`papyra: no page ${JSON.stringify(index)}`);
-    }
-    let size = this.#sizes[index];
-    if (!size) {
-      size = this.#native.pageSize(index);
-      this.#sizes[index] = size;
-    }
-    return size;
+    return this.#native.pageSize(index);
   }
 
   /** `annotations` does not apply: an office page has none to switch off. */
@@ -78,6 +73,15 @@ class OfficeBackend implements PagedBackend {
     { dpi }: BackendRenderOptions,
   ): Promise<RenderedPage> {
     return this.#native.renderPage(index, dpi / 72) as Promise<RenderedPage>;
+  }
+
+  /**
+   * Free the laid-out document in the wasm heap now, not whenever the wrapper is
+   * collected: a deck's model can be large, and growing a shared heap while workers
+   * run is the trap the addon pre-grows its heap to avoid.
+   */
+  close(): void {
+    this.#native.close();
   }
 }
 
@@ -121,7 +125,8 @@ export class PapyraOfficeEngine extends PagedEngine<OfficeDoc, OfficeBackend> {
    *
    * On the engine because fonts belong to whatever runs the layout: this wasm module
    * here, a host process for another engine. Fetches the module if no document has
-   * yet. Returns how many faces were read; 0 means the bytes were not a font.
+   * yet. Resolves to how many faces were added: 0 when the bytes are not a font, or
+   * when every face in them was already registered.
    */
   async addFont(source: PdfSource): Promise<number> {
     const [{ addFont }, bytes] = await Promise.all([
