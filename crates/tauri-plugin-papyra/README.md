@@ -4,29 +4,8 @@ papyra's PDF engine inside a Tauri 2 app, for the viewer's `TauriEngine`
 (`@build-qube/papyra-tauri`). Documents are parsed and rendered on the host's cores,
 so the WebView needs no cross-origin isolation and no wasm.
 
-```rust
-tauri::Builder::default().plugin(tauri_plugin_papyra::init())
-```
-
-and `"papyra:default"` in the app's capabilities.
-
-## Before you depend on it
-
-- **Rust 1.92 or later.** The crate is edition 2024, which raises the floor for the
-  app that uses it, whatever the app's own `rust-version` says.
-- **Optimise dependencies in debug builds.** Cargo reads profiles only from the
-  top-level manifest, so the app needs this itself:
-
-  ```toml
-  [profile.dev.package."*"]
-  opt-level = 2
-  ```
-
-  Without it hayro runs unoptimised in a debug build: 1.3–1.7 s a page, measured on
-  an iOS simulator.
-- **Content Security Policy.** Pages are fetched from `papyra://localhost/…`, which
-  is `http://papyra.localhost/…` on Android and Windows. A CSP needs both in
-  `connect-src`, or every page fetch is blocked.
+The Cargo, builder and capability setup, the debug-profile and CSP settings an app
+needs, and the TypeScript side are in the [Tauri guide](https://buildqube.github.io/Papyra/docs/guides/tauri).
 
 ## What it serves
 

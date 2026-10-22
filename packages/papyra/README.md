@@ -144,7 +144,7 @@ fails until the page reloads; natively it is a rejected promise like any other e
 
 Other engines — pdf.js for pages that cannot be isolated, Tauri, and the experimental
 Word and PowerPoint `@build-qube/papyra/office` — are covered in the
-[Engines section of the project README](https://github.com/BuildQube/Papyra#engines).
+[Engines guide](https://buildqube.github.io/Papyra/docs/guides/engines).
 Code that opens documents with another engine imports from `@build-qube/papyra/core`,
 which never loads papyra's wasm.
 

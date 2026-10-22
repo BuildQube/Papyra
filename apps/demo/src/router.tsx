@@ -113,12 +113,19 @@ const docsRoute = createRoute({
   component: DocsRoute,
 });
 
+const guideRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/docs/guides/$slug',
+  component: DocsRoute,
+});
+
 const routeTree = rootRoute.addChildren([
   viewerRoute,
   exportRoute,
   benchRoute,
   componentsRoute,
   docsRoute,
+  guideRoute,
 ]);
 
 export const router = createRouter({

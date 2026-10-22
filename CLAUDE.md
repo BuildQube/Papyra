@@ -305,6 +305,15 @@ involved. It is the npm landing page as well, so keep it portable: plain markdow
 TSDoc-only syntax like `{@link}`. The root `README.md` stays the long-form guide;
 this one is the quickstart, and the two should not grow into each other.
 
+The guides beside it (`/docs/guides/<slug>`, the slug being the title's GitHub
+anchor) come from `docs/guides/*.md` through TypeDoc's `projectDocuments`, into the
+model's `documents` as that same stream. Each guide is the only copy of its text:
+READMEs link to the page rather than repeat it. Write their links as absolute URLs —
+a relative one arrives as a `relative-link` part `CommentBody` does not render — and
+keep code spans out of link text, which splits the link across parts. Documents flip
+TypeDoc's `alwaysCreateEntryPointModule` to true, which would nest every export under
+a module; `typedoc.json` pins it false.
+
 Because the source of truth is the wrapper's own TSDoc, **an exported member with no
 doc comment fails the build** — `treatValidationWarningsAsErrors` in
 `packages/docs-gen/typedoc.json` turns TypeDoc's `notDocumented` warning into a

@@ -103,11 +103,26 @@ export interface Group {
   children: number[];
 }
 
+/** A guide from `docs/guides`, via TypeDoc's `projectDocuments`. */
+export interface ApiDocument {
+  id: number;
+  /** The frontmatter `title`. */
+  name: string;
+  /** Same token stream as a comment. */
+  content: CommentPart[];
+}
+
 export interface ApiProject extends Reflection {
   children?: Reflection[];
   groups?: Group[];
   /** The package README, via TypeDoc's `readme` option. Same token stream as a comment. */
   readme?: CommentPart[];
+  documents?: ApiDocument[];
+}
+
+/** A guide and the path segment it is served at, `/docs/guides/<slug>`. */
+export interface Guide extends ApiDocument {
+  slug: string;
 }
 
 /** A project plus the lookups the renderer needs to resolve `{@link}` targets. */
@@ -122,6 +137,20 @@ export interface ApiIndex {
   groups: Group[];
   /** The quickstart that opens the page. */
   readme?: CommentPart[];
+  guides: Guide[];
+}
+
+/**
+ * GitHub's heading anchor: lowercase, punctuation dropped, spaces to hyphens. A guide's
+ * URL and its headings' ids use it, so a link written against the markdown on GitHub
+ * lands on the same place here.
+ */
+export function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, '')
+    .trim()
+    .replace(/\s/g, '-');
 }
 
 export function buildIndex(project: ApiProject): ApiIndex {
@@ -143,6 +172,10 @@ export function buildIndex(project: ApiProject): ApiIndex {
     ownerOf,
     groups: project.groups ?? [],
     readme: project.readme,
+    guides: (project.documents ?? []).map((doc) => ({
+      ...doc,
+      slug: slugify(doc.name),
+    })),
   };
 }
 
@@ -211,8 +244,21 @@ export function sourceUrl(source: Source): string {
   return `${GITHUB_BLOB}${source.fileName}#L${source.line}`;
 }
 
-/** Fetch and index the generated model. */
-export async function loadApi(): Promise<ApiIndex> {
+let loaded: Promise<ApiIndex> | undefined;
+
+/**
+ * Fetch and index the generated model, once: the reference and every guide share it,
+ * so nothing about which route remounts can cost a second 144 KB fetch.
+ */
+export function loadApi(): Promise<ApiIndex> {
+  loaded ??= fetchApi().catch((e: unknown) => {
+    loaded = undefined;
+    throw e;
+  });
+  return loaded;
+}
+
+async function fetchApi(): Promise<ApiIndex> {
   const url = `${import.meta.env.BASE_URL}papyra-api.json`;
   const res = await fetch(url);
   if (!res.ok) {

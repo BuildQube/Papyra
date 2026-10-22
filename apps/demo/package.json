@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
+    "test": "bun test test/unit",
     "clean": "rm -rf dist .turbo *.tsbuildinfo",
     "fixtures": "bun run ../../scripts/demo-fixtures.ts"
   },

@@ -1,3 +1,4 @@
+import { Link, useLocation, useParams } from '@tanstack/react-router';
 import {
   Alert,
   AlertDescription,
@@ -9,6 +10,7 @@ import {
   InputGroupInput,
 } from '@workspace/ui/components/input-group';
 import { Spinner } from '@workspace/ui/components/spinner';
+import { cn } from '@workspace/ui/lib/utils';
 import { SearchIcon, TriangleAlertIcon } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { ApiMember } from '../components/docs/ApiMember.js';
@@ -26,11 +28,17 @@ import { type ApiIndex, loadApi, type Reflection } from '../lib/apiModel.js';
  * an in-page anchor is the whole navigation story, and it means every `{@link}` in
  * the source resolves to a jump that needs no router round trip — including the ones
  * pointing at nested members like `Document.search`.
+ *
+ * The guides (`docs/guides`, through the same model) are pages of their own at
+ * `/docs/guides/<slug>`, since READMEs and npm pages link to them by URL. On one, a
+ * reference link leaves the page for `/docs`.
  */
 export function DocsRoute() {
   const [api, setApi] = useState<ApiIndex | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
+  const { slug } = useParams({ strict: false });
+  const { hash } = useLocation();
 
   useEffect(() => {
     let live = true;
@@ -57,15 +65,21 @@ export function DocsRoute() {
         const node = api.byId.get(target);
         if (node) {
           const owner = api.ownerOf.get(target);
-          return owner === target ? `#${node.name}` : `#r${target}`;
+          return refHref(owner === target ? node.name : `r${target}`, slug);
         }
       }
       // A reference with no id: only a link if it happens to name an export.
       return api?.topLevel.some((t) => t.name === name)
-        ? `#${name}`
+        ? refHref(name, slug)
         : undefined;
     };
-  }, [api]);
+  }, [api, slug]);
+
+  // The page renders after a fetch, so the browser's own jump to the fragment has
+  // already found nothing by then — a deep link into a guide needs this one.
+  useEffect(() => {
+    if (api && hash) document.getElementById(hash)?.scrollIntoView();
+  }, [api, hash, slug]);
 
   if (error) {
     return (
@@ -102,6 +116,8 @@ export function DocsRoute() {
     }))
     .filter((group) => group.members.length > 0);
 
+  const guide = slug && api.guides.find((g) => g.slug === slug);
+
   return (
     <div className="flex min-h-0 flex-1">
       <nav
@@ -123,20 +139,46 @@ export function DocsRoute() {
           </InputGroup>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+          <section>
+            <h3 className={NAV_HEADING}>Guides</h3>
+            <ul>
+              {api.guides.map((g) => (
+                <li key={g.id}>
+                  <Link
+                    className={cn(NAV_LINK, 'font-sans')}
+                    params={{ slug: g.slug }}
+                    to="/docs/guides/$slug"
+                  >
+                    {g.name}
+                  </Link>
+                </li>
+              ))}
+              <li>
+                <Link
+                  activeOptions={{ exact: true }}
+                  className={cn(NAV_LINK, 'font-sans')}
+                  to="/docs"
+                >
+                  API reference
+                </Link>
+              </li>
+            </ul>
+          </section>
           {groups.map((group) => (
             <section key={group.title}>
-              <h3 className="px-2.5 pt-3 pb-1 text-xs font-medium tracking-wider text-muted-foreground uppercase">
-                {group.title}
-              </h3>
+              <h3 className={NAV_HEADING}>{group.title}</h3>
               <ul>
                 {group.members.map((node) => (
                   <li key={node.id}>
-                    <a
-                      className="block border-l-2 border-transparent px-2.5 py-0.5 font-mono text-xs hover:border-primary hover:bg-muted"
-                      href={`#${node.name}`}
+                    <Link
+                      // Every member is on /docs; only the hash tells them apart.
+                      activeOptions={{ includeHash: true }}
+                      className={NAV_LINK}
+                      hash={node.name}
+                      to="/docs"
                     >
                       {node.name}
-                    </a>
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -155,26 +197,74 @@ export function DocsRoute() {
        * at the top of the viewport, rather than wherever the page happens to bottom
        * out.
        */}
-      <main className="min-w-0 flex-1 overflow-y-auto px-8 pt-6 pb-[60vh]">
-        {/* The package README, which is also the npm landing page — so the
-            quickstart a reader needs first is the same text a reader gets there,
-            and neither can go stale while the other is updated. */}
-        <CommentBody hrefFor={hrefFor} parts={api.readme} variant="readme" />
-        <p className="mt-4 max-w-[74ch] text-xs text-muted-foreground">
-          Everything below is generated from the package's doc comments. Every
-          entry links to the line it is declared on.
-        </p>
-        {groups.map((group) => (
-          <div key={group.title}>
-            <h2 className="mt-8 border-b pb-1.5 text-xs font-medium tracking-wider text-muted-foreground uppercase">
-              {group.title}
-            </h2>
-            {group.members.map((node) => (
-              <ApiMember hrefFor={hrefFor} key={node.id} node={node} />
-            ))}
-          </div>
-        ))}
+      <main
+        className="min-w-0 flex-1 overflow-y-auto px-8 pt-6 pb-[60vh]"
+        // Remounted per page, so a new guide opens at its top.
+        key={slug ?? ''}
+      >
+        {slug ? (
+          guide ? (
+            <CommentBody
+              hrefFor={hrefFor}
+              parts={guide.content}
+              variant="readme"
+            />
+          ) : (
+            <Alert className="h-fit max-w-[74ch]">
+              <TriangleAlertIcon />
+              <AlertTitle>No guide at this address</AlertTitle>
+              <AlertDescription>
+                The guides are listed on the left.
+              </AlertDescription>
+            </Alert>
+          )
+        ) : (
+          <Reference api={api} groups={groups} hrefFor={hrefFor} />
+        )}
       </main>
     </div>
+  );
+}
+
+const NAV_HEADING =
+  'px-2.5 pt-3 pb-1 text-xs font-medium tracking-wider text-muted-foreground uppercase';
+const NAV_LINK =
+  'block border-l-2 border-transparent px-2.5 py-0.5 font-mono text-xs hover:border-primary hover:bg-muted data-[status=active]:border-primary data-[status=active]:bg-muted';
+
+/** A reference fragment, through `/docs` when the page showing it is a guide. */
+function refHref(fragment: string, slug: string | undefined): string {
+  return slug ? `${import.meta.env.BASE_URL}docs#${fragment}` : `#${fragment}`;
+}
+
+function Reference({
+  api,
+  groups,
+  hrefFor,
+}: {
+  api: ApiIndex;
+  groups: { title: string; members: Reflection[] }[];
+  hrefFor: (target: number | undefined, text: string) => string | undefined;
+}) {
+  return (
+    <>
+      {/* The package README, which is also the npm landing page — so the
+            quickstart a reader needs first is the same text a reader gets there,
+            and neither can go stale while the other is updated. */}
+      <CommentBody hrefFor={hrefFor} parts={api.readme} variant="readme" />
+      <p className="mt-4 max-w-[74ch] text-xs text-muted-foreground">
+        Everything below is generated from the package's doc comments. Every
+        entry links to the line it is declared on.
+      </p>
+      {groups.map((group) => (
+        <div key={group.title}>
+          <h2 className="mt-8 border-b pb-1.5 text-xs font-medium tracking-wider text-muted-foreground uppercase">
+            {group.title}
+          </h2>
+          {group.members.map((node) => (
+            <ApiMember hrefFor={hrefFor} key={node.id} node={node} />
+          ))}
+        </div>
+      ))}
+    </>
   );
 }
