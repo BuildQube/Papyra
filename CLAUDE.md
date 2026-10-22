@@ -174,7 +174,14 @@ for pages that cannot be cross-origin isolated; `?engine=pdfjs` runs the demo on
 `packages/tauri` (`@build-qube/papyra-tauri`) is the third, papyra itself in a Tauri
 app's host process via `crates/tauri-plugin-papyra` — **its own Cargo workspace**,
 outside `cargo … --workspace`, because Tauri on Linux needs webkit2gtk headers; CI
-checks it on macOS (`tauri-plugin` job).
+checks it on macOS (`tauri-plugin` job). **Every format the file preview renders is
+also a plugin Cargo feature** (`tiff`, `tables`) with a permission set of the same
+name and a JS opener in `@build-qube/papyra-tauri`; the views take it through their
+renderer's `.with({ open })` (`{ engine }` for office). Word and PowerPoint are
+`crates/tauri-plugin-papyra/office`, `publish = false`, because crates.io refuses
+the WordCraft/DeckCraft git dependencies even behind a feature: the published
+plugin's manifest must never name `papyra-office`. Adding a command means adding it
+to `build.rs`'s list and committing the regenerated `permissions/` (CI diffs them).
 `docs/engines-design.md` is the design, and its "As built" section the deviations.
 
 `packages/ui` (`@workspace/ui`) sits outside that stack: it is the private home of

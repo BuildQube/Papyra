@@ -290,7 +290,8 @@ jobs:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
         run: |
           version=$(jq -r .version packages/papyra/package.json)
-          for crate in papyra-core papyra-encode papyra-hayro tauri-plugin-papyra; do
+          # Dependency order: each crate's papyra dependencies are published first.
+          for crate in papyra-core papyra-encode papyra-hayro papyra-tables papyra-tiff tauri-plugin-papyra; do
             if curl -sf "https://index.crates.io/${crate:0:2}/${crate:2:2}/$crate" \
               | grep -q "\"vers\":\"$version\""; then
               echo "$crate $version is already on crates.io"

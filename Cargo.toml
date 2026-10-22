@@ -22,8 +22,8 @@ rust-version = "1.92"
 papyra-core = { path = "crates/papyra-core", version = "0.5.0" }
 papyra-encode = { path = "crates/papyra-encode", version = "0.5.0" }
 papyra-hayro = { path = "crates/papyra-hayro", version = "0.5.0" }
-papyra-tables = { path = "crates/papyra-tables" }
-papyra-tiff = { path = "crates/papyra-tiff" }
+papyra-tables = { path = "crates/papyra-tables", version = "0.5.0" }
+papyra-tiff = { path = "crates/papyra-tiff", version = "0.5.0" }
 papyra-office = { path = "crates/papyra-office" }
 
 hayro = "0.8.0"

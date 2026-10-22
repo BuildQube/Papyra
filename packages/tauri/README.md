@@ -1,7 +1,10 @@
 # @build-qube/papyra-tauri
 
-A Tauri engine for papyra's PDF viewer: documents are parsed and rendered by papyra in
-the app's host process, through the `tauri-plugin-papyra` crate.
+Tauri engines for papyra's viewer and file preview: PDFs, TIFFs, spreadsheets, and
+Word and PowerPoint are parsed and rendered by papyra in the app's host process,
+through the `tauri-plugin-papyra` crate. `TauriEngine` is the PDF engine;
+`openTiff` and `openWorkbook` mirror papyra's own and resolve to its classes; and
+`TauriOfficeEngine` stands in for papyra's `officeEngine`.
 
 A Tauri app's WebView is never cross-origin isolated on Android or iOS, so papyra's
 wasm build cannot run there. This engine does not need it: the Rust side renders on
@@ -16,8 +19,8 @@ Pages travel over a `papyra://` protocol, as PNG by default. `new TauriEngine({
 format: 'rgba' })` sends raw pixels instead: no encode or decode, four times the
 bytes. Which is faster depends on the device.
 
-Documents stay in the host until closed. The viewer's store and file preview close
-what they open; if you call the engine yourself, `await engine.close(doc)` — it
+Documents stay in the host until closed — TIFFs and workbooks too, through their
+`close()`. The viewer's store and file preview close what they open; if you call the engine yourself, `await engine.close(doc)` — it
 rejects if the host could not release the document. When a WebView loads a page —
 a reload, HMR, the app restarting its UI — the host drops every document that
 WebView had open, since nothing on the new page could close them.

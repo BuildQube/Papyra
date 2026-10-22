@@ -15,7 +15,7 @@ In `src-tauri/Cargo.toml`:
 
 ```toml
 [dependencies]
-tauri-plugin-papyra = "0.5"
+tauri-plugin-papyra = "0.6"
 
 # Cargo takes profile settings only from the app's own manifest, never from a
 # dependency. Without this, a debug build renders unoptimised.
@@ -58,7 +58,7 @@ And allow it in a capability file, `src-tauri/capabilities/default.json`:
 npm install @build-qube/papyra-tauri @build-qube/papyra @tauri-apps/api
 ```
 
-`@build-qube/papyra` (0.5.0 or later) and `@tauri-apps/api` are peer dependencies:
+`@build-qube/papyra` (0.6.0 or later) and `@tauri-apps/api` are peer dependencies:
 the app owns them. Two copies of papyra would break `instanceof` across them — a
 password error from one is not a `PasswordError` of the other, and the viewer's
 password prompt never appears.
@@ -105,23 +105,110 @@ export const fallbackPdfEngine = new TauriEngine();
 ## Cargo features
 
 PDF is always built. Other formats come as Cargo features, so an app compiles only
-the readers it serves.
+the readers it serves, and each has a permission set to grant beside
+`papyra:default`.
 
-| Format | Feature | Default |
-| --- | --- | --- |
-| PDF | none: always built | yes |
+| Format | Feature | Default | Permission | WebView side |
+| --- | --- | --- | --- | --- |
+| PDF | none: always built | yes | `papyra:default` | `TauriEngine` |
+| TIFF | `tiff` | no | `papyra:tiff` | `openTiff` |
+| Spreadsheets: xlsx, xlsm, xlsb, xls, ods, csv, tsv | `tables` | no | `papyra:tables` | `openWorkbook` |
+| Word and PowerPoint: docx, pptx | none: a separate crate, from git | no | `papyra-office:default` | `TauriOfficeEngine` |
+
+```toml
+tauri-plugin-papyra = { version = "0.6", features = ["tiff", "tables"] }
+```
+
+```json
+"permissions": ["core:default", "papyra:default", "papyra:tiff", "papyra:tables"]
+```
+
+Every format shares one document table and the `papyra://` protocol, so `close`
+and the page fetch are the ones in `papyra:default`. A permission for a format whose
+feature is off grants nothing: its command is not registered.
+
+Each opener goes to its renderer in the file preview, in place of papyra's own; an
+opener of its own skips the cross-origin isolation check papyra's wasm needs:
+
+```tsx
+import {
+  openTiff,
+  openWorkbook,
+  TauriOfficeEngine,
+} from '@build-qube/papyra-tauri';
+
+const office = new TauriOfficeEngine();
+const FilePreview = createFilePreview([
+  pdfRenderer,
+  tiffRenderer.with({ open: openTiff }),
+  spreadsheetRenderer.with({ open: openWorkbook }),
+  csvRenderer.with({ open: openWorkbook }),
+  pptxRenderer.with({ engine: office }),
+  docxPagedRenderer.with({ engine: office }),
+]);
+```
+
+- **TIFF pages** travel like a PDF's, PNG by default — for a bilevel fax page a small
+  fraction of its RGBA. `openTiff(file, { format: 'rgba' })` sends raw pixels.
+- **Spreadsheets cost memory twice.** The grid reads cells synchronously, a window per
+  frame, and IPC is not synchronous, so a sheet's cells come over **whole** when it is
+  first shown and windows are cut from that copy in the WebView. That is about 19
+  bytes a cell plus its text, held in the host and in the WebView: a million cells is
+  about 25 MB, and the default cap of 8 million cells about 150 MB or more. On a
+  phone, lower the cap with `maxCells` — a sheet past it shows its first whole rows
+  and says so:
+
+  ```tsx
+  const open = (file: File) => openWorkbook(file, { maxCells: 1_000_000 });
+  spreadsheetRenderer.with({ open });
+  ```
+
+### Word and PowerPoint: depend on the repository
+
+Word and PowerPoint are laid out by WordCraft and DeckCraft, which are not on
+crates.io, and crates.io refuses a crate that depends on git — even behind an
+optional feature. So they are not a feature of the published plugin but a second
+plugin, `tauri-plugin-papyra-office`, that lives only in this repository. It opens
+into the PDF plugin's document table, so it needs that plugin from the **same**
+place: taking one from crates.io and the other from git gives Cargo two copies of
+the plugin, which it refuses to link. Depend on both from git, at the release tag:
+
+```toml
+[dependencies]
+tauri-plugin-papyra = { git = "https://github.com/BuildQube/papyra", tag = "@build-qube/papyra@0.6.0", features = ["tiff", "tables"] }
+tauri-plugin-papyra-office = { git = "https://github.com/BuildQube/papyra", tag = "@build-qube/papyra@0.6.0" }
+```
+
+Register it after the PDF plugin, and allow `papyra-office:default`:
+
+```rust
+tauri::Builder::default()
+  .plugin(tauri_plugin_papyra::init())
+  .plugin(tauri_plugin_papyra_office::init())
+```
+
+Office pages are drawn by the host, where both engines also scan the system's fonts,
+so a document can paginate differently from the browser build. `office.addFont(bytes)`
+registers a metric-compatible font (Carlito for Calibri, say) in the host, and the
+renderers' `fonts` option calls it for you.
 
 ## Rust crates
 
-Four crates are published to crates.io, versioned with the npm packages: a papyra
+Six crates are published to crates.io, versioned with the npm packages: a papyra
 release publishes all of them at its version. Only the plugin is meant to be used
-directly; the other three are published because it depends on them.
+directly; the other five are published because it depends on them.
 
-- [tauri-plugin-papyra](https://docs.rs/tauri-plugin-papyra) — papyra's PDF engine
-  inside a Tauri 2 app, for `TauriEngine`.
+- [tauri-plugin-papyra](https://docs.rs/tauri-plugin-papyra) — papyra inside a Tauri
+  2 app, for `TauriEngine`, `openTiff` and `openWorkbook`.
 - [papyra-core](https://docs.rs/papyra-core) — the engine-agnostic `Engine` and
   `Document` traits, `Bitmap` and the render options.
-- [papyra-hayro](https://docs.rs/papyra-hayro) — the engine itself, on hayro: render,
-  text, outline, links, labels, attachments and structure tree.
+- [papyra-hayro](https://docs.rs/papyra-hayro) — the PDF engine itself, on hayro:
+  render, text, outline, links, labels, attachments and structure tree.
 - [papyra-encode](https://docs.rs/papyra-encode) — pure-Rust WebP, PNG and JPEG
   encoders for a `Bitmap`.
+- [papyra-tables](https://docs.rs/papyra-tables) — Excel, OpenDocument, CSV and TSV
+  readers, behind the plugin's `tables` feature.
+- [papyra-tiff](https://docs.rs/papyra-tiff) — the TIFF reader, fax pages included,
+  behind the plugin's `tiff` feature.
+
+`tauri-plugin-papyra-office` is not among them; see above.
