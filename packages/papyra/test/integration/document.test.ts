@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { GENERATED } from '../../../../scripts/demo-fixtures.js';
 import {
+  backend,
   Document,
   defaultPdfEngine,
   IncorrectPasswordError,
@@ -17,6 +18,7 @@ import {
   viewportQuad,
   viewportRect,
 } from '../../src/index.js';
+import { PapyraOfficeEngine } from '../../src/office.js';
 
 /**
  * These need the compiled addon and the corpus, which is why they live apart from
@@ -635,6 +637,55 @@ describe('the Document facade, through the public API', () => {
 
   test('an untagged document has an empty structure tree', async () => {
     expect(await (await generated('rotated.pdf')).structTree()).toEqual([]);
+  });
+
+  test('renderImage holds the page in Rust and encodes it to each format', async () => {
+    const doc = await generated('rotated.pdf');
+    const img = await doc.renderImage(0, { dpi: 36 });
+    expect([img.width, img.height, img.byteLength]).toEqual([
+      306,
+      396,
+      306 * 396 * 4,
+    ]);
+
+    const ascii = (b: Uint8Array, from: number, to: number) =>
+      String.fromCharCode(...b.subarray(from, to));
+    const webp = await img.toWebp();
+    expect([webp.mime, ascii(webp.bytes, 8, 12)]).toEqual([
+      'image/webp',
+      'WEBP',
+    ]);
+    const png = await img.toPng();
+    expect([png.mime, ascii(png.bytes, 1, 4)]).toEqual(['image/png', 'PNG']);
+    const [low, high] = [await img.toJpeg(10), await img.toJpeg(95)];
+    expect(low.mime).toBe('image/jpeg');
+    expect([...low.bytes.subarray(0, 2)]).toEqual([0xff, 0xd8]);
+    // The quality reaches the encoder.
+    expect(low.bytes.length).toBeLessThan(high.bytes.length);
+
+    expect(await img.toDataUrl()).toStartWith('data:image/webp;base64,UklGR');
+    expect(await img.toDataUrl({ format: 'png' })).toStartWith(
+      'data:image/png;base64,iVBOR',
+    );
+  });
+
+  test('names the backend behind this build', () => {
+    expect(backend()).toBe('hayro');
+  });
+
+  test('an engine is unavailable only on a page that is not cross-origin isolated', () => {
+    const g = globalThis as { crossOriginIsolated?: boolean };
+    for (const engine of [defaultPdfEngine, new PapyraOfficeEngine()]) {
+      // Bun, like Node, has no such global: the native addon needs nothing.
+      expect(engine.availability().ok).toBe(true);
+      g.crossOriginIsolated = true;
+      expect(engine.availability().ok).toBe(true);
+      g.crossOriginIsolated = false;
+      const refused = engine.availability();
+      delete g.crossOriginIsolated;
+      expect(refused.ok).toBe(false);
+      if (!refused.ok) expect(refused.reason).toContain('Cross-Origin');
+    }
   });
 
   test('lists attachments, and fetches one by index', async () => {
