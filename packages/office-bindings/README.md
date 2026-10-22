@@ -33,7 +33,7 @@ paintToCanvas(await officeEngine.render(doc, 0, { fitWidth: 1200 }).promise, can
   metric-compatible substitutes — Carlito, Caladea, Arimo and Tinos, for Calibri,
   Cambria, Arial and Times New Roman — with `officeEngine.addFont` before opening, or
   every line break moves.
-- **Its own wasm.** A separate module from papyra's PDF one, about 5.7 MB gzipped as
+- **Its own wasm.** A separate module from papyra's PDF one, about 5.9 MB gzipped as
   measured at the current engine pin, so a PDF-only app never downloads it. Like the
   PDF build, it needs a cross-origin-isolated page.
 - **A panic in wasm is fatal** to this module until the page reloads; papyra's PDF

@@ -63,7 +63,7 @@ and `fitWidth` sizing.
 | `PapyraEngine` | `@build-qube/papyra/engine` | PDF, natively in Node, in wasm in a browser | a cross-origin-isolated page | about 2.5 MB of wasm gzipped |
 | `PdfjsEngine` | [`@build-qube/papyra-pdfjs`](packages/pdfjs/README.md) | PDF, on pdf.js | `pdfjs-dist` | pdf.js's own text positions; no structure tree |
 | `TauriEngine` | [`@build-qube/papyra-tauri`](packages/tauri/README.md) | PDF, natively in a Tauri app's host process | [`tauri-plugin-papyra`](crates/tauri-plugin-papyra/README.md) in the app | no wasm at all |
-| `PapyraOfficeEngine` | `@build-qube/papyra/office` | Word and PowerPoint pages, experimentally | [`@build-qube/papyra-office-native`](packages/office-bindings/README.md), and isolation in a browser | a second wasm module, about 5.7 MB gzipped at the current engine pin |
+| `PapyraOfficeEngine` | `@build-qube/papyra/office` | Word and PowerPoint pages, experimentally | [`@build-qube/papyra-office-native`](packages/office-bindings/README.md), and isolation in a browser | a second wasm module, about 5.9 MB gzipped at the current engine pin |
 
 **Picking one.**
 
