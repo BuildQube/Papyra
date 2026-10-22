@@ -1,5 +1,7 @@
 # @build-qube/papyra-native
 
+## 0.6.0
+
 ## 0.5.0
 
 ### Patch Changes

@@ -1,5 +1,20 @@
 # @workspace/pdf-viewer
 
+## 0.5.0
+
+### Minor Changes
+
+- 4129b03: The TIFF, spreadsheet and CSV renderers take `open`, and the paged Word and
+  PowerPoint renderers `engine`, so a Tauri app can hand them
+  `@build-qube/papyra-tauri`'s: `tiffRenderer.with({ open: openTiff })`. An opener of
+  the app's own skips the cross-origin isolation check. The TIFF and sheet items now
+  need `@build-qube/papyra` 0.6.
+
+### Patch Changes
+
+- Updated dependencies [4129b03]
+  - @build-qube/papyra@0.6.0
+
 ## 0.4.0
 
 ### Minor Changes

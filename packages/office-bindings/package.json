@@ -1,6 +1,6 @@
 {
   "name": "@build-qube/papyra-office-native",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Node-API bindings for papyra's Word and PowerPoint renderer — prefer @build-qube/papyra/office",
   "license": "MIT",
   "repository": {
