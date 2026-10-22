@@ -30,6 +30,7 @@
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
+import { OFFICE_FONTS } from '../apps/demo/src/lib/officeFonts.js';
 
 const ROOT = join(import.meta.dir, '..');
 const MANIFEST = join(ROOT, 'crates/papyra-office/Cargo.toml');
@@ -59,8 +60,6 @@ type Engine = keyof typeof ENGINES;
 /** Pinned, so a baseline means the same bytes next month. */
 const POI =
   'https://raw.githubusercontent.com/apache/poi/7660dfb20956e970adf309b36f31bab4ab35d556/test-data';
-const GOOGLE_FONTS =
-  'https://cdn.jsdelivr.net/gh/google/fonts@51303ca9e8ac9dcea7b12d307ba568fd0e6fcfca/ofl';
 
 /**
  * `office` is the count Office saved in `docProps/app.xml`, or null where the file
@@ -155,19 +154,6 @@ const FILES: readonly {
     url: `${POI}/slideshow/ececapstonespring2012.pptx`,
     office: null,
   },
-];
-
-/** What the demo registers, so the check paginates as the demo does. */
-const FONT_FILES = [
-  'carlito/Carlito-Regular.ttf',
-  'carlito/Carlito-Bold.ttf',
-  'carlito/Carlito-Italic.ttf',
-  'carlito/Carlito-BoldItalic.ttf',
-  'caladea/Caladea-Regular.ttf',
-  'caladea/Caladea-Bold.ttf',
-  'arimo/Arimo%5Bwght%5D.ttf',
-  'tinos/Tinos-Regular.ttf',
-  'tinos/Tinos-Bold.ttf',
 ];
 
 interface Result {
@@ -414,9 +400,9 @@ async function fetchCorpus(): Promise<void> {
   await mkdir(FONTS, { recursive: true });
   const wanted = [
     ...FILES.map((f) => ({ url: f.url, to: join(CORPUS, f.name) })),
-    ...FONT_FILES.map((f) => ({
-      url: `${GOOGLE_FONTS}/${f}`,
-      to: join(FONTS, decodeURIComponent(f.split('/')[1] as string)),
+    ...OFFICE_FONTS.map((url) => ({
+      url,
+      to: join(FONTS, decodeURIComponent(url.split('/').at(-1) as string)),
     })),
   ];
   for (const { url, to } of wanted) {
