@@ -29,6 +29,21 @@ pub enum BorderStyle {
   Hair,
 }
 
+impl BorderStyle {
+  /// The name the TypeScript wrapper reads.
+  pub fn as_str(self) -> &'static str {
+    match self {
+      Self::Thin => "thin",
+      Self::Medium => "medium",
+      Self::Thick => "thick",
+      Self::Dashed => "dashed",
+      Self::Dotted => "dotted",
+      Self::Double => "double",
+      Self::Hair => "hair",
+    }
+  }
+}
+
 /// One edge of a border.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Edge {
@@ -50,6 +65,21 @@ pub enum HAlign {
   Distributed,
 }
 
+impl HAlign {
+  /// The name the TypeScript wrapper reads.
+  pub fn as_str(self) -> &'static str {
+    match self {
+      Self::Left => "left",
+      Self::Center => "center",
+      Self::Right => "right",
+      Self::Justify => "justify",
+      Self::CenterContinuous => "centerContinuous",
+      Self::Fill => "fill",
+      Self::Distributed => "distributed",
+    }
+  }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VAlign {
   Top,
@@ -57,6 +87,19 @@ pub enum VAlign {
   Bottom,
   Justify,
   Distributed,
+}
+
+impl VAlign {
+  /// The name the TypeScript wrapper reads.
+  pub fn as_str(self) -> &'static str {
+    match self {
+      Self::Top => "top",
+      Self::Center => "center",
+      Self::Bottom => "bottom",
+      Self::Justify => "justify",
+      Self::Distributed => "distributed",
+    }
+  }
 }
 
 /// Everything about how a cell looks except its number format.

@@ -102,6 +102,18 @@
       ]
     },
     {
+      "name": "use-opened",
+      "type": "registry:hook",
+      "title": "Opened file",
+      "description": "Open something that holds resources until closed — a document, a TIFF, a workbook — and close it when it is replaced, unmounted, or finishes opening too late to be shown.",
+      "files": [
+        {
+          "path": "src/hooks/use-opened.ts",
+          "type": "registry:hook"
+        }
+      ]
+    },
+    {
       "name": "use-pdf-page-labels",
       "type": "registry:hook",
       "title": "Page labels",
@@ -695,8 +707,9 @@
         }
       },
       "description": "TIFF for the file preview — scanned drawings and faxes, one page or many — decoded by papyra in Rust, CCITT Group 4 included, and reduced while it decodes so a sheet of hundreds of megapixels still opens. Zoomed and rotated like an image.",
-      "dependencies": ["@build-qube/papyra@^0.4.0", "lucide-react"],
+      "dependencies": ["@build-qube/papyra@^0.6.0", "lucide-react"],
       "registryDependencies": [
+        "{{REGISTRY}}/use-opened.json",
         "empty",
         "spinner",
         "{{REGISTRY}}/file-preview-core.json",
@@ -776,8 +789,9 @@
       "type": "registry:component",
       "title": "Sheet view",
       "description": "The grid the spreadsheet and CSV renderers share: opens a workbook through papyra, shows its sheets as tabs, and draws only the cells on screen — with xlsx column widths, row heights, fonts, fills, borders and alignment.",
-      "dependencies": ["@build-qube/papyra@^0.4.0", "lucide-react"],
+      "dependencies": ["@build-qube/papyra@^0.6.0", "lucide-react"],
       "registryDependencies": [
+        "{{REGISTRY}}/use-opened.json",
         "empty",
         "spinner",
         "tabs",
@@ -990,6 +1004,7 @@
         "lucide-react"
       ],
       "registryDependencies": [
+        "{{REGISTRY}}/use-opened.json",
         "empty",
         "spinner",
         "{{REGISTRY}}/file-preview-core.json",

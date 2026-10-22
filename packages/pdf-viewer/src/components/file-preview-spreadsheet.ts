@@ -13,7 +13,9 @@ import { defineRenderer } from '@/lib/file-preview-core';
  *
  * As heavy as the PDF renderer, and for the same reason — papyra's wasm module —
  * but nothing is fetched until a spreadsheet is opened. Needs a cross-origin isolated
- * page.
+ * page — unless given another opener, as `spreadsheetRenderer.with({ open:
+ * openWorkbook })` with `@build-qube/papyra-tauri`'s, which parses in a Tauri app's
+ * host process.
  */
 export const spreadsheetRenderer = defineRenderer({
   id: 'spreadsheet',

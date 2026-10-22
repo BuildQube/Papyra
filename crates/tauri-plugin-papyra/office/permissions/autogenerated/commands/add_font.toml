@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-add-font"
+description = "Enables the add_font command without any pre-configured scope."
+commands.allow = ["add_font"]
+
+[[permission]]
+identifier = "deny-add-font"
+description = "Denies the add_font command without any pre-configured scope."
+commands.deny = ["add_font"]

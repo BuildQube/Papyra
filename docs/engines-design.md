@@ -136,6 +136,32 @@ Measured or decided while implementing; the sections below are kept as written.
     in a debug simulator build), the crate's Rust 1.92 floor, and the CSP
     `connect-src` entries the protocol needs.
   - Not done: `open` from a path or URL rather than bytes over IPC — later.
+- **TIFF, spreadsheets and office on Tauri (0.6.0)** — the §7 table's Tauri row,
+  built smaller than §7 drew it:
+  - **No `TiffEngine` or `WorkbookEngine`.** Neither view uses an engine, so the
+    Tauri side mirrors papyra's real API instead: `openTiff` and `openWorkbook`
+    resolve to papyra's own `TiffImage` and `Workbook`, which moved into `/core` and
+    take any native-shaped source (`TiffSource`, `WorkbookSource`). Office, which
+    *is* a `PagedEngine`, gets `TauriOfficeEngine`.
+  - **Injected through renderer options, not a format-keyed provider**:
+    `tiffRenderer.with({ open })`, `spreadsheetRenderer`/`csvRenderer` likewise,
+    `pptxRenderer`/`docxPagedRenderer.with({ engine })`. An injected opener skips
+    `PdfIsolationGuard`, which the default path keeps.
+  - **The grid stayed synchronous.** A Tauri sheet's cells come over whole, in one
+    packed binary call, and windows are cut in the WebView — about 19 bytes a cell
+    plus text, held twice, capped at a million cells and at sixteen times what the
+    sheet stores, since the file's author sets its bounding box. The async-window grid §7 called "the largest single
+    piece of UI work" is deferred until a real phone needs it; the plugin's
+    `window` command is already the shape it would call.
+  - **One table, one protocol.** The host's documents are an enum (paged, TIFF,
+    workbook); PDF commands use only `Document` trait methods, so office documents
+    — a `Document` adapter in the office crate — share the table and `papyra://`.
+  - **Office is git-only**: `tauri-plugin-papyra-office`, `publish = false`, a
+    member of the plugin's workspace. It path-depends on the plugin, whose
+    `links` key forbids two copies, so an app takes both from git at one tag.
+  - **Permissions**: each feature has a set (`papyra:tiff`, `papyra:tables`). The
+    commands' permission files are generated whatever the features, so they do not
+    churn in git; the IPC tests resolve those files rather than a hand-built ACL.
 
 ## Why
 

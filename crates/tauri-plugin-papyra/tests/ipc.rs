@@ -2,9 +2,8 @@
 //! registration, the capability check, argument names, raw bodies and headers.
 
 use tauri::Manager;
-use tauri::ipc::{CallbackFn, InvokeBody, InvokeResponseBody};
-use tauri::test::{INVOKE_KEY, get_ipc_response, mock_builder, mock_context, noop_assets};
-use tauri::webview::InvokeRequest;
+use tauri::ipc::{InvokeBody, InvokeResponseBody};
+use tauri::test::mock_builder;
 
 fn corpus(name: &str) -> Option<Vec<u8>> {
   std::fs::read(format!(
@@ -14,53 +13,27 @@ fn corpus(name: &str) -> Option<Vec<u8>> {
   .ok()
 }
 
-/// The mock context has no ACL, so it would refuse every plugin command. Grant this
-/// plugin's commands to the `main` window — what `papyra:default` resolves to.
+/// A fixture checked in beside another crate's tests: always present.
+#[cfg(any(feature = "tiff", feature = "tables"))]
+fn fixture(path: &str) -> Vec<u8> {
+  std::fs::read(format!("{}/../{path}", env!("CARGO_MANIFEST_DIR"))).unwrap()
+}
+
+mod common {
+  pub mod mock;
+}
+
+/// What the guide tells an app to grant, every format included.
 fn context() -> tauri::Context<tauri::test::MockRuntime> {
-  use tauri_utils::acl::manifest::Manifest;
-  use tauri_utils::acl::resolved::{Resolved, ResolvedCommand};
-  const COMMANDS: &[&str] = &[
-    "open",
-    "close",
-    "open_count",
-    "page_text",
-    "outline",
-    "links",
-    "page_labels",
-    "attachments",
-    "attachment_data",
-    "struct_tree",
-  ];
-  let allowed_commands = COMMANDS
-    .iter()
-    .map(|cmd| {
-      let resolved = ResolvedCommand {
-        windows: vec![glob::Pattern::new("main").unwrap()],
-        ..Default::default()
-      };
-      (format!("plugin:papyra|{cmd}"), vec![resolved])
-    })
-    .collect();
-  let acl = [(
-    "papyra".to_string(),
-    Manifest {
-      default_permission: None,
-      permissions: Default::default(),
-      permission_sets: Default::default(),
-      global_scope_schema: None,
-    },
-  )]
-  .into_iter()
-  .collect();
-  let mut context = mock_context(noop_assets());
-  *context.runtime_authority_mut() = tauri::ipc::RuntimeAuthority::new(
-    acl,
-    Resolved {
-      allowed_commands,
-      ..Default::default()
-    },
-  );
-  context
+  common::mock::context(
+    &[("papyra", env!("CARGO_MANIFEST_DIR"))],
+    &[
+      "papyra:default",
+      "papyra:allow-open-count",
+      "papyra:tiff",
+      "papyra:tables",
+    ],
+  )
 }
 
 fn app() -> (
@@ -83,22 +56,7 @@ fn call(
   body: InvokeBody,
   headers: &[(&'static str, &str)],
 ) -> Result<InvokeResponseBody, serde_json::Value> {
-  let mut map = tauri::http::HeaderMap::new();
-  for (key, value) in headers {
-    map.insert(*key, value.parse().unwrap());
-  }
-  get_ipc_response(
-    webview,
-    InvokeRequest {
-      cmd: format!("plugin:papyra|{cmd}"),
-      callback: CallbackFn(0),
-      error: CallbackFn(1),
-      url: "tauri://localhost".parse().unwrap(),
-      body,
-      headers: map,
-      invoke_key: INVOKE_KEY.to_string(),
-    },
-  )
+  common::mock::call(webview, &format!("plugin:papyra|{cmd}"), body, headers)
 }
 
 fn json(body: InvokeResponseBody) -> serde_json::Value {
@@ -204,4 +162,200 @@ fn open_refuses_a_json_body() {
   )
   .unwrap_err();
   assert!(refused.as_str().unwrap().contains("request body"));
+}
+
+#[cfg(feature = "tiff")]
+#[test]
+fn opens_a_tiff_and_serves_its_pages_through_the_shared_table() {
+  let (app, webview) = app();
+  let opened = json(
+    call(
+      &webview,
+      "open_tiff",
+      InvokeBody::Raw(fixture("papyra-tiff/tests/fixtures/g4.tif")),
+      &[],
+    )
+    .unwrap(),
+  );
+  let id = opened["id"].as_u64().unwrap();
+  let page = &opened["pages"][0];
+  assert_eq!(page["compression"], "ccitt-g4");
+  assert!(page["width"].as_u64().unwrap() > 0);
+  assert!(page.get("bitsPerSample").is_some());
+
+  // A TIFF is not a PDF: the PDF commands refuse its id by kind.
+  let refused = call(
+    &webview,
+    "outline",
+    InvokeBody::Json(serde_json::json!({ "id": id })),
+    &[],
+  )
+  .unwrap_err();
+  assert!(
+    refused
+      .as_str()
+      .unwrap()
+      .contains("is not a paged document")
+  );
+
+  call(
+    &webview,
+    "close",
+    InvokeBody::Json(serde_json::json!({ "id": id })),
+    &[],
+  )
+  .unwrap();
+  assert!(app.state::<tauri_plugin_papyra::Documents>().is_empty());
+}
+
+#[cfg(feature = "tables")]
+#[test]
+fn opens_a_workbook_and_reads_a_packed_window() {
+  let (_app, webview) = app();
+  let opened = json(
+    call(
+      &webview,
+      "open_workbook",
+      InvokeBody::Raw(fixture("papyra-tables/tests/fixtures/styled.xlsx")),
+      &[],
+    )
+    .unwrap(),
+  );
+  assert_eq!(opened["format"], "xlsx");
+  assert_eq!(opened["sheets"][0]["kind"], "worksheet");
+  assert_eq!(opened["sheets"][0]["visibility"], "visible");
+  let id = opened["id"].as_u64().unwrap();
+
+  let sheet = json(
+    call(
+      &webview,
+      "sheet",
+      InvokeBody::Json(serde_json::json!({ "id": id, "index": 0 })),
+      &[],
+    )
+    .unwrap(),
+  );
+  let (rows, cols) = (
+    sheet["rows"].as_u64().unwrap(),
+    sheet["cols"].as_u64().unwrap(),
+  );
+  assert!(rows > 0 && cols > 0);
+  assert!(sheet["styles"].as_array().unwrap().len() > 1);
+  assert!(sheet["layout"]["cols"].is_array());
+
+  let InvokeResponseBody::Raw(packed) = call(
+    &webview,
+    "window",
+    InvokeBody::Json(serde_json::json!({
+      "id": id, "sheet": 0, "rowStart": 0, "rowEnd": 1000, "colStart": 0, "colEnd": 1000,
+    })),
+    &[],
+  )
+  .unwrap() else {
+    panic!("a window is a binary response");
+  };
+  let u32_at = |i: usize| u32::from_le_bytes(packed[i * 4..i * 4 + 4].try_into().unwrap());
+  // Clamped to the sheet, and every array where the layout says.
+  assert_eq!((u32_at(0), u32_at(1)), (0, 0));
+  assert_eq!((u64::from(u32_at(2)), u64::from(u32_at(3))), (rows, cols));
+  let n = (rows * cols) as usize;
+  let offsets_at = (16 + n).next_multiple_of(8) + n * 8 + n * 4;
+  let text_at = offsets_at + (n + 1) * 4 + n * 2;
+  // The last offset is the text's length, which for this ASCII sheet is its bytes.
+  let last = u32::from_le_bytes(packed[offsets_at + n * 4..][..4].try_into().unwrap());
+  let text = std::str::from_utf8(&packed[text_at..]).unwrap();
+  assert!(!text.is_empty());
+  assert_eq!(text.len(), last as usize);
+}
+
+#[cfg(feature = "tables")]
+#[test]
+fn workbook_options_travel_in_a_header_and_encryption_is_tagged() {
+  let (_app, webview) = app();
+  let tsv = call(
+    &webview,
+    "open_workbook",
+    InvokeBody::Raw(b"a\tb\n1\t2\n".to_vec()),
+    &[("x-papyra-options", "%7B%22format%22%3A%22tsv%22%7D")],
+  )
+  .unwrap();
+  assert_eq!(json(tsv)["format"], "tsv");
+
+  let bad = call(
+    &webview,
+    "open_workbook",
+    InvokeBody::Raw(b"a,b".to_vec()),
+    &[("x-papyra-options", "%7B%22delimiter%22%3A%22%3B%3B%22%7D")],
+  )
+  .unwrap_err();
+  assert!(bad.as_str().unwrap().contains("single ASCII character"));
+
+  let encrypted = call(
+    &webview,
+    "open_workbook",
+    InvokeBody::Raw(fixture("papyra-tables/tests/fixtures/encrypted.xlsx")),
+    &[],
+  )
+  .unwrap_err();
+  assert!(
+    encrypted
+      .as_str()
+      .unwrap()
+      .starts_with("papyra/encrypted-workbook")
+  );
+}
+
+#[cfg(feature = "tables")]
+#[test]
+fn a_sparse_sheet_ships_what_it_stores_not_its_bounding_box() {
+  let (_app, webview) = app();
+  // Ten kilobytes, values in A1 and XFD1048576: two cells stored, seventeen billion
+  // dense. Opened at the default cap, and at one an app set far too high.
+  for options in ["%7B%7D", "%7B%22maxCells%22%3A10000000000%7D"] {
+    let opened = json(
+      call(
+        &webview,
+        "open_workbook",
+        InvokeBody::Raw(fixture("papyra-tables/tests/fixtures/extent.xlsx")),
+        &[("x-papyra-options", options)],
+      )
+      .unwrap(),
+    );
+    let id = &opened["id"];
+    let sheet = json(
+      call(
+        &webview,
+        "sheet",
+        InvokeBody::Json(serde_json::json!({ "id": id, "index": 0 })),
+        &[],
+      )
+      .unwrap(),
+    );
+    let (rows, cols) = (
+      sheet["rows"].as_u64().unwrap(),
+      sheet["cols"].as_u64().unwrap(),
+    );
+    assert_eq!(cols, 16384);
+    assert!(rows > 0, "{options}");
+    assert_eq!(sheet["truncated"], true, "{options}");
+
+    let window = |rows: u64| {
+      call(
+        &webview,
+        "window",
+        InvokeBody::Json(serde_json::json!({
+          "id": id, "sheet": 0, "rowStart": 0, "rowEnd": rows, "colStart": 0, "colEnd": cols,
+        })),
+        &[],
+      )
+    };
+    // What the WebView fetches: the rows `sheet` reported, a megabyte or two.
+    let InvokeResponseBody::Raw(packed) = window(rows).unwrap() else {
+      panic!("a window is a binary response");
+    };
+    assert!(packed.len() < 2 << 20, "{options}: {} bytes", packed.len());
+    // And anything wider is refused, whoever asks.
+    let refused = window(1_048_576).unwrap_err();
+    assert!(refused.as_str().unwrap().contains("cell cap"), "{options}");
+  }
 }

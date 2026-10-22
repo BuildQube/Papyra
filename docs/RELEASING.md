@@ -46,7 +46,7 @@ runtime.
 | `@build-qube/papyra-native-{darwin-arm64,darwin-x64,linux-x64-gnu,linux-arm64-gnu,win32-x64-msvc,wasm32-wasi}` | `napi prepublish` |
 | `@build-qube/papyra-office-native` | `changeset publish` |
 | `@build-qube/papyra-office-native-{darwin-arm64,darwin-x64,linux-x64-gnu,linux-arm64-gnu,win32-x64-msvc,wasm32-wasi}` | `napi prepublish` |
-| crates `papyra-core`, `papyra-encode`, `papyra-hayro`, `tauri-plugin-papyra` | the `crates` job |
+| crates `papyra-core`, `papyra-encode`, `papyra-hayro`, `papyra-tables`, `papyra-tiff`, `tauri-plugin-papyra` | the `crates` job |
 
 The platform packages are generated at release time from the `napi.targets` list
 in each addon's `package.json`, filled with the CI build artifacts, and published by
@@ -73,10 +73,11 @@ copies `@build-qube/papyra`'s new version into:
 
 - `[workspace.package] version` in the root `Cargo.toml` — every root crate inherits
   it, published or not;
-- the `version` beside `path` on `papyra-core`, `papyra-encode` and `papyra-hayro`,
-  in the root `[workspace.dependencies]` and in `crates/tauri-plugin-papyra`, which
-  is its own Cargo workspace;
-- the plugin's own `version`;
+- the `version` beside `path` on `papyra-core`, `papyra-encode`, `papyra-hayro`,
+  `papyra-tables` and `papyra-tiff`, in the root `[workspace.dependencies]` and in
+  `crates/tauri-plugin-papyra`, which is its own Cargo workspace;
+- the plugin's own `version`, and the unpublished office plugin's beside it, which
+  apps take from git at the same tag;
 - both `Cargo.lock` files, through `cargo update -w`, which moves only the
   workspaces' own packages.
 
@@ -87,13 +88,16 @@ reviewed.
 The `crates` job runs after the npm publish, on macOS (`cargo publish` verifies by
 compiling, and Tauri on Linux needs webkit2gtk's headers). It exchanges its OIDC
 token for a 30-minute crates.io token with `rust-lang/crates-io-auth-action`, then
-publishes in dependency order: core, encode, hayro, plugin. A crate whose version is
+publishes in dependency order: core, encode, hayro, tables, tiff, plugin.
+`tauri-plugin-papyra-office` is `publish = false` and never goes out: its engines
+are git dependencies, which crates.io refuses. A crate whose version is
 already in the index is skipped, so **re-running the failed job** finishes a partial
 release. A fresh push would not: once npm has the version, `select-mode` no longer
 picks publish mode.
 
 To dry-run locally: `cargo publish --dry-run -p papyra-core -p papyra-encode -p
-papyra-hayro` from the root verifies the three against each other. The plugin needs
+papyra-hayro -p papyra-tables -p papyra-tiff` from the root verifies the five
+against each other. The plugin needs
 its dependencies at the new version on crates.io, which before a release they are
 not; point it at the local copies instead:
 
@@ -102,7 +106,10 @@ cd crates/tauri-plugin-papyra
 cargo publish --dry-run \
   --config 'patch.crates-io.papyra-core.path="../papyra-core"' \
   --config 'patch.crates-io.papyra-encode.path="../papyra-encode"' \
-  --config 'patch.crates-io.papyra-hayro.path="../papyra-hayro"'
+  --config 'patch.crates-io.papyra-hayro.path="../papyra-hayro"' \
+  --config 'patch.crates-io.papyra-tables.path="../papyra-tables"' \
+  --config 'patch.crates-io.papyra-tiff.path="../papyra-tiff"' \
+  -p tauri-plugin-papyra --all-features
 ```
 
 ## New package names

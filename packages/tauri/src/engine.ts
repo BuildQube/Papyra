@@ -23,7 +23,15 @@ import {
   toPageLink,
   toPageText,
 } from '@build-qube/papyra/core';
-import { convertFileSrc, invoke } from '@tauri-apps/api/core';
+import { invoke } from '@tauri-apps/api/core';
+import {
+  closeDocument,
+  command,
+  fetchPage,
+  pagesOf,
+  type TauriPageFormat,
+  tauriAvailability,
+} from './host.js';
 
 // The plugin answers in the native bindings' shapes; papyra's normalisers say which.
 type NativePageText = Parameters<typeof toPageText>[1];
@@ -33,8 +41,7 @@ type NativeAttachment = Parameters<typeof toAttachment>[0];
 type NativeStructEntry = Parameters<typeof buildStructTree>[0][number];
 type NativeInfo = { [K in keyof DocumentMetadata]?: string | null };
 
-/** How pages travel from the host. */
-export type TauriPageFormat = 'png' | 'rgba';
+export type { TauriPageFormat } from './host.js';
 
 /** Options for {@link TauriEngine}. */
 export interface TauriEngineOptions {
@@ -66,9 +73,6 @@ const EVERYTHING: Capabilities = {
   annotationsToggle: true,
 };
 
-/** The plugin's commands, by the name Tauri routes them under. */
-const command = (name: string) => `plugin:papyra|${name}`;
-
 /**
  * PDFs parsed and rendered by papyra in the Tauri app's host process, through
  * `tauri-plugin-papyra`.
@@ -94,14 +98,7 @@ export class TauriEngine extends PdfEngine<TauriBackend> {
   }
 
   availability(): Availability {
-    if ('__TAURI_INTERNALS__' in globalThis) return { ok: true };
-    return {
-      ok: false,
-      title: 'Not running inside a Tauri app',
-      reason:
-        'This engine renders in the app’s host process, through ' +
-        'tauri-plugin-papyra, and this page is not in a Tauri WebView.',
-    };
+    return tauriAvailability('tauri-plugin-papyra');
   }
 
   protected async load(
@@ -161,9 +158,7 @@ export class TauriBackend implements PdfBackend {
       modified: i.modified ?? null,
     };
     this.#version = opened.pdfVersion ?? null;
-    // `papyra://localhost/` on macOS, iOS and Linux, `http://papyra.localhost/` on
-    // Android and Windows — Tauri knows which, so ask it rather than sniff.
-    this.#pages = `${convertFileSrc('', 'papyra')}${this.#id}/`;
+    this.#pages = pagesOf(this.#id);
   }
 
   get pageCount(): number {
@@ -176,27 +171,17 @@ export class TauriBackend implements PdfBackend {
     return size;
   }
 
-  async renderPage(
+  renderPage(
     index: number,
     options: BackendRenderOptions,
     signal?: AbortSignal,
   ): Promise<PageBitmap> {
-    const query = `dpi=${options.dpi}&annots=${options.annotations === false ? 0 : 1}&format=${this.format}`;
-    const res = await fetch(`${this.#pages}${index}?${query}`, { signal });
-    if (!res.ok) throw new Error(await res.text());
-    if (this.format === 'png') {
-      // Decoded off the main thread.
-      return createImageBitmap(await res.blob());
-    }
-    const width = Number(res.headers.get('x-width'));
-    const height = Number(res.headers.get('x-height'));
-    return {
-      width,
-      height,
-      stride: width * 4,
-      format: 'rgba8',
-      data: new Uint8Array(await res.arrayBuffer()),
-    };
+    const annots = options.annotations === false ? 0 : 1;
+    return fetchPage(
+      `${this.#pages}${index}?dpi=${options.dpi}&annots=${annots}`,
+      this.format,
+      signal,
+    );
   }
 
   metadata(): DocumentMetadata {
@@ -256,6 +241,6 @@ export class TauriBackend implements PdfBackend {
   }
 
   close(): Promise<void> {
-    return this.#call<void>('close');
+    return closeDocument(this.#id);
   }
 }

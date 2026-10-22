@@ -221,9 +221,23 @@ jobs:
       # The protocol tests render tracemonkey.pdf, and skip without the corpus.
       - run: bun install --frozen-lockfile && bun run corpus
         working-directory: .
-      - run: cargo fmt --check
-      - run: cargo clippy --all-targets -- -D warnings
-      - run: cargo test
+      - run: cargo fmt --all --check
+      # PDF alone, each format alone, and everything: a format's code must compile
+      # without the others', and the shared table's match arms with any of them.
+      - run: cargo clippy -p tauri-plugin-papyra --all-targets -- -D warnings
+      - run: cargo clippy -p tauri-plugin-papyra --all-targets --features tiff -- -D warnings
+      - run: cargo clippy -p tauri-plugin-papyra --all-targets --features tables -- -D warnings
+      - run: cargo clippy -p tauri-plugin-papyra --all-targets --all-features -- -D warnings
+      # The git-only office plugin, which apps take from this repository.
+      - run: cargo clippy -p tauri-plugin-papyra-office --all-targets -- -D warnings
+      # The IPC tests resolve the real permission files, so a command missing from
+      # its feature's set fails here.
+      - run: cargo test -p tauri-plugin-papyra
+      - run: cargo test -p tauri-plugin-papyra --all-features
+      - run: cargo test -p tauri-plugin-papyra-office
+      # The build regenerates each command's permission file and the reference; a
+      # command added without committing them would ship an app nothing to grant.
+      - run: git diff --exit-code -- permissions office/permissions
 
   # The wrapper's pure-TypeScript units. cache.ts and scheduler.ts have no imports
   # at all, so this needs no addon, no Rust and no build — run it directly rather

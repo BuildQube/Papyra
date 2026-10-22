@@ -12,7 +12,7 @@ use crate::models::{Attachment, Opened, OutlineEntry, PageLink, PageText, Struct
 
 /// Parsing and rendering block, so both go to the blocking pool rather than the
 /// async runtime's worker threads.
-async fn blocking<T: Send + 'static>(
+pub async fn blocking<T: Send + 'static>(
   work: impl FnOnce() -> Result<T> + Send + 'static,
 ) -> Result<T> {
   tauri::async_runtime::spawn_blocking(work)
@@ -23,6 +23,31 @@ async fn blocking<T: Send + 'static>(
 /// Header the password travels in, percent-encoded: the body is the file's bytes.
 const PASSWORD_HEADER: &str = "x-papyra-password";
 
+/// The file's bytes, which every `open` takes as the raw request body.
+pub fn body(request: &tauri::ipc::Request<'_>) -> Result<Vec<u8>> {
+  match request.body() {
+    InvokeBody::Raw(bytes) => Ok(bytes.clone()),
+    _ => Err(Error::NotBytes),
+  }
+}
+
+/// A percent-encoded header, decoded: headers are ASCII, and what they carry need not be.
+pub(crate) fn header(
+  request: &tauri::ipc::Request<'_>,
+  name: &'static str,
+) -> Result<Option<String>> {
+  request
+    .headers()
+    .get(name)
+    .map(|value| {
+      percent_encoding::percent_decode(value.as_bytes())
+        .decode_utf8()
+        .map(|s| s.into_owned())
+        .map_err(|_| Error::Header(name))
+    })
+    .transpose()
+}
+
 /// Open a PDF sent as the raw request body. Answers with its id and every page's
 /// size, its metadata and its version — everything a viewer needs before it renders.
 #[tauri::command]
@@ -31,19 +56,8 @@ pub(crate) async fn open<R: Runtime>(
   request: tauri::ipc::Request<'_>,
   docs: State<'_, Documents>,
 ) -> Result<Opened> {
-  let InvokeBody::Raw(bytes) = request.body() else {
-    return Err(Error::NotBytes);
-  };
-  let bytes = bytes.clone();
-  let password = match request.headers().get(PASSWORD_HEADER) {
-    Some(value) => Some(
-      percent_encoding::percent_decode(value.as_bytes())
-        .decode_utf8()
-        .map_err(|_| Error::Password)?
-        .into_owned(),
-    ),
-    None => None,
-  };
+  let bytes = body(&request)?;
+  let password = header(&request, PASSWORD_HEADER)?;
   let (doc, sizes, info, pdf_version) = blocking(move || {
     let doc = match password {
       Some(password) => HayroDocument::load_with_password(bytes, &password),
@@ -58,14 +72,14 @@ pub(crate) async fn open<R: Runtime>(
   })
   .await?;
   Ok(Opened {
-    id: docs.insert(webview.label(), doc)?,
+    id: docs.insert_paged(webview.label(), doc)?,
     sizes,
     info,
     pdf_version,
   })
 }
 
-/// Release a document. Closing one that is not open is not an error: the WebView
+/// Release a document, of any format. Closing one that is not open is not an error: the WebView
 /// may close on unmount after a failed open.
 #[tauri::command]
 pub(crate) fn close(id: u32, docs: State<'_, Documents>) -> Result<()> {
@@ -85,13 +99,13 @@ pub(crate) async fn page_text(
   index: usize,
   docs: State<'_, Documents>,
 ) -> Result<PageText> {
-  let doc = docs.get(id)?;
+  let doc = docs.paged(id)?;
   blocking(move || Ok(doc.page_text(index)?.into())).await
 }
 
 #[tauri::command]
 pub(crate) async fn outline(id: u32, docs: State<'_, Documents>) -> Result<Vec<OutlineEntry>> {
-  let doc = docs.get(id)?;
+  let doc = docs.paged(id)?;
   blocking(move || Ok(doc.outline().into_iter().map(Into::into).collect())).await
 }
 
@@ -101,19 +115,19 @@ pub(crate) async fn links(
   index: usize,
   docs: State<'_, Documents>,
 ) -> Result<Vec<PageLink>> {
-  let doc = docs.get(id)?;
+  let doc = docs.paged(id)?;
   blocking(move || Ok(doc.page_links(index)?.into_iter().map(Into::into).collect())).await
 }
 
 #[tauri::command]
 pub(crate) async fn page_labels(id: u32, docs: State<'_, Documents>) -> Result<Vec<String>> {
-  let doc = docs.get(id)?;
+  let doc = docs.paged(id)?;
   blocking(move || Ok(doc.page_labels())).await
 }
 
 #[tauri::command]
 pub(crate) async fn attachments(id: u32, docs: State<'_, Documents>) -> Result<Vec<Attachment>> {
-  let doc = docs.get(id)?;
+  let doc = docs.paged(id)?;
   blocking(move || Ok(doc.attachments().into_iter().map(Into::into).collect())).await
 }
 
@@ -124,12 +138,12 @@ pub(crate) async fn attachment_data(
   index: usize,
   docs: State<'_, Documents>,
 ) -> Result<Bytes> {
-  let doc = docs.get(id)?;
+  let doc = docs.paged(id)?;
   blocking(move || Ok(Bytes::new(doc.attachment_data(index)?))).await
 }
 
 #[tauri::command]
 pub(crate) async fn struct_tree(id: u32, docs: State<'_, Documents>) -> Result<Vec<StructEntry>> {
-  let doc = docs.get(id)?;
+  let doc = docs.paged(id)?;
   blocking(move || Ok(doc.struct_tree().into_iter().map(Into::into).collect())).await
 }

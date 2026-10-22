@@ -6,7 +6,7 @@
 
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
-use papyra_tables::{Format, LoadOptions, TableError};
+use papyra_tables::{LoadOptions, TableError};
 use std::sync::Arc;
 
 /// See `TAG_PASSWORD_REQUIRED` in `lib.rs`. Keep in step with `TAGS` in `errors.ts`.
@@ -38,33 +38,13 @@ fn load_options(options: Option<WorkbookOptions>) -> Result<LoadOptions> {
   let Some(o) = options else {
     return Ok(LoadOptions::default());
   };
-  let format = match o.format {
-    Some(name) => Some(
-      Format::parse(&name)
-        .ok_or_else(|| Error::new(Status::InvalidArg, format!("unknown format {name:?}")))?,
-    ),
-    None => None,
-  };
-  let delimiter = match o.delimiter.as_deref().map(str::as_bytes) {
-    None => None,
-    Some([b]) if b.is_ascii() => Some(*b),
-    Some(_) => {
-      return Err(Error::new(
-        Status::InvalidArg,
-        "delimiter must be a single ASCII character",
-      ));
-    }
-  };
-  Ok(LoadOptions {
-    format,
-    delimited: papyra_tables::DelimitedOptions {
-      delimiter,
-      encoding: o.encoding,
-    },
-    max_cells: o
-      .max_cells
-      .map_or(papyra_tables::DEFAULT_MAX_CELLS, |n| n as usize),
-  })
+  LoadOptions::parse(
+    o.format.as_deref(),
+    o.delimiter.as_deref(),
+    o.encoding,
+    o.max_cells.map(|n| n as usize),
+  )
+  .map_err(|e| Error::new(Status::InvalidArg, e))
 }
 
 /// A sheet's entry in the workbook.
@@ -78,23 +58,10 @@ pub struct SheetInfo {
 }
 
 fn to_sheet_info(s: &papyra_tables::SheetInfo) -> SheetInfo {
-  use papyra_tables::{SheetKind as K, Visibility as V};
   SheetInfo {
     name: s.name.clone(),
-    kind: match s.kind {
-      K::Worksheet => "worksheet",
-      K::Chartsheet => "chartsheet",
-      K::Dialog => "dialog",
-      K::Macro => "macro",
-      K::Vba => "vba",
-    }
-    .to_string(),
-    visibility: match s.visibility {
-      V::Visible => "visible",
-      V::Hidden => "hidden",
-      V::VeryHidden => "veryHidden",
-    }
-    .to_string(),
+    kind: s.kind.as_str().to_string(),
+    visibility: s.visibility.as_str().to_string(),
   }
 }
 
@@ -254,24 +221,13 @@ pub struct CellStyle {
 }
 
 fn to_edge(e: Option<papyra_tables::Edge>) -> Option<BorderEdge> {
-  use papyra_tables::BorderStyle as B;
   e.map(|e| BorderEdge {
-    style: match e.style {
-      B::Thin => "thin",
-      B::Medium => "medium",
-      B::Thick => "thick",
-      B::Dashed => "dashed",
-      B::Dotted => "dotted",
-      B::Double => "double",
-      B::Hair => "hair",
-    }
-    .to_string(),
+    style: e.style.as_str().to_string(),
     color: e.color,
   })
 }
 
 fn to_cell_style(s: &papyra_tables::CellStyle) -> CellStyle {
-  use papyra_tables::{HAlign as H, VAlign as V};
   let [top, right, bottom, left] = s.border;
   CellStyle {
     bold: s.bold,
@@ -285,28 +241,8 @@ fn to_cell_style(s: &papyra_tables::CellStyle) -> CellStyle {
     border_right: to_edge(right),
     border_bottom: to_edge(bottom),
     border_left: to_edge(left),
-    horizontal: s.h_align.map(|h| {
-      match h {
-        H::Left => "left",
-        H::Center => "center",
-        H::Right => "right",
-        H::Justify => "justify",
-        H::CenterContinuous => "centerContinuous",
-        H::Fill => "fill",
-        H::Distributed => "distributed",
-      }
-      .to_string()
-    }),
-    vertical: s.v_align.map(|v| {
-      match v {
-        V::Top => "top",
-        V::Center => "center",
-        V::Bottom => "bottom",
-        V::Justify => "justify",
-        V::Distributed => "distributed",
-      }
-      .to_string()
-    }),
+    horizontal: s.h_align.map(|h| h.as_str().to_string()),
+    vertical: s.v_align.map(|v| v.as_str().to_string()),
     wrap: s.wrap,
     indent: s.indent,
   }
@@ -399,9 +335,19 @@ impl Sheet {
   /// caller asks for — a screenful is a few thousand cells and well under a
   /// millisecond. Ask for a screenful.
   #[napi]
-  pub fn window(&self, row_start: u32, row_end: u32, col_start: u32, col_end: u32) -> CellWindow {
-    let w = self.inner.window(row_start, row_end, col_start, col_end);
-    CellWindow {
+  pub fn window(
+    &self,
+    row_start: u32,
+    row_end: u32,
+    col_start: u32,
+    col_end: u32,
+  ) -> Result<CellWindow> {
+    // A screenful never nears it; the cap is what keeps text offsets within u32.
+    let w = self
+      .inner
+      .window(row_start, row_end, col_start, col_end, u32::MAX as usize)
+      .map_err(map_err)?;
+    Ok(CellWindow {
       row_start: w.row_start,
       col_start: w.col_start,
       rows: w.rows,
@@ -412,6 +358,6 @@ impl Sheet {
       offsets: Uint32Array::new(w.offsets),
       styles: Uint16Array::new(w.styles),
       colors: Uint32Array::new(w.colors),
-    }
+    })
   }
 }

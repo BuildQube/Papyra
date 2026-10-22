@@ -7,7 +7,9 @@
  * a commit nobody reviewed, if it reached a commit at all.
  *
  * Touches the root workspace's version, its path dependencies' `version`, the same
- * for tauri-plugin-papyra (its own workspace), and both lockfiles.
+ * for tauri-plugin-papyra (its own workspace), the git-only office plugin beside it
+ * — unpublished, but an app takes it at the same tag as the plugin, so their
+ * numbers should agree — and both lockfiles.
  *
  * Usage: bun run scripts/sync-crate-versions.ts
  */
@@ -30,14 +32,19 @@ async function rewrite(path: string, edits: [RegExp, number][]) {
   await Bun.write(file, text);
 }
 
-const deps = /(\npapyra-(?:core|encode|hayro) = \{[^}\n]*version = ")[^"]+/g;
+const deps =
+  /(\npapyra-(?:core|encode|hayro|tables|tiff) = \{[^}\n]*version = ")[^"]+/g;
+const packageVersion = /(\[package\][^[]*?\nversion = ")[^"]+/g;
 await rewrite('Cargo.toml', [
   [/(\[workspace\.package\]\nversion = ")[^"]+/g, 1],
-  [deps, 3],
+  [deps, 5],
 ]);
 await rewrite('crates/tauri-plugin-papyra/Cargo.toml', [
-  [/(\[package\][^[]*?\nversion = ")[^"]+/g, 1],
-  [deps, 3],
+  [packageVersion, 1],
+  [deps, 5],
+]);
+await rewrite('crates/tauri-plugin-papyra/office/Cargo.toml', [
+  [packageVersion, 1],
 ]);
 
 // `-w` re-resolves only the workspace's own packages, and path dependencies are

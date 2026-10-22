@@ -1,0 +1,30 @@
+[package]
+name = "tauri-plugin-papyra-office"
+description = "Word and PowerPoint for tauri-plugin-papyra, over WordCraft and DeckCraft"
+version = "0.5.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/BuildQube/papyra"
+rust-version = "1.92"
+links = "tauri-plugin-papyra-office"
+# Never on crates.io: papyra-office depends on WordCraft and DeckCraft by git rev,
+# and crates.io refuses a git dependency even behind a feature. An app takes this and
+# tauri-plugin-papyra from the repository at one tag — see docs/guides/tauri.md.
+publish = false
+
+[dependencies]
+papyra-core = { path = "../../papyra-core" }
+papyra-office = { path = "../../papyra-office" }
+serde = { version = "1", features = ["derive"] }
+tauri = "2"
+tauri-plugin-papyra = { path = ".." }
+
+[build-dependencies]
+tauri-plugin = { version = "2", features = ["build"] }
+
+[dev-dependencies]
+glob = "0.3"
+serde_json = "1"
+tauri = { version = "2", features = ["test"] }
+tauri-utils = "2"
+toml = "0.8"

@@ -80,6 +80,17 @@ export type { JobHandle, JobTiming } from './scheduler.js';
 export { AbortError, DEFAULT_PRIORITY } from './scheduler.js';
 export type { MatchOptions, SearchMatch } from './search.js';
 export { findRanges, searchPageText } from './search.js';
+export type {
+  SheetInfo,
+  SheetKind,
+  SheetSource,
+  SheetVisibility,
+  WindowRange,
+  WorkbookFormat,
+  WorkbookOptions,
+  WorkbookSource,
+} from './sheets.js';
+export { openWorkbookWith, Sheet, Workbook } from './sheets.js';
 export { toBytes } from './source.js';
 export type {
   MarkedContent,
@@ -112,6 +123,13 @@ export {
   scaleRect,
   toPageText,
 } from './text.js';
+export type {
+  TiffCompression,
+  TiffPage,
+  TiffRenderOptions,
+  TiffSource,
+} from './tiff-image.js';
+export { TIFF_MAX_PIXELS, TiffImage } from './tiff-image.js';
 export type {
   DocumentMetadata,
   OpenOptions,

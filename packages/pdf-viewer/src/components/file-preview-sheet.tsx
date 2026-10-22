@@ -12,6 +12,7 @@ import { LockIcon, Table2Icon } from 'lucide-react';
 import {
   type CSSProperties,
   type ReactNode,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -28,6 +29,7 @@ import {
 } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useOpened } from '@/hooks/use-opened';
 import {
   type Axis,
   cellCss,
@@ -75,8 +77,20 @@ const OVERSCAN = 4;
  */
 const MAX_EXTENT = 8_000_000;
 
+/** What a preview may set for its spreadsheets and delimited text. */
+export interface WorkbookFileViewOptions {
+  /**
+   * Opens the file. papyra's own `openWorkbook` when unset; `openWorkbook` from
+   * `@build-qube/papyra-tauri` parses in a Tauri app's host process instead, as
+   * `spreadsheetRenderer.with({ open: openWorkbook })`. An opener of its own is
+   * trusted to run where it is, so the cross-origin isolation papyra's wasm needs
+   * is not checked.
+   */
+  open?: (file: File, options?: WorkbookOptions) => Promise<Workbook>;
+}
+
 /** Props for {@link WorkbookView}. */
-export interface WorkbookViewProps {
+export interface WorkbookViewProps extends WorkbookFileViewOptions {
   /** The spreadsheet or delimited text file. */
   file: File;
   /** Passed to papyra's `openWorkbook` — a delimiter or an encoding to force. */
@@ -85,11 +99,7 @@ export interface WorkbookViewProps {
   className?: string;
 }
 
-type State =
-  | { status: 'opening' }
-  | { status: 'open'; book: Workbook }
-  | { status: 'encrypted' }
-  | { status: 'failed'; error: unknown };
+const closeBook = (book: Workbook) => book.close();
 
 /**
  * A spreadsheet file, opened by papyra and shown a sheet at a time.
@@ -100,41 +110,33 @@ type State =
  * a date reads `2024-03-15`.
  */
 export function WorkbookView(props: WorkbookViewProps) {
+  if (props.open) return <OpenedWorkbook {...props} open={props.open} />;
   return (
     <PdfIsolationGuard>
-      <OpenedWorkbook {...props} />
+      <OpenedWorkbook {...props} open={openWorkbook} />
     </PdfIsolationGuard>
   );
 }
 
-function OpenedWorkbook({ file, options, className }: WorkbookViewProps) {
-  const [state, setState] = useState<State>({ status: 'opening' });
-
-  useEffect(() => {
-    let live = true;
-    setState({ status: 'opening' });
-    openWorkbook(file, options).then(
-      (book) => live && setState({ status: 'open', book }),
-      (error: unknown) => {
-        if (!live) return;
-        setState(
-          error instanceof EncryptedWorkbookError
-            ? { status: 'encrypted' }
-            : { status: 'failed', error },
-        );
-      },
-    );
-    return () => {
-      live = false;
-    };
-  }, [file, options]);
+function OpenedWorkbook({
+  file,
+  options,
+  className,
+  open,
+}: WorkbookViewProps & Required<WorkbookFileViewOptions>) {
+  const state = useOpened(
+    useCallback(() => open(file, options), [open, file, options]),
+    closeBook,
+  );
 
   switch (state.status) {
     case 'opening':
       return <Centered />;
     case 'open':
-      return <WorkbookTabs book={state.book} className={className} />;
-    case 'encrypted':
+      return <WorkbookTabs book={state.value} className={className} />;
+    case 'failed':
+      // To the preview's error boundary, which offers the file as a download.
+      if (!(state.error instanceof EncryptedWorkbookError)) throw state.error;
       return (
         <Notice
           description={file.name}
@@ -144,9 +146,6 @@ function OpenedWorkbook({ file, options, className }: WorkbookViewProps) {
           title="This workbook is password-protected"
         />
       );
-    case 'failed':
-      // To the preview's error boundary, which offers the file as a download.
-      throw state.error;
   }
 }
 

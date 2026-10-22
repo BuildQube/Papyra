@@ -27,18 +27,5 @@ export {
   hardwareConcurrency,
   init,
 } from './runtime.js';
-export type {
-  TiffCompression,
-  TiffPage,
-  TiffRenderOptions,
-} from './tiff.js';
-export { openTiff, TIFF_MAX_PIXELS, TiffImage } from './tiff.js';
-export type {
-  SheetInfo,
-  SheetKind,
-  SheetVisibility,
-  WindowRange,
-  WorkbookFormat,
-  WorkbookOptions,
-} from './workbook.js';
-export { openWorkbook, Sheet, Workbook } from './workbook.js';
+export { openTiff } from './tiff.js';
+export { openWorkbook } from './workbook.js';

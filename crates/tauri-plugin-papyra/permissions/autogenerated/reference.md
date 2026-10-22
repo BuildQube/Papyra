@@ -182,6 +182,58 @@ Denies the open_count command without any pre-configured scope.
 <tr>
 <td>
 
+`papyra:allow-open-tiff`
+
+</td>
+<td>
+
+Enables the open_tiff command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`papyra:deny-open-tiff`
+
+</td>
+<td>
+
+Denies the open_tiff command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`papyra:allow-open-workbook`
+
+</td>
+<td>
+
+Enables the open_workbook command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`papyra:deny-open-workbook`
+
+</td>
+<td>
+
+Denies the open_workbook command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `papyra:allow-outline`
 
 </td>
@@ -260,6 +312,32 @@ Denies the page_text command without any pre-configured scope.
 <tr>
 <td>
 
+`papyra:allow-sheet`
+
+</td>
+<td>
+
+Enables the sheet command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`papyra:deny-sheet`
+
+</td>
+<td>
+
+Denies the sheet command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `papyra:allow-struct-tree`
 
 </td>
@@ -279,6 +357,58 @@ Enables the struct_tree command without any pre-configured scope.
 <td>
 
 Denies the struct_tree command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`papyra:allow-window`
+
+</td>
+<td>
+
+Enables the window command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`papyra:deny-window`
+
+</td>
+<td>
+
+Denies the window command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`papyra:tiff`
+
+</td>
+<td>
+
+Opening TIFFs, with the `tiff` feature. Pages are served over the papyra:// protocol and closed by `close`, both in `papyra:default`.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`papyra:tables`
+
+</td>
+<td>
+
+Opening spreadsheets and delimited text and reading their cells, with the `tables` feature. Closed by `close`, in `papyra:default`.
 
 </td>
 </tr>

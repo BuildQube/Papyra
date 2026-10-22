@@ -1,13 +1,19 @@
 import {
   openTiff,
+  type PageBitmap,
   paintToCanvas,
-  type RenderedPage,
   TIFF_MAX_PIXELS,
   type TiffImage,
   type TiffPage,
 } from '@build-qube/papyra';
 import { ImageOffIcon } from 'lucide-react';
-import { useEffect, useImperativeHandle, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react';
 import { PdfIsolationGuard } from '@/components/pdf-isolation-guard';
 import {
   Empty,
@@ -18,6 +24,7 @@ import {
 } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
 import { ZoomBar } from '@/components/viewer-zoom-bar';
+import { useOpened } from '@/hooks/use-opened';
 import { useZoom, type ZoomAnchor } from '@/hooks/use-viewer-zoom';
 import type { FileViewProps } from '@/lib/file-preview-core';
 import { cn } from '@/lib/utils';
@@ -46,10 +53,18 @@ function pointSize(page: TiffPage): Size {
   return { width: (page.width * 72) / x, height: (page.height * 72) / y };
 }
 
-type Opened =
-  | { status: 'opening' }
-  | { status: 'open'; tiff: TiffImage }
-  | { status: 'failed'; error: unknown };
+/** What a preview may set for its TIFFs. */
+export interface TiffFileViewOptions {
+  /**
+   * Opens the file. papyra's own `openTiff` when unset; `openTiff` from
+   * `@build-qube/papyra-tauri` decodes in a Tauri app's host process instead, as
+   * `tiffRenderer.with({ open: openTiff })`. An opener of its own is trusted to run
+   * where it is, so the cross-origin isolation papyra's wasm needs is not checked.
+   */
+  open?: (file: File) => Promise<TiffImage<PageBitmap>>;
+}
+
+const closeTiff = (tiff: TiffImage<PageBitmap>) => tiff.close();
 
 /**
  * A TIFF, a page at a time, with the image view's zoom and rotation and a pager when
@@ -63,28 +78,26 @@ type Opened =
  * Loaded by `tiffRenderer` — import that, not this, so papyra stays out of the bundle
  * until a TIFF is opened.
  */
-export function TiffFileView({ file }: FileViewProps) {
+export function TiffFileView({
+  file,
+  options,
+}: FileViewProps<TiffFileViewOptions>) {
+  if (options.open) return <OpenedTiff file={file} open={options.open} />;
   return (
     <PdfIsolationGuard>
-      <OpenedTiff file={file} />
+      <OpenedTiff file={file} open={openTiff} />
     </PdfIsolationGuard>
   );
 }
 
-function OpenedTiff({ file }: Pick<FileViewProps, 'file'>) {
-  const [opened, setOpened] = useState<Opened>({ status: 'opening' });
-
-  useEffect(() => {
-    let live = true;
-    setOpened({ status: 'opening' });
-    openTiff(file).then(
-      (tiff) => live && setOpened({ status: 'open', tiff }),
-      (error: unknown) => live && setOpened({ status: 'failed', error }),
-    );
-    return () => {
-      live = false;
-    };
-  }, [file]);
+function OpenedTiff({
+  file,
+  open,
+}: Pick<FileViewProps, 'file'> & Required<TiffFileViewOptions>) {
+  const opened = useOpened(
+    useCallback(() => open(file), [open, file]),
+    closeTiff,
+  );
 
   switch (opened.status) {
     case 'opening':
@@ -100,16 +113,16 @@ function OpenedTiff({ file }: Pick<FileViewProps, 'file'>) {
     case 'open':
       // A new file passes through 'opening' first, so this remounts with it and
       // starts on page one at its own zoom.
-      return <TiffPages tiff={opened.tiff} />;
+      return <TiffPages tiff={opened.value} />;
   }
 }
 
 type Decoded =
   | { status: 'decoding' }
-  | { status: 'ready'; bitmap: RenderedPage }
+  | { status: 'ready'; bitmap: PageBitmap }
   | { status: 'failed'; error: unknown };
 
-function TiffPages({ tiff }: { tiff: TiffImage }) {
+function TiffPages({ tiff }: { tiff: TiffImage<PageBitmap> }) {
   const [index, setIndex] = useState(0);
   const [rotation, setRotation] = useState<Rotation>(0);
   const [decoded, setDecoded] = useState<Decoded>({ status: 'decoding' });

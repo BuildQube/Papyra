@@ -183,6 +183,17 @@ pub enum Visibility {
   VeryHidden,
 }
 
+impl Visibility {
+  /// The name the TypeScript wrapper reads.
+  pub fn as_str(self) -> &'static str {
+    match self {
+      Self::Visible => "visible",
+      Self::Hidden => "hidden",
+      Self::VeryHidden => "veryHidden",
+    }
+  }
+}
+
 /// What a sheet holds. Only worksheets have cells worth showing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SheetKind {
@@ -191,6 +202,19 @@ pub enum SheetKind {
   Dialog,
   Macro,
   Vba,
+}
+
+impl SheetKind {
+  /// The name the TypeScript wrapper reads.
+  pub fn as_str(self) -> &'static str {
+    match self {
+      Self::Worksheet => "worksheet",
+      Self::Chartsheet => "chartsheet",
+      Self::Dialog => "dialog",
+      Self::Macro => "macro",
+      Self::Vba => "vba",
+    }
+  }
 }
 
 /// A sheet's entry in the workbook, available without reading its cells.
@@ -379,9 +403,24 @@ impl Sheet {
       .map_or(&EMPTY, |i| &self.cells[i].2)
   }
 
+  /// How many cells the sheet stores: those with a value, and those with a style but
+  /// none. What it costs to hold, unlike `rows * cols`, which is its bounding box —
+  /// and a single value at XFD1048576 makes that seventeen billion.
+  pub fn stored_cells(&self) -> usize {
+    self.cells.len() + self.formatting.as_ref().map_or(0, |f| f.cells.len())
+  }
+
   /// Encode `[row_start, row_end) x [col_start, col_end)` for transfer, clamped to
-  /// the sheet.
-  pub fn window(&self, row_start: u32, row_end: u32, col_start: u32, col_end: u32) -> Window {
+  /// the sheet. Refused with [`TableError::TooLarge`] when the cells' text passes
+  /// `max_text` bytes: many cells naming one huge shared string grow without bound.
+  pub fn window(
+    &self,
+    row_start: u32,
+    row_end: u32,
+    col_start: u32,
+    col_end: u32,
+    max_text: usize,
+  ) -> Result<Window> {
     let row_end = row_end.min(self.rows);
     let col_end = col_end.min(self.cols);
     let row_start = row_start.min(row_end);
@@ -391,6 +430,7 @@ impl Sheet {
       col_start,
       row_end - row_start,
       col_end - col_start,
+      max_text,
       |r, c| {
         let (text, color) = self.display(r, c);
         cell::Entry {
@@ -413,6 +453,35 @@ pub struct LoadOptions {
   pub delimited: DelimitedOptions,
   /// Cells held per sheet before it is truncated. See [`DEFAULT_MAX_CELLS`].
   pub max_cells: usize,
+}
+
+impl LoadOptions {
+  /// From the TypeScript wrapper's `WorkbookOptions`, every field optional. The error
+  /// says which field is wrong.
+  pub fn parse(
+    format: Option<&str>,
+    delimiter: Option<&str>,
+    encoding: Option<String>,
+    max_cells: Option<usize>,
+  ) -> std::result::Result<Self, String> {
+    let format = match format {
+      Some(name) => Some(Format::parse(name).ok_or_else(|| format!("unknown format {name:?}"))?),
+      None => None,
+    };
+    let delimiter = match delimiter.map(str::as_bytes) {
+      None => None,
+      Some([b]) if b.is_ascii() => Some(*b),
+      Some(_) => return Err("delimiter must be a single ASCII character".into()),
+    };
+    Ok(Self {
+      format,
+      delimited: DelimitedOptions {
+        delimiter,
+        encoding,
+      },
+      max_cells: max_cells.unwrap_or(DEFAULT_MAX_CELLS),
+    })
+  }
 }
 
 impl Default for LoadOptions {
@@ -553,6 +622,18 @@ mod tests {
   }
 
   #[test]
+  fn a_window_refuses_text_past_its_cap_and_counts_what_is_stored() {
+    let book = Workbook::load(b"abcd,efgh\nijkl,\n".to_vec(), &LoadOptions::default()).unwrap();
+    let s = book.sheet(0).unwrap();
+    assert_eq!(s.stored_cells(), 3);
+    assert_eq!(s.window(0, 2, 0, 2, 12).unwrap().text, "abcdefghijkl");
+    assert!(matches!(
+      s.window(0, 2, 0, 2, 11),
+      Err(TableError::TooLarge(_))
+    ));
+  }
+
+  #[test]
   fn sniffs_the_two_binary_containers_and_falls_back_to_text() {
     assert_eq!(Format::sniff(&sample("sample.xls")), Format::Xls);
     assert_eq!(Format::sniff(&sample("sample.xlsx")), Format::Xlsx);
@@ -664,7 +745,7 @@ mod tests {
     }));
 
     // The window carries the same: a style per cell, and the format's colour.
-    let w = s.window(3, 4, 1, 2);
+    let w = s.window(3, 4, 1, 2, usize::MAX).unwrap();
     assert_eq!(w.text, "(987.25)");
     assert_eq!(w.colors, vec![0x01FF_0000]);
     assert_eq!(w.styles, vec![s.style(3, 1)]);
@@ -680,7 +761,9 @@ mod tests {
     assert_eq!((s.rows, s.cols), (1_048_576, 16_384));
     assert_eq!(s.cells.len(), 2);
     assert_eq!(s.cell(1_048_575, 16_383), &Cell::Text("bottom".into()));
-    let w = s.window(1_048_570, 1_048_576, 16_380, 16_384);
+    let w = s
+      .window(1_048_570, 1_048_576, 16_380, 16_384, usize::MAX)
+      .unwrap();
     assert!(w.text.ends_with("bottom"));
   }
 
@@ -761,7 +844,11 @@ mod tests {
       let s = book.sheet(0).unwrap();
       assert!(s.styles().is_empty(), "{name}");
       assert!(s.layout.is_none(), "{name}");
-      assert_eq!(s.window(0, 5, 0, 4).styles, vec![0; 20], "{name}");
+      assert_eq!(
+        s.window(0, 5, 0, 4, usize::MAX).unwrap().styles,
+        vec![0; 20],
+        "{name}"
+      );
     }
   }
 

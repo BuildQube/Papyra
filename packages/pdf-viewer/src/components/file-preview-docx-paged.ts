@@ -10,7 +10,9 @@ import { defineRenderer } from '@/lib/file-preview-core';
  * on them: a browser has nothing like Calibri, and text set in it otherwise falls back
  * to Source Sans, whose different widths move every line break after the first. Needs
  * a cross-origin isolated page, and fetches its own wasm module (separate from the PDF
- * one, about 5.7 MB gzipped) the first time a document is opened. Experimental: the
+ * one, about 5.7 MB gzipped) the first time a document is opened — unless given
+ * another engine, as `docxPagedRenderer.with({ engine })` with
+ * `@build-qube/papyra-tauri`'s `TauriOfficeEngine`. Experimental: the
  * engine is young, and a real document may lay out differently from Word.
  */
 export const docxPagedRenderer = defineRenderer({
