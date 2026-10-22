@@ -111,19 +111,22 @@ async function objectArgs(profileDir: string, addon: string) {
 }
 
 /**
- * Rewrite bun's lcov into repo-root-relative paths and drop what is not ours.
+ * Rewrite bun's lcov into repo-root-relative paths and keep only the package's `src/`.
  *
  * `SF:` comes out relative to the directory bun ran in (`src/cache.ts`), which
- * Codecov cannot match to a file in the repo. The generated napi glue gets pulled in
- * by `document.ts` and is not source we write; the preload is scaffolding.
+ * Codecov cannot match to a file in the repo. Everything outside `src/` is something
+ * the tests loaded rather than source this package ships: the napi-generated loaders
+ * (`../bindings/index.js`, and `../office-bindings/index.js`, which was 543 of the
+ * 879 uncovered lines the report blamed on TypeScript before this rule), a sibling
+ * package's `dist/`, the preload. Keeping `src/` rather than skipping known paths is
+ * what stops the next generated loader leaking in the same way.
  */
 function normaliseTsLcov(lcov: string, pkgDir: string): string {
   const records = lcov.split(/^end_of_record$/m);
   const kept: string[] = [];
   for (const record of records) {
     const file = /^SF:(.*)$/m.exec(record)?.[1];
-    if (!file) continue;
-    if (file.startsWith('../bindings/') || file.startsWith('test/')) continue;
+    if (!file?.startsWith('src/')) continue;
     kept.push(
       `${record.trimStart().replace(/^SF:.*$/m, `SF:${pkgDir}/${file}`)}end_of_record`,
     );
@@ -199,6 +202,8 @@ console.log('coverage: building the instrumented addon');
 await $`bunx napi build --platform --profile coverage`
   .cwd(join(ROOT, 'packages/bindings'))
   .env(env);
+// pdfjs and tauri import `@build-qube/papyra`, which resolves to its `dist/`.
+await $`bun run --filter @build-qube/papyra build`;
 
 const targetDir = env.CARGO_LLVM_COV_TARGET_DIR ?? join(ROOT, 'target');
 const countProfraw = async () =>
@@ -250,24 +255,50 @@ await $`bun run --filter @build-qube/papyra-native test`.env(
 );
 console.log(`  ${await countProfraw()} profraw so far`);
 
-// Unit and integration together, in one process, so the wrapper's lcov has a single
-// denominator. `--preload` imports the package entrypoint, which is what puts the
-// modules no test touches into the report as 0% instead of leaving them out.
-console.log('coverage: wrapper tests');
-const pkg = join(ROOT, 'packages/papyra');
-await $`bun test test/unit test/integration --preload ./test/coverage-entry.ts --coverage --coverage-reporter=lcov --coverage-dir=${OUT}/ts-raw`
-  .cwd(pkg)
-  .env(stageEnv('wrapper'));
-console.log(`  ${await countProfraw()} profraw so far`);
+/**
+ * Run one TypeScript package's suites under bun's coverage, as a stage of its own.
+ *
+ * Unit and integration together, in one process, so each package's lcov has a
+ * single denominator. `--preload` imports the wrapper's entrypoint, which is what
+ * puts the modules no test touches into the report as 0% instead of leaving them out.
+ *
+ * Every stage gets the wrapper's preload, not only the wrapper: pdfjs's parity
+ * test loads the instrumented addon through `@build-qube/papyra`, and without the
+ * flush its counters land on macOS and vanish on Linux — the same number differing
+ * by machine. The preload drags `packages/papyra/src` into the other packages' lcov
+ * too, which `normaliseTsLcov` drops as outside their `src/`.
+ */
+async function tsStage(stage: string, pkgDir: string, tests: string[]) {
+  console.log(`coverage: ${stage} tests`);
+  const raw = join(OUT, 'ts-raw', stage);
+  await $`bun test ${tests} --preload ${join(ROOT, 'packages/papyra/test/coverage-entry.ts')} --coverage --coverage-reporter=lcov --coverage-dir=${raw}`
+    .cwd(join(ROOT, pkgDir))
+    .env(stageEnv(stage));
+  console.log(`  ${await countProfraw()} profraw so far`);
+  const lcov = normaliseTsLcov(
+    await readFile(join(raw, 'lcov.info'), 'utf8'),
+    pkgDir,
+  );
+  if (!lcov.includes('SF:')) {
+    console.error(
+      `coverage: ${stage} reported no file under ${pkgDir}/src. Its tests ran, so\n` +
+        'the lcov paths no longer start where normaliseTsLcov expects. Refusing.',
+    );
+    process.exit(1);
+  }
+  return lcov;
+}
 
+const tsLcov = [
+  await tsStage('wrapper', 'packages/papyra', [
+    'test/unit',
+    'test/integration',
+  ]),
+  await tsStage('pdfjs', 'packages/pdfjs', ['test/unit', 'test/integration']),
+  await tsStage('tauri', 'packages/tauri', ['test/integration']),
+];
 await mkdir(OUT, { recursive: true });
-await writeFile(
-  join(OUT, 'ts.lcov'),
-  normaliseTsLcov(
-    await readFile(join(OUT, 'ts-raw/lcov.info'), 'utf8'),
-    'packages/papyra',
-  ),
-);
+await writeFile(join(OUT, 'ts.lcov'), tsLcov.join(''));
 
 console.log('coverage: merging profiles');
 const profraw = (await readdir(targetDir))
@@ -308,7 +339,7 @@ const common = [
  */
 const contributions: Record<string, number> = {};
 console.log('coverage: per-stage contribution (Rust lines covered)');
-for (const stage of ['cargo-test', 'bindings', 'wrapper']) {
+for (const stage of ['cargo-test', 'bindings', 'wrapper', 'pdfjs']) {
   const own = profraw.filter((f) => f.includes(`/${stage}-`));
   if (own.length === 0) {
     console.log(`  ${stage.padEnd(11)} no profraw`);
