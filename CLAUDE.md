@@ -352,11 +352,10 @@ gate; CI needed no new job.
   values back. Since the scheduler coalesces on the key and the LRU is looked up by it,
   `annotationKey()` in `document.ts` appends `:noannots`; without it, asking for a page
   with annotations off is silently served the bitmap that still has them drawn on.
-- **Tile rendering is blocked upstream, and would cost N× rather than save.**
-  `hayro::render` is ~50 lines and every piece it uses is public *except* `Renderer`
-  (`mod renderer;` is private, `Renderer::new` is `pub(crate)`), so it cannot be
-  reimplemented with an offset transform from outside the crate; the upstream fix is an
-  `Affine::translate` composed into `initial_transform`. Even then: Addendum 10 measured
+- **Tile rendering would cost N× rather than save.** It is no longer blocked: hayro 0.8
+  made `render_into(page, …, ctx, transform)` public, so a tile is a `RenderContext`
+  of the tile's size and an `Affine::translate` composed into the page transform —
+  `examples/crop.rs` renders its viewport windows this way. But Addendum 10 measured
   that hayro does **no viewport culling** — a 10%-area viewport cost 93.7ms against
   104.6ms for the whole page — so N tiles is roughly N full renders. Tiles buy bounded
   memory and a way past both the 100 MP cap and hayro's `u16` 65535px-per-side ceiling.
