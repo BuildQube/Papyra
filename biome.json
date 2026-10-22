@@ -63,7 +63,8 @@
         "apps/demo/src/components/theme-provider.tsx",
         "packages/pdf-viewer/src/components/pdf-engine.tsx",
         "packages/pdf-viewer/src/components/pdf-viewer-provider.tsx",
-        "packages/pdf-viewer/src/components/file-preview-docx-view.tsx"
+        "packages/pdf-viewer/src/components/file-preview-docx-view.tsx",
+        "packages/pdf-viewer/src/components/file-preview-actions.tsx"
       ],
       "linter": {
         "rules": {

@@ -757,10 +757,12 @@ Decided since (2026-10-20):
   WKWebView and `share()` opens the system sheet (Save to Files, Print, other apps;
   cancel rejects with `AbortError`). `<a download>` does nothing there, and the opener
   plugin's `openPath` fails (2.5.5) and could only `UIApplication.open` a file anyway,
-  which presents no sheet for the app's own sandbox. So the default is `share()` when
-  `canShare` says yes, else the anchor download, with no Tauri plugin. `share()` needs
-  the tap's user activation, so the bytes must already be in hand when the button is
-  pressed. Android is untested.
+  which presents no sheet for the app's own sandbox. So a WKWebView host opts in with
+  `<FileActionsProvider share>` — `share()` when `canShare` says yes, else the anchor
+  download, with no Tauri plugin — and the default stays the anchor download: desktop Safari and Chrome report `canShare({ files })` true as
+  well, and the macOS sheet has no save to disk, so sharing by default would take the
+  plain download away from desktop. `share()` needs the tap's user activation, so the
+  bytes must already be in hand when the button is pressed. Android is untested.
 - **No WebP page format or image export through engines** until a viewer needs one;
   papyra's `renderImage`/`encode` already export WebP.
 - The plugin follows the `tauri plugin new` layout (`commands.rs`, `models.rs`,

@@ -617,6 +617,19 @@
       ]
     },
     {
+      "name": "file-preview-actions",
+      "type": "registry:component",
+      "title": "File actions",
+      "description": "Share and download for the file preview: a download by default, and with `<FileActionsProvider share>` the system share sheet where the platform takes files \u2014 for iOS WKWebView hosts, where a download does nothing.",
+      "registryDependencies": ["{{REGISTRY}}/file-preview-core.json"],
+      "files": [
+        {
+          "path": "src/components/file-preview-actions.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
       "name": "file-preview",
       "type": "registry:block",
       "title": "File preview",
@@ -626,6 +639,7 @@
         "button",
         "empty",
         "spinner",
+        "{{REGISTRY}}/file-preview-actions.json",
         "{{REGISTRY}}/file-preview-core.json",
         "{{REGISTRY}}/use-fullscreen.json"
       ],
