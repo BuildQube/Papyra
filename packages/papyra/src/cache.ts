@@ -27,7 +27,7 @@ export interface CacheStats {
 }
 
 export class RenderCache<T> {
-  readonly #budget: number;
+  #budget: number;
   readonly #sizeOf: (value: T) => number;
   /** Insertion order is the LRU order: re-inserting on read moves an entry to the end. */
   readonly #entries = new Map<string, T>();
@@ -89,6 +89,15 @@ export class RenderCache<T> {
   clear(): void {
     this.#entries.clear();
     this.#bytes = 0;
+  }
+
+  /**
+   * Empty the cache and refuse every later `set`. For a closed document, whose
+   * in-flight work still resolves into it afterwards.
+   */
+  close(): void {
+    this.#budget = 0;
+    this.clear();
   }
 
   get stats(): CacheStats {

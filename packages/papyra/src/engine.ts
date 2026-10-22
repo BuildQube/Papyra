@@ -452,9 +452,10 @@ export abstract class PagedEngine<
     const state = stateOf(this, doc);
     state.closed = true;
     states.delete(doc);
-    state.cache.clear();
-    state.text.clear();
-    state.links.clear();
+    // Closed rather than cleared: work already running still resolves into these.
+    state.cache.close();
+    state.text.close();
+    state.links.close();
     try {
       return Promise.resolve(state.backend.close?.());
     } catch (e) {

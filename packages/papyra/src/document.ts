@@ -82,7 +82,6 @@ export async function open(
 export class Document implements PdfDoc {
   readonly #doc: PdfDoc;
   readonly #engine: PapyraEngine;
-  readonly #state: DocState<PapyraBackend>;
   /** Memoised by {@link indexText}. */
   #indexed: Promise<void> | undefined;
 
@@ -103,9 +102,16 @@ export class Document implements PdfDoc {
   constructor(doc: PdfDoc, engine: PapyraEngine) {
     this.#doc = doc;
     this.#engine = engine;
-    this.#state = stateOf(engine, doc) as DocState<PapyraBackend>;
     this.fingerprint = doc.fingerprint;
     adopt(this, doc);
+  }
+
+  /**
+   * Looked up on every use, never held: `stateOf` is what throws once the document
+   * is closed, including between the awaits of a call that was already running.
+   */
+  get #state(): DocState<PapyraBackend> {
+    return stateOf(this.#engine, this.#doc) as DocState<PapyraBackend>;
   }
 
   /** The engine that opened this document: always papyra's own. */
@@ -130,8 +136,12 @@ export class Document implements PdfDoc {
 
   /**
    * Release this document: its caches, and its queue's claim on the engine. Every
-   * method throws afterwards. Optional — an unreachable document is collected — but
-   * it frees the caches at once rather than whenever the collector gets to them.
+   * method and getter that reaches the queue or a cache throws afterwards, the stats
+   * and a second `close` included; what the handle was opened with — `pageCount`,
+   * `fingerprint`, `engine`, `capabilities` — stays readable. Work already running
+   * finishes, but nothing it produces is cached. Optional — an unreachable document
+   * is collected — but it frees the caches at once rather than whenever the
+   * collector gets to them.
    */
   close(): Promise<void> {
     return this.#engine.close(this.#doc);
@@ -574,6 +584,8 @@ export class Document implements PdfDoc {
    * goes. This only trades a pause now for instant results later.
    */
   async indexText(options: { priority?: number } = {}): Promise<void> {
+    // The memo would otherwise answer a closed document without reaching the guard.
+    void this.#state;
     this.#indexed ??= this.#index(options).catch((e: unknown) => {
       // A failed pass must not be remembered as a completed one.
       this.#indexed = undefined;

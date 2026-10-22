@@ -5,6 +5,7 @@ import {
   type PdfBackend,
   PdfEngine,
   RENDER_ONLY,
+  stateOf,
 } from '../../src/engine.js';
 import type { OpenOptions, PageBitmap, PdfSource } from '../../src/types.js';
 
@@ -231,6 +232,18 @@ describe('PdfEngine over another backend', () => {
     expect(() => engine.render(doc, 0)).toThrow(/closed/);
     // A second close is a mistake in the caller, reported at once.
     expect(() => engine.close(doc)).toThrow(/closed/);
+  });
+
+  test('a render that finishes after close is not cached', async () => {
+    const engine = new FakeEngine();
+    const doc = await engine.open(BYTES);
+    const { cache } = stateOf(engine, doc);
+    const release = engine.backend.gate();
+    const job = engine.render(doc, 0);
+    await engine.close(doc);
+    release();
+    await job.promise;
+    expect(cache.stats.entries).toBe(0);
   });
 
   test('a backend that throws on close rejects, rather than throwing', async () => {
