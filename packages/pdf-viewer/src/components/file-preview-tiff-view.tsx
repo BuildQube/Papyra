@@ -7,7 +7,13 @@ import {
   type TiffPage,
 } from '@build-qube/papyra';
 import { ImageOffIcon } from 'lucide-react';
-import { useEffect, useImperativeHandle, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react';
 import { PdfIsolationGuard } from '@/components/pdf-isolation-guard';
 import {
   Empty,
@@ -18,6 +24,7 @@ import {
 } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
 import { ZoomBar } from '@/components/viewer-zoom-bar';
+import { useOpened } from '@/hooks/use-opened';
 import { useZoom, type ZoomAnchor } from '@/hooks/use-viewer-zoom';
 import type { FileViewProps } from '@/lib/file-preview-core';
 import { cn } from '@/lib/utils';
@@ -57,10 +64,7 @@ export interface TiffFileViewOptions {
   open?: (file: File) => Promise<TiffImage<PageBitmap>>;
 }
 
-type Opened =
-  | { status: 'opening' }
-  | { status: 'open'; tiff: TiffImage<PageBitmap> }
-  | { status: 'failed'; error: unknown };
+const closeTiff = (tiff: TiffImage<PageBitmap>) => tiff.close();
 
 /**
  * A TIFF, a page at a time, with the image view's zoom and rotation and a pager when
@@ -90,33 +94,10 @@ function OpenedTiff({
   file,
   open,
 }: Pick<FileViewProps, 'file'> & Required<TiffFileViewOptions>) {
-  const [opened, setOpened] = useState<Opened>({ status: 'opening' });
-
-  useEffect(() => {
-    let live = true;
-    setOpened({ status: 'opening' });
-    open(file).then(
-      (tiff) => {
-        // Opened after the file changed or the view went away: nobody shows it.
-        if (!live) return void tiff.close().catch(() => {});
-        setOpened({ status: 'open', tiff });
-      },
-      (error: unknown) => live && setOpened({ status: 'failed', error }),
-    );
-    return () => {
-      live = false;
-    };
-  }, [file, open]);
-
-  // Closed when the file changes or the view goes away: a host holding it — a
-  // Tauri app's — would otherwise keep it until the page reloads.
-  const tiff = opened.status === 'open' ? opened.tiff : null;
-  useEffect(() => {
-    if (!tiff) return;
-    return () => {
-      tiff.close().catch(() => {});
-    };
-  }, [tiff]);
+  const opened = useOpened(
+    useCallback(() => open(file), [open, file]),
+    closeTiff,
+  );
 
   switch (opened.status) {
     case 'opening':
@@ -132,7 +113,7 @@ function OpenedTiff({
     case 'open':
       // A new file passes through 'opening' first, so this remounts with it and
       // starts on page one at its own zoom.
-      return <TiffPages tiff={opened.tiff} />;
+      return <TiffPages tiff={opened.value} />;
   }
 }
 

@@ -7,7 +7,7 @@ import {
 } from '@build-qube/papyra/core';
 import { type OfficeDoc, officeEngine } from '@build-qube/papyra/office';
 import { FileIcon } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { ContinuousPages } from '@/components/pdf-continuous-pages';
 import { EngineGuard, PageEngineScope } from '@/components/pdf-engine';
 import {
@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
 import { ZoomBar } from '@/components/viewer-zoom-bar';
+import { useOpened } from '@/hooks/use-opened';
 import { useZoom, type ZoomAnchor } from '@/hooks/use-viewer-zoom';
 import type { FileViewProps } from '@/lib/file-preview-core';
 import type { Size } from '@/lib/viewer-zoom';
@@ -83,11 +84,6 @@ function registerFonts(
   ).then(() => undefined);
 }
 
-type Opened =
-  | { status: 'opening' }
-  | { status: 'open'; doc: OfficeDoc }
-  | { status: 'failed'; error: unknown };
-
 /**
  * A Word document or PowerPoint deck, laid out and drawn by papyra in Rust —
  * WordCraft for Word, DeckCraft for slides — in the PDF viewer's continuous column.
@@ -119,37 +115,20 @@ function OpenedOffice({
   fonts?: readonly string[] | undefined;
   engine: OfficeEngine;
 }) {
-  const [opened, setOpened] = useState<Opened>({ status: 'opening' });
   // Joined so that a new array with the same URLs, as an inline `options` object
   // makes on every render, does not reopen the file.
   const fontKey = (fonts ?? []).join('\n');
-
-  useEffect(() => {
-    let live = true;
-    setOpened({ status: 'opening' });
-    registerFonts(engine, fontKey ? fontKey.split('\n') : [])
-      .then(() => engine.open(file))
-      .then(
-        (doc) => {
-          // Opened after the file changed or the view went away: nobody shows it.
-          if (!live) return void engine.close(doc).catch(() => {});
-          setOpened({ status: 'open', doc });
-        },
-        (error: unknown) => live && setOpened({ status: 'failed', error }),
-      );
-    return () => {
-      live = false;
-    };
-  }, [file, fontKey, engine]);
-
   // Closed when the file changes or the view goes away, so its pages leave the cache.
-  const doc = opened.status === 'open' ? opened.doc : null;
-  useEffect(() => {
-    if (!doc) return;
-    return () => {
-      engine.close(doc).catch(() => {});
-    };
-  }, [doc, engine]);
+  const opened = useOpened(
+    useCallback(
+      () =>
+        registerFonts(engine, fontKey ? fontKey.split('\n') : []).then(() =>
+          engine.open(file),
+        ),
+      [engine, file, fontKey],
+    ),
+    useCallback((doc: OfficeDoc) => engine.close(doc), [engine]),
+  );
 
   switch (opened.status) {
     case 'opening':
@@ -165,10 +144,11 @@ function OpenedOffice({
     case 'open':
       // A valid file can have none — a deck or template with no slides yet — and the
       // column sizes itself from the first page.
-      if (opened.doc.pageCount === 0) return <NoPages kind={opened.doc.kind} />;
+      if (opened.value.pageCount === 0)
+        return <NoPages kind={opened.value.kind} />;
       return (
         <PageEngineScope engine={engine}>
-          <OfficePages doc={opened.doc} />
+          <OfficePages doc={opened.value} />
         </PageEngineScope>
       );
   }

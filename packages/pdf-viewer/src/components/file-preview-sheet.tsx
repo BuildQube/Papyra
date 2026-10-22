@@ -12,6 +12,7 @@ import { LockIcon, Table2Icon } from 'lucide-react';
 import {
   type CSSProperties,
   type ReactNode,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -28,6 +29,7 @@ import {
 } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useOpened } from '@/hooks/use-opened';
 import {
   type Axis,
   cellCss,
@@ -97,11 +99,7 @@ export interface WorkbookViewProps extends WorkbookFileViewOptions {
   className?: string;
 }
 
-type State =
-  | { status: 'opening' }
-  | { status: 'open'; book: Workbook }
-  | { status: 'encrypted' }
-  | { status: 'failed'; error: unknown };
+const closeBook = (book: Workbook) => book.close();
 
 /**
  * A spreadsheet file, opened by papyra and shown a sheet at a time.
@@ -126,47 +124,19 @@ function OpenedWorkbook({
   className,
   open,
 }: WorkbookViewProps & Required<WorkbookFileViewOptions>) {
-  const [state, setState] = useState<State>({ status: 'opening' });
-
-  useEffect(() => {
-    let live = true;
-    setState({ status: 'opening' });
-    open(file, options).then(
-      (book) => {
-        // Opened after the file changed or the view went away: nobody shows it.
-        if (!live) return void book.close().catch(() => {});
-        setState({ status: 'open', book });
-      },
-      (error: unknown) => {
-        if (!live) return;
-        setState(
-          error instanceof EncryptedWorkbookError
-            ? { status: 'encrypted' }
-            : { status: 'failed', error },
-        );
-      },
-    );
-    return () => {
-      live = false;
-    };
-  }, [file, options, open]);
-
-  // Closed when the file changes or the view goes away: a host holding it — a
-  // Tauri app's — would otherwise keep it until the page reloads.
-  const book = state.status === 'open' ? state.book : null;
-  useEffect(() => {
-    if (!book) return;
-    return () => {
-      book.close().catch(() => {});
-    };
-  }, [book]);
+  const state = useOpened(
+    useCallback(() => open(file, options), [open, file, options]),
+    closeBook,
+  );
 
   switch (state.status) {
     case 'opening':
       return <Centered />;
     case 'open':
-      return <WorkbookTabs book={state.book} className={className} />;
-    case 'encrypted':
+      return <WorkbookTabs book={state.value} className={className} />;
+    case 'failed':
+      // To the preview's error boundary, which offers the file as a download.
+      if (!(state.error instanceof EncryptedWorkbookError)) throw state.error;
       return (
         <Notice
           description={file.name}
@@ -176,9 +146,6 @@ function OpenedWorkbook({
           title="This workbook is password-protected"
         />
       );
-    case 'failed':
-      // To the preview's error boundary, which offers the file as a download.
-      throw state.error;
   }
 }
 

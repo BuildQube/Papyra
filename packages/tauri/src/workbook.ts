@@ -19,13 +19,13 @@ interface Opened extends Omit<WorkbookSource, 'sheet' | 'close'> {
 /** The plugin's answer to `sheet`: everything but the cells, in JSON. */
 interface SheetMeta extends Omit<SheetSource, 'window' | 'merges' | 'layout'> {
   merges: number[];
-  layout: {
-    defaultColWidth: number;
-    defaultRowHeight: number;
-    cols: number[];
-    rows: number[];
-    showGridLines: boolean;
-  } | null;
+  /** The bindings' layout, with JSON arrays where they hold typed ones. */
+  layout:
+    | (Omit<NonNullable<SheetSource['layout']>, 'cols' | 'rows'> & {
+        cols: number[];
+        rows: number[];
+      })
+    | null;
 }
 
 /**
