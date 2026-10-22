@@ -25,10 +25,10 @@ const doc = await officeEngine.open(file);
 paintToCanvas(await officeEngine.render(doc, 0, { fitWidth: 1200 }).promise, canvas);
 ```
 
-- **What it renders.** Word documents (`.docx`, `.docm`, `.dotx`, `.dotm`) paginated
-  with Word's page breaks, headers and footers, and PowerPoint decks (`.pptx`, `.potx`, `.ppsx` and their
-  macro-enabled twins). Pages only: no text, links or outline. A real-world file may
-  still lay out differently from Office.
+- **What it renders.** Word documents (`.docx`, `.docm`, `.dotx`, `.dotm`), paginated
+  with Word's page breaks, headers and footers, and PowerPoint decks (`.pptx`,
+  `.potx`, `.ppsx` and their macro-enabled twins). Pages only: no text, links or
+  outline. A real-world file may still lay out differently from Office.
 - **Fonts decide pagination.** A browser has no system fonts, so register
   metric-compatible substitutes — Carlito, Caladea, Liberation Sans and Serif — with
   `officeEngine.addFont` before opening, or every line break moves.
