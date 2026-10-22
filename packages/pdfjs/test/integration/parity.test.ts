@@ -70,6 +70,7 @@ describe('pdf.js agrees with papyra', () => {
         expect(Math.abs(a.height - b.height)).toBeLessThan(1);
       }
       expect(js.metadata.title).toBe(hayro.metadata.title);
+      expect(js.pdfVersion).toBe(hayro.pdfVersion);
 
       expect(await pdfjs.pageLabels(js)).toEqual(
         await defaultPdfEngine.pageLabels(hayro),

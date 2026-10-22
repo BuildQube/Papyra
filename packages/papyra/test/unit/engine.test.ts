@@ -239,6 +239,18 @@ describe('PdfEngine over another backend', () => {
     expect(() => engine.close(doc)).toThrow(/closed/);
   });
 
+  test('a backend that throws on close rejects, rather than throwing', async () => {
+    const engine = new FakeEngine();
+    const doc = await engine.open(BYTES);
+    engine.backend.close = () => {
+      throw new Error('host gone');
+    };
+    const closing = engine.close(doc);
+    await expect(closing).rejects.toThrow('host gone');
+    // Released on our side regardless.
+    expect(() => engine.render(doc, 0)).toThrow(/closed/);
+  });
+
   test('streams every page, in the order asked', async () => {
     const engine = new FakeEngine();
     const doc = await engine.open(BYTES);
