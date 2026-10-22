@@ -80,6 +80,17 @@ export type { JobHandle, JobTiming } from './scheduler.js';
 export { AbortError, DEFAULT_PRIORITY } from './scheduler.js';
 export type { MatchOptions, SearchMatch } from './search.js';
 export { findRanges, searchPageText } from './search.js';
+export type {
+  SheetInfo,
+  SheetKind,
+  SheetSource,
+  SheetVisibility,
+  WindowRange,
+  WorkbookFormat,
+  WorkbookOptions,
+  WorkbookSource,
+} from './sheets.js';
+export { openWorkbookWith, Sheet, Workbook } from './sheets.js';
 export { toBytes } from './source.js';
 export type {
   MarkedContent,
@@ -103,17 +114,6 @@ export type {
   VerticalAlign,
 } from './styles.js';
 export { cssColor } from './styles.js';
-export type {
-  SheetInfo,
-  SheetKind,
-  SheetSource,
-  SheetVisibility,
-  WindowRange,
-  WorkbookFormat,
-  WorkbookOptions,
-  WorkbookSource,
-} from './sheets.js';
-export { openWorkbookWith, Sheet, Workbook } from './sheets.js';
 export type { PageText, Quad, Rect, TextLine } from './text.js';
 export {
   lineQuad,

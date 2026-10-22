@@ -1,6 +1,6 @@
 import type {
-  TiffPageInfo,
   TiffRenderOptions as NativeTiffRenderOptions,
+  TiffPageInfo,
 } from '@build-qube/papyra-native';
 import type { PageBitmap, RenderedPage } from './types.js';
 
@@ -123,10 +123,7 @@ export class TiffImage<P extends PageBitmap = RenderedPage> {
    * rendered PDF page. Each call decodes the page again; keep the result if it will
    * be shown again.
    */
-  renderPage(
-    index: number,
-    options: TiffRenderOptions = {},
-  ): Promise<P> {
+  renderPage(index: number, options: TiffRenderOptions = {}): Promise<P> {
     if (!Number.isInteger(index) || index < 0 || index >= this.pages.length) {
       return Promise.reject(
         new RangeError(`papyra: no TIFF page ${JSON.stringify(index)}`),
