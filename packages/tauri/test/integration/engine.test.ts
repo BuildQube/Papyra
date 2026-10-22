@@ -183,6 +183,53 @@ describe('TauriEngine', () => {
     expect(outline[0]?.children[0]?.title).toBe('Two');
   });
 
+  test('reads labels, attachments and the structure tree through the plugin’s commands', async () => {
+    answers['plugin:papyra|page_labels'] = () => ['i', 'ii'];
+    answers['plugin:papyra|attachments'] = () => [
+      { name: 'factur-x.xml', mediaType: 'text/xml', size: 3 },
+      { name: 'notes.txt' },
+    ];
+    answers['plugin:papyra|attachment_data'] = () =>
+      new Uint8Array([104, 105]).buffer;
+    const entry = { content: [], alt: null, actualText: null, lang: null };
+    answers['plugin:papyra|struct_tree'] = () => [
+      {
+        ...entry,
+        level: 0,
+        role: 'Document',
+        rawRole: 'Document',
+        title: null,
+      },
+      { ...entry, level: 1, role: 'Sect', rawRole: 'Column', title: 'Left' },
+      { ...entry, level: 0, role: 'P', rawRole: 'P', title: null },
+    ];
+    const engine = new TauriEngine();
+    const doc = await engine.open(new Uint8Array());
+
+    expect(await engine.pageLabels(doc)).toEqual(['i', 'ii']);
+
+    const files = await engine.attachments(doc);
+    expect(files.map((f) => [f.index, f.name, f.mediaType, f.size])).toEqual([
+      [0, 'factur-x.xml', 'text/xml', 3],
+      [1, 'notes.txt', null, null],
+    ]);
+
+    const bytes = await engine.attachmentData(doc, 1);
+    expect(bytes).toEqual(new Uint8Array([104, 105]));
+    expect(calls.at(-1)).toMatchObject({
+      cmd: 'plugin:papyra|attachment_data',
+      args: { id: 7, index: 1 },
+    });
+
+    const tree = await engine.structTree(doc);
+    expect(tree.map((n) => n.role)).toEqual(['Document', 'P']);
+    expect(tree[0]?.children[0]).toMatchObject({
+      role: 'Sect',
+      rawRole: 'Column',
+      title: 'Left',
+    });
+  });
+
   test('closing the document releases it in the host, and can be awaited', async () => {
     answers['plugin:papyra|close'] = () => null;
     const engine = new TauriEngine();
