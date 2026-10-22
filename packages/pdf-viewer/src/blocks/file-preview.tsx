@@ -155,7 +155,11 @@ export function FilePreview<const R extends readonly FileRenderer[]>({
   const [full, toggleFullscreen] = useFullscreen();
 
   // A name or size only the response knew — a `Content-Disposition`, a length.
-  const [learned, setLearned] = useState<{ key: string; info: SourceInfo }>();
+  const [learned, setLearned] = useState<{
+    key: string;
+    info: SourceInfo;
+    file?: File;
+  }>();
   const info =
     learned?.key === key
       ? learned.info
@@ -224,7 +228,12 @@ export function FilePreview<const R extends readonly FileRenderer[]>({
                 </p>
               )}
             </div>
-            <DownloadButton cache={cache} iconFor={info.name} source={source} />
+            <DownloadButton
+              cache={cache}
+              held={learned?.key === key ? learned.file : undefined}
+              iconFor={info.name}
+              source={source}
+            />
             {fullscreen && (
               <Button
                 aria-label={full ? 'Exit full screen' : 'Full screen'}
@@ -252,7 +261,7 @@ export function FilePreview<const R extends readonly FileRenderer[]>({
             allow={allow}
             cache={cache}
             key={key}
-            onInfo={(i) => setLearned({ key, info: i })}
+            onInfo={(i, file) => setLearned({ key, info: i, file })}
             onReady={onReady}
             options={options as Readonly<Record<string, object>> | undefined}
             displayRenderTime={displayRenderTime}
@@ -345,7 +354,7 @@ function FileBody({
   allow: readonly string[] | undefined;
   cache: FileCache;
   signal: () => AbortSignal;
-  onInfo: (info: SourceInfo) => void;
+  onInfo: (info: SourceInfo, file?: File) => void;
   onReady: () => void;
   options: Readonly<Record<string, object>> | undefined;
   displayRenderTime: boolean;
@@ -386,7 +395,7 @@ function FileBody({
       } else {
         const file = await resolveFile(source, options);
         if (!live) return;
-        onInfo({ name: file.name, type: file.type, size: file.size });
+        onInfo({ name: file.name, type: file.type, size: file.size }, file);
         setBody({ status: 'file', renderer, file });
       }
       if (live) onReady();
@@ -409,7 +418,13 @@ function FileBody({
   });
 
   const name = sourceInfo(source).name;
-  const download = <DownloadButton cache={cache} source={source} />;
+  const download = (
+    <DownloadButton
+      cache={cache}
+      held={body.status === 'file' ? body.file : undefined}
+      source={source}
+    />
+  );
 
   switch (body.status) {
     case 'inspecting':
@@ -645,19 +660,22 @@ function Loading({ label }: { label?: string }) {
 }
 
 /**
- * Share or download, whichever the platform does with a file in hand. `iconFor`
- * makes it an icon-only button labelled for that file name.
+ * Share or download, whichever the platform does with a file in hand. `held` is
+ * the view's own copy, which a file too large for the cache has nowhere else;
+ * `iconFor` makes it an icon-only button labelled for that file name.
  */
 function DownloadButton({
   source,
   cache,
+  held,
   iconFor,
 }: {
   source: FileSource;
   cache: FileCache;
+  held?: File;
   iconFor?: string;
 }) {
-  const action = useFileAction(source, cache);
+  const action = useFileAction(source, cache, held);
   const label = action.kind === 'share' ? 'Share' : 'Download';
   return (
     <Button

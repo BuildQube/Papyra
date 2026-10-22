@@ -620,7 +620,7 @@
       "name": "file-preview-actions",
       "type": "registry:component",
       "title": "File actions",
-      "description": "Share and download for the file preview: the system share sheet where the platform takes files (iOS WKWebView included), else a download. A provider replaces either for an app with its own.",
+      "description": "Share and download for the file preview: a download by default, and with `<FileActionsProvider share>` the system share sheet where the platform takes files \u2014 for iOS WKWebView hosts, where a download does nothing.",
       "registryDependencies": ["{{REGISTRY}}/file-preview-core.json"],
       "files": [
         {
