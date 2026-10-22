@@ -34,12 +34,12 @@ const WANTED = [
  * tests too: nothing in the pdf.js suite embeds a file, defines page labels or maps
  * its tags through a `/RoleMap`, so without these those paths are never reached.
  */
-export const GENERATED: Record<string, () => Uint8Array> = {
+export const GENERATED = {
   'rotated.pdf': rotatedTextPdf,
   'labelled.pdf': labelledPdf,
   'tagged-columns.pdf': taggedColumnsPdf,
   'hybrid-invoice.pdf': hybridInvoicePdf,
-};
+} satisfies Record<string, () => Uint8Array>;
 
 if (import.meta.main) {
   const root = join(import.meta.dir, '..');
@@ -61,15 +61,13 @@ if (import.meta.main) {
     }
   }
 
-  const generated = Object.entries(GENERATED);
-  for (const [name, build] of generated) {
-    const bytes = build();
-    await writeFile(join(to, name), bytes);
+  for (const [name, build] of Object.entries(GENERATED)) {
+    await writeFile(join(to, name), build());
     console.log(`  ✓ ${name} (generated)`);
   }
 
   console.log(
-    `\n${copied + generated.length} in apps/demo/public — open with ?file=/<name>`,
+    `\n${copied + Object.keys(GENERATED).length} in apps/demo/public — open with ?file=/<name>`,
   );
 }
 

@@ -256,47 +256,61 @@ await $`bun run --filter @build-qube/papyra-native test`.env(
 console.log(`  ${await countProfraw()} profraw so far`);
 
 /**
- * Run one TypeScript package's suites under bun's coverage, as a stage of its own.
+ * The TypeScript packages that ship, each run as a stage of its own.
  *
  * Unit and integration together, in one process, so each package's lcov has a
- * single denominator. `--preload` imports the wrapper's entrypoint, which is what
- * puts the modules no test touches into the report as 0% instead of leaving them out.
- *
- * Every stage gets the wrapper's preload, not only the wrapper: pdfjs's parity
- * test loads the instrumented addon through `@build-qube/papyra`, and without the
- * flush its counters land on macOS and vanish on Linux — the same number differing
- * by machine. The preload drags `packages/papyra/src` into the other packages' lcov
- * too, which `normaliseTsLcov` drops as outside their `src/`.
+ * single denominator. `addon` marks the stages that load the instrumented addon:
+ * they get the wrapper's preload, whose `afterAll` flushes the Rust counters — without
+ * it pdfjs's parity test's counters land on macOS and vanish on Linux — and they are
+ * held to the zero-contribution guard below. The preload also imports the wrapper's
+ * entrypoint, which is what puts the modules no wrapper test touches into its report
+ * as 0% rather than leaving them out; in pdfjs's lcov those files fall outside its
+ * `src/` and are dropped. pdfjs and tauri need no such help: their tests import
+ * their own `src/index.ts`, which reaches every file they ship.
  */
-async function tsStage(stage: string, pkgDir: string, tests: string[]) {
+const TS_STAGES = [
+  {
+    stage: 'wrapper',
+    dir: 'packages/papyra',
+    tests: ['test/unit', 'test/integration'],
+    addon: true,
+  },
+  {
+    stage: 'pdfjs',
+    dir: 'packages/pdfjs',
+    tests: ['test/unit', 'test/integration'],
+    addon: true,
+  },
+  {
+    stage: 'tauri',
+    dir: 'packages/tauri',
+    tests: ['test/integration'],
+    addon: false,
+  },
+];
+const preload = join(ROOT, 'packages/papyra/test/coverage-entry.ts');
+
+const tsLcov: string[] = [];
+for (const { stage, dir, tests, addon } of TS_STAGES) {
   console.log(`coverage: ${stage} tests`);
   const raw = join(OUT, 'ts-raw', stage);
-  await $`bun test ${tests} --preload ${join(ROOT, 'packages/papyra/test/coverage-entry.ts')} --coverage --coverage-reporter=lcov --coverage-dir=${raw}`
-    .cwd(join(ROOT, pkgDir))
+  await $`bun test ${tests} ${addon ? ['--preload', preload] : []} --coverage --coverage-reporter=lcov --coverage-dir=${raw}`
+    .cwd(join(ROOT, dir))
     .env(stageEnv(stage));
   console.log(`  ${await countProfraw()} profraw so far`);
   const lcov = normaliseTsLcov(
     await readFile(join(raw, 'lcov.info'), 'utf8'),
-    pkgDir,
+    dir,
   );
   if (!lcov.includes('SF:')) {
     console.error(
-      `coverage: ${stage} reported no file under ${pkgDir}/src. Its tests ran, so\n` +
+      `coverage: ${stage} reported no file under ${dir}/src. Its tests ran, so\n` +
         'the lcov paths no longer start where normaliseTsLcov expects. Refusing.',
     );
     process.exit(1);
   }
-  return lcov;
+  tsLcov.push(lcov);
 }
-
-const tsLcov = [
-  await tsStage('wrapper', 'packages/papyra', [
-    'test/unit',
-    'test/integration',
-  ]),
-  await tsStage('pdfjs', 'packages/pdfjs', ['test/unit', 'test/integration']),
-  await tsStage('tauri', 'packages/tauri', ['test/integration']),
-];
 await mkdir(OUT, { recursive: true });
 await writeFile(join(OUT, 'ts.lcov'), tsLcov.join(''));
 
@@ -339,7 +353,11 @@ const common = [
  */
 const contributions: Record<string, number> = {};
 console.log('coverage: per-stage contribution (Rust lines covered)');
-for (const stage of ['cargo-test', 'bindings', 'wrapper', 'pdfjs']) {
+for (const stage of [
+  'cargo-test',
+  'bindings',
+  ...TS_STAGES.filter((s) => s.addon).map((s) => s.stage),
+]) {
   const own = profraw.filter((f) => f.includes(`/${stage}-`));
   if (own.length === 0) {
     console.log(`  ${stage.padEnd(11)} no profraw`);

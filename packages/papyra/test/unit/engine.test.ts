@@ -18,6 +18,13 @@ class FakeBackend implements PdfBackend {
   /** Every render waits on this, so a test can keep the queue full. */
   hold: Promise<unknown> = Promise.resolve();
 
+  /** Hold every render started from now on; returns the release. */
+  gate(): () => void {
+    const { promise, resolve } = Promise.withResolvers<void>();
+    this.hold = promise;
+    return () => resolve();
+  }
+
   pageSize() {
     return { width: 612, height: 792 };
   }
@@ -167,10 +174,7 @@ describe('PdfEngine over another backend', () => {
   test('a render handle reports its timing once it has run', async () => {
     const engine = new FakeEngine();
     const doc = await engine.open(BYTES);
-    let release = () => {};
-    engine.backend.hold = new Promise<void>((r) => {
-      release = r;
-    });
+    const release = engine.backend.gate();
     const handle = engine.render(doc, 0);
     expect(handle.timing).toBeNull();
     release();
@@ -181,10 +185,7 @@ describe('PdfEngine over another backend', () => {
   test('an aborted signal drops a render that has not started', async () => {
     const engine = new FakeEngine();
     const doc = await engine.open(BYTES, { concurrency: 1 });
-    let release = () => {};
-    engine.backend.hold = new Promise<void>((r) => {
-      release = r;
-    });
+    const release = engine.backend.gate();
     const running = engine.render(doc, 0);
 
     const later = new AbortController();
@@ -202,19 +203,12 @@ describe('PdfEngine over another backend', () => {
   test('breaking out of a stream drops the renders still queued', async () => {
     const engine = new FakeEngine();
     const doc = await engine.open(BYTES, { concurrency: 1 });
-    const gate = () => {
-      let release = () => {};
-      engine.backend.hold = new Promise<void>((r) => {
-        release = r;
-      });
-      return release;
-    };
     // A window of three on a queue of one: page 0 runs, 1 and 2 wait.
-    const first = gate();
+    const first = engine.backend.gate();
     const it = engine.stream(doc, { concurrency: 3 });
     const yielded = it.next();
     // Page 1 starts as 0 finishes, and is held there while the loop breaks.
-    const second = gate();
+    const second = engine.backend.gate();
     first();
     expect((await yielded).value?.page).toBe(0);
     await it.return(undefined);

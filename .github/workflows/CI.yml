@@ -72,6 +72,7 @@ jobs:
               - 'packages/tauri/**'
               - 'scripts/coverage.ts'
               - 'scripts/coverage-report.ts'
+              - 'scripts/demo-fixtures.ts'
             registry:
               - 'packages/papyra/**'
               - 'packages/pdf-viewer/**'
@@ -81,6 +82,7 @@ jobs:
               - 'packages/pdfjs/**'
               - 'packages/tauri/**'
               - 'apps/bench/**'
+              - 'scripts/demo-fixtures.ts'
             demo:
               - 'packages/papyra/**'
               - 'packages/pdfjs/**'

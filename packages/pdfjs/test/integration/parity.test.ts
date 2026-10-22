@@ -18,7 +18,8 @@ import { PdfjsEngine } from '../../src/index.js';
  *
  * In `test/integration` because papyra's side needs the built addon. The corpus is
  * fetched (`bun run corpus`); the demo's generated fixtures (labels, attachments, a
- * rotated page) are built in-process, since nothing in the corpus has those.
+ * rotated page) are built in-process, since nothing in the corpus has those. The
+ * demo's public/ is read too, for the `sample.pdf` it tracks.
  */
 const ROOT = join(import.meta.dir, '..', '..', '..', '..');
 const DIRS = [join(ROOT, 'corpus'), join(ROOT, 'apps', 'demo', 'public')];

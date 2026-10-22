@@ -13,10 +13,10 @@ import {
   PasswordError,
   PasswordRequiredError,
   quadBounds,
-  type StructNode,
   viewport,
   viewportQuad,
   viewportRect,
+  walkStructTree,
 } from '../../src/index.js';
 import { PapyraOfficeEngine } from '../../src/office.js';
 
@@ -558,8 +558,8 @@ describeWithCorpus('papyra as an engine', () => {
 });
 
 /** A fixture from `scripts/demo-fixtures.ts`, opened. */
-const generated = (name: string, options?: OpenOptions) =>
-  open((GENERATED[name] as () => Uint8Array)(), options);
+const generated = (name: keyof typeof GENERATED, options?: OpenOptions) =>
+  open(GENERATED[name](), options);
 
 describe('the Document facade, through the public API', () => {
   test('names its engine and claims every capability', async () => {
@@ -625,9 +625,9 @@ describe('the Document facade, through the public API', () => {
   test('reads the structure tree through the /RoleMap, memoised', async () => {
     const doc = await generated('tagged-columns.pdf');
     const tree = await doc.structTree();
-    const flat = (nodes: StructNode[]): StructNode[] =>
-      nodes.flatMap((n) => [n, ...flat(n.children)]);
-    const columns = flat(tree).filter((n) => n.rawRole === 'Column');
+    const columns = [...walkStructTree(tree)]
+      .map(({ node }) => node)
+      .filter((n) => n.rawRole === 'Column');
     expect(columns.map((n) => [n.role, n.title])).toEqual([
       ['Sect', 'Left column'],
       ['Sect', 'Right column'],
