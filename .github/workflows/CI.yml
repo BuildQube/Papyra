@@ -381,11 +381,13 @@ jobs:
         run: bunx napi build --platform --release --target ${{ matrix.target }}
       # The office addon (WordCraft and DeckCraft) on every target release.yml
       # publishes it for, so a target it cannot build fails here rather than in the
-      # middle of a release. Only smoke and demo run it, on the two they use.
+      # middle of a release. Only smoke and demo run it, so only their two targets
+      # upload it.
       - name: Build office
         working-directory: packages/office-bindings
         run: bunx napi build --platform --release --target ${{ matrix.target }}
       - name: Upload office artifact
+        if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'wasm32-wasip1-threads'
         uses: actions/upload-artifact@v7
         with:
           name: office-bindings-${{ matrix.target }}
