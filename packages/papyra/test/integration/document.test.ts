@@ -699,6 +699,6 @@ describe('the Document facade, through the public API', () => {
 
     const notes = new TextDecoder().decode(await doc.attachmentData(1));
     expect(notes).toStartWith('Payment terms: 30 days net.');
-    expect(doc.attachmentData(2)).rejects.toThrow();
+    await expect(doc.attachmentData(2)).rejects.toThrow();
   });
 });
