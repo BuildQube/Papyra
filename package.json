@@ -27,6 +27,7 @@
     "corpus": "bun run scripts/fetch-corpus.ts",
     "office": "bun run scripts/office-engines.ts",
     "change": "changeset",
+    "version": "changeset version && bun run scripts/sync-crate-versions.ts",
     "release": "bun run check:publishable && bun run --filter @build-qube/papyra build && bun run --filter @build-qube/papyra-native create-npm-dirs && bun run --filter @build-qube/papyra-native artifacts && bun run --filter @build-qube/papyra-native publish-platforms && changeset publish",
     "clean": "turbo run clean && git clean -xdf node_modules .turbo target corpus",
     "prepare": "husky"
