@@ -122,7 +122,7 @@ width on screen is the page's height, and `vp.dpi` carries the answer back.
 Renders draw annotations by default. Pass `{ annotations: false }` when you are drawing
 your own link or highlight layer, or they appear twice.
 
-## Two things that will bite you
+## Three things that will bite you
 
 **Size with `fitWidth`, not `dpi`.** Page areas vary by two orders of magnitude. At a
 fixed 36 DPI, US Letter is a 216x279 thumbnail while a 42x30in drawing is a 1512x1080,
@@ -136,6 +136,20 @@ display; renders above 100 MP are refused outright.
 Cross-Origin-Opener-Policy: same-origin
 Cross-Origin-Embedder-Policy: require-corp
 ```
+
+A panic in the browser build aborts that wasm instance, and papyra fails until the page
+reloads; natively it is a rejected promise like any other error.
+
+## Engines
+
+`open()` renders through papyra's own engine. Where a page cannot be cross-origin
+isolated there is a pdf.js engine (`@build-qube/papyra-pdfjs`); in a Tauri app,
+papyra running natively in the host process (`@build-qube/papyra-tauri`); and for Word
+and PowerPoint pages, the experimental `@build-qube/papyra/office`. Code that leaves
+the opening to another engine imports from `@build-qube/papyra/core`, which never
+loads papyra's wasm. The
+[Engines section of the project README](https://github.com/BuildQube/Papyra#engines)
+covers choosing one, installing it, and scoping it into the viewer.
 
 ## More
 

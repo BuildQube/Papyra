@@ -375,6 +375,18 @@ and a console message nobody reads. The guard turns that into a two-line config
 change. `PdfIsolationGuard` stays for TIFF and spreadsheets, which call papyra
 directly whatever PDF engine is chosen.
 
+Word and PowerPoint go through a second scope. `PageEngineScope` hands the page
+column below it to another engine — `usePageEngine()` is what the page surfaces
+render with — while everything that needs a PDF keeps `usePdfEngine()`, and
+`EngineGuard` is `PdfEngineGuard` for an engine passed in. `file-preview-office-view`
+wraps the continuous column in both, over papyra's office engine; a surface draws no
+link overlay for a document whose capabilities have none, so an office document never
+reaches a PDF command.
+
+Choosing and installing an engine is consumer documentation, and lives in the
+[root README's Engines section](../../README.md#engines); the pdf.js and Tauri engines
+have their own READMEs in `packages/pdfjs` and `packages/tauri`.
+
 ## The showcase
 
 `apps/demo`'s `/components` route renders this registry: the sidebar, the install
