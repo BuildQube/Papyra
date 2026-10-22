@@ -24,7 +24,7 @@ Everything below goes through one tool, `scripts/office-engines.ts`:
 ```bash
 bun run office status                  # how far behind, and which crates moved
 bun run office bump [wordcraft|deckcraft|all] [--rev <40-char sha>]
-bun run office bump wordcraft --fork BuildQube/wordcraft --rev <sha>   # see "Carrying a fix"
+bun run office bump <engine> --fork BuildQube/<engine> --rev <sha>   # see "Carrying a fix"
 bun run office fidelity                # render the corpus, diff against the baseline
 bun run office fidelity --sheets corpus/office/sheets   # plus a contact sheet per file
 bun run office fidelity --update       # record the result as the new baseline
@@ -112,7 +112,8 @@ bun run office fidelity --update       # record the result as the new baseline
    gzip -9c packages/office-bindings/papyra-office.wasm32-wasi.wasm | wc -c
    ```
    It was 4.24 MB gzipped at the first pin (1.35 MB code, ~2.9 MB embedded fonts and
-   hyphenation data), 5.29 MB after WordCraft `f4299ff`, and 5.68 MB after DeckCraft `a31b990`. Report a change over about 100 KB either way. Pass the exact
+   hyphenation data), 5.29 MB after WordCraft `f4299ff`, 5.68 MB after DeckCraft `a31b990`,
+   and 5.87 MB after WordCraft `00bc6a4`. Report a change over about 100 KB either way. Pass the exact
    file: the directory also holds an unstripped `*.debug.wasm`, and a glob picks up
    both.
 
@@ -143,7 +144,7 @@ Active forks:
 
 | Engine | Fork commit | Fix | Upstream PR |
 |---|---|---|---|
-| WordCraft | `f4299ff` on `BuildQube/wordcraft` `fix/wasi-clock` | browser clock only on `wasm32-unknown-unknown` | [storytold/wordcraft#3322](https://github.com/storytold/wordcraft/pull/3322) |
+| none | | | |
 
 ## Why the check runs on wasm, under Node
 
@@ -180,8 +181,8 @@ which measures the wrong thing.
 
 | File | Defect | Engine |
 |---|---|---|
-| `calendar-ru.docx` | 16 pages vs Office's 15 (13 before `f4299ff`, which fixed the title overlapping the table) | WordCraft |
-| `bug65649.docx` | blank pages 2, 112, 161, 210 at section breaks since `f4299ff`; not checked against Word | WordCraft |
+| `calendar-ru.docx` | 14 pages vs Office's 15 (13 before `f4299ff`, which fixed the title overlapping the table; 16 until `00bc6a4` resolved its Times New Roman to Tinos) | WordCraft |
+| `bug65649.docx` | blank pages 2, 97, 181 at section breaks since `f4299ff` (four of 210 pages until `00bc6a4`); not checked against Word | WordCraft |
 | `HowWeRefactor.pptx` | animation builds drawn all at once, so text overlaps | DeckCraft |
 
 Also known, and not visible in the corpus: WordCraft's global decoded-image cache in

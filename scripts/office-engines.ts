@@ -77,7 +77,7 @@ const FILES: readonly {
     name: 'calendar-ru.docx',
     url: `${POI}/document/bib-chernigovka.netdo.ru_download_docs_17459.docx`,
     office: 15,
-    note: 'one page over Office (16 vs 15); title page, border and texture draw',
+    note: 'one page under Office (14 vs 15); title page, border and texture draw',
   },
   {
     name: 'pcb-paper.docx',

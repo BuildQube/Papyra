@@ -1,6 +1,6 @@
 {
   "revs": {
-    "wordcraft": "f4299ff644ecfef5570f07e9ccede2459412a4bc",
+    "wordcraft": "00bc6a4b028013b2dfb0e85e8b326aeed3ecff6d",
     "deckcraft": "a31b990d32f2c8562f1588562f922960c3fde48b"
   },
   "width": 240,
@@ -13,7 +13,7 @@
       "kind": "word"
     },
     "calendar-ru.docx": {
-      "pages": 16,
+      "pages": 14,
       "blank": [],
       "solid": [],
       "failed": [],
@@ -27,8 +27,8 @@
       "kind": "word"
     },
     "bug65649.docx": {
-      "pages": 210,
-      "blank": [2, 112, 161, 210],
+      "pages": 181,
+      "blank": [2, 97, 181],
       "solid": [],
       "failed": [],
       "kind": "word"
