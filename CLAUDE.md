@@ -89,8 +89,8 @@ every push to `main`. `tag: false` keeps it out of the git tags, which name publ
 packages; being private exempts it from the rule that a dependent of an ignored
 package must itself be ignored, which is what lets it depend on `@workspace/ui`.
 Because of `updateInternalDependencies: "patch"` a papyra release bumps it too.
-The crates `papyra-core`, `papyra-encode`, `papyra-hayro` and
-`tauri-plugin-papyra` take the fixed group's version: the root `version` script, which
+The crates `papyra-core`, `papyra-encode`, `papyra-hayro`, `papyra-tables`,
+`papyra-tiff` and `tauri-plugin-papyra` take the fixed group's version: the root `version` script, which
 generates the Version Packages PR, runs `scripts/sync-crate-versions.ts` after
 `changeset version`, and release.yml's `crates` job publishes them. A new package
 name, npm or crates.io, needs bootstrapping by hand before CI can publish it; see
