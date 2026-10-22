@@ -2042,8 +2042,9 @@ checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
 [[package]]
 name = "wordcraft-doc"
 version = "0.9.0"
-source = "git+https://github.com/BuildQube/wordcraft?rev=f4299ff644ecfef5570f07e9ccede2459412a4bc#f4299ff644ecfef5570f07e9ccede2459412a4bc"
+source = "git+https://github.com/storytold/wordcraft?rev=00bc6a4b028013b2dfb0e85e8b326aeed3ecff6d#00bc6a4b028013b2dfb0e85e8b326aeed3ecff6d"
 dependencies = [
+ "base64",
  "serde",
  "serde_json",
  "thiserror",
@@ -2054,11 +2055,12 @@ dependencies = [
 [[package]]
 name = "wordcraft-docx"
 version = "0.9.0"
-source = "git+https://github.com/BuildQube/wordcraft?rev=f4299ff644ecfef5570f07e9ccede2459412a4bc#f4299ff644ecfef5570f07e9ccede2459412a4bc"
+source = "git+https://github.com/storytold/wordcraft?rev=00bc6a4b028013b2dfb0e85e8b326aeed3ecff6d#00bc6a4b028013b2dfb0e85e8b326aeed3ecff6d"
 dependencies = [
  "aes",
  "base64",
  "cfb",
+ "chrono",
  "getrandom",
  "hmac",
  "log",
@@ -2076,7 +2078,7 @@ dependencies = [
 [[package]]
 name = "wordcraft-fonts"
 version = "0.9.0"
-source = "git+https://github.com/BuildQube/wordcraft?rev=f4299ff644ecfef5570f07e9ccede2459412a4bc#f4299ff644ecfef5570f07e9ccede2459412a4bc"
+source = "git+https://github.com/storytold/wordcraft?rev=00bc6a4b028013b2dfb0e85e8b326aeed3ecff6d#00bc6a4b028013b2dfb0e85e8b326aeed3ecff6d"
 dependencies = [
  "harfrust",
  "kurbo",
@@ -2090,7 +2092,7 @@ dependencies = [
 [[package]]
 name = "wordcraft-geom"
 version = "0.9.0"
-source = "git+https://github.com/BuildQube/wordcraft?rev=f4299ff644ecfef5570f07e9ccede2459412a4bc#f4299ff644ecfef5570f07e9ccede2459412a4bc"
+source = "git+https://github.com/storytold/wordcraft?rev=00bc6a4b028013b2dfb0e85e8b326aeed3ecff6d#00bc6a4b028013b2dfb0e85e8b326aeed3ecff6d"
 dependencies = [
  "serde",
 ]
@@ -2098,7 +2100,7 @@ dependencies = [
 [[package]]
 name = "wordcraft-layout"
 version = "0.9.0"
-source = "git+https://github.com/BuildQube/wordcraft?rev=f4299ff644ecfef5570f07e9ccede2459412a4bc#f4299ff644ecfef5570f07e9ccede2459412a4bc"
+source = "git+https://github.com/storytold/wordcraft?rev=00bc6a4b028013b2dfb0e85e8b326aeed3ecff6d#00bc6a4b028013b2dfb0e85e8b326aeed3ecff6d"
 dependencies = [
  "image",
  "js-sys",
@@ -2112,13 +2114,14 @@ dependencies = [
  "wordcraft-doc",
  "wordcraft-fonts",
  "wordcraft-geom",
+ "wordcraft-metafile",
  "wordcraft-proof",
 ]
 
 [[package]]
 name = "wordcraft-metafile"
 version = "0.9.0"
-source = "git+https://github.com/BuildQube/wordcraft?rev=f4299ff644ecfef5570f07e9ccede2459412a4bc#f4299ff644ecfef5570f07e9ccede2459412a4bc"
+source = "git+https://github.com/storytold/wordcraft?rev=00bc6a4b028013b2dfb0e85e8b326aeed3ecff6d#00bc6a4b028013b2dfb0e85e8b326aeed3ecff6d"
 dependencies = [
  "kurbo",
  "thiserror",
@@ -2127,7 +2130,7 @@ dependencies = [
 [[package]]
 name = "wordcraft-proof"
 version = "0.9.0"
-source = "git+https://github.com/BuildQube/wordcraft?rev=f4299ff644ecfef5570f07e9ccede2459412a4bc#f4299ff644ecfef5570f07e9ccede2459412a4bc"
+source = "git+https://github.com/storytold/wordcraft?rev=00bc6a4b028013b2dfb0e85e8b326aeed3ecff6d#00bc6a4b028013b2dfb0e85e8b326aeed3ecff6d"
 dependencies = [
  "log",
  "miniz_oxide",
@@ -2136,7 +2139,7 @@ dependencies = [
 [[package]]
 name = "wordcraft-render"
 version = "0.9.0"
-source = "git+https://github.com/BuildQube/wordcraft?rev=f4299ff644ecfef5570f07e9ccede2459412a4bc#f4299ff644ecfef5570f07e9ccede2459412a4bc"
+source = "git+https://github.com/storytold/wordcraft?rev=00bc6a4b028013b2dfb0e85e8b326aeed3ecff6d#00bc6a4b028013b2dfb0e85e8b326aeed3ecff6d"
 dependencies = [
  "image",
  "log",
