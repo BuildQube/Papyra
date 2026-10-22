@@ -8,9 +8,12 @@
 //! usage: cargo run --release -p papyra-hayro --example crop -- <file.pdf>
 
 use hayro::vello_cpu::color::palette::css::WHITE;
+use hayro::vello_cpu::{Pixmap, RasterizerSettings, RenderContext, Resources, TargetInit};
 use hayro::{RenderCache, RenderSettings};
 use hayro_interpret::InterpreterSettings;
 use hayro_interpret::hayro_syntax::Pdf;
+use hayro_interpret::util::TransformExt;
+use kurbo::Affine;
 use std::time::Instant;
 
 fn best<F: FnMut()>(rounds: usize, mut f: F) -> f64 {
@@ -47,15 +50,24 @@ fn main() {
     let vw = ((full_w as f32) * frac) as u16;
     let vh = ((full_h as f32) * frac) as u16;
     let ms = best(3, || {
+      // What `hayro::render` does, into a context sized to the viewport.
       let cache = RenderCache::new();
-      let settings = RenderSettings {
-        x_scale: scale,
-        y_scale: scale,
-        width: Some(vw),
-        height: Some(vh),
-        bg_color: WHITE,
+      let mut ctx = RenderContext::new(vw, vh);
+      hayro::render_into(
+        page,
+        &cache,
+        &InterpreterSettings::default(),
+        &RenderSettings::default(),
+        &mut ctx,
+        Affine::scale(scale as f64) * page.initial_transform(true).to_kurbo(),
+      );
+      ctx.flush();
+      let mut pixmap = Pixmap::new(vw, vh);
+      let settings = RasterizerSettings {
+        target_init: TargetInit::Clear(WHITE),
+        ..Default::default()
       };
-      let _ = hayro::render(page, &cache, &InterpreterSettings::default(), &settings);
+      ctx.render_with(&mut pixmap, &mut Resources::default(), settings);
     });
     let mpx = (vw as f64 * vh as f64) / 1e6;
     println!(

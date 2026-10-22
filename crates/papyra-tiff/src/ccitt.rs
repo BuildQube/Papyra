@@ -34,22 +34,13 @@ struct Sink<'a> {
 }
 
 impl hayro_ccitt::Decoder for Sink<'_> {
-  #[inline]
-  fn push_pixel(&mut self, white: bool) {
+  fn push_pixels(&mut self, white: bool, count: u32) {
     if white == self.ink_is_white {
-      self.out.ink(self.x);
-    }
-    self.x += 1;
-  }
-
-  fn push_pixel_chunk(&mut self, white: bool, chunk_count: u32) {
-    let n = chunk_count * 8;
-    if white == self.ink_is_white {
-      for x in self.x..self.x + n {
+      for x in self.x..self.x + count {
         self.out.ink(x);
       }
     }
-    self.x += n;
+    self.x += count;
   }
 
   fn next_line(&mut self) {

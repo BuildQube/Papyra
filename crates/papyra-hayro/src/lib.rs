@@ -16,7 +16,7 @@ pub use links::read_links;
 pub use outline::read_outline;
 pub use text::extract as extract_text;
 
-use hayro::{RenderCache, RenderSettings};
+use hayro::{PixmapSettings, RenderCache, RenderSettings};
 use hayro_interpret::InterpreterSettings;
 use hayro_syntax::{DecryptionError, LoadPdfError, Pdf};
 use papyra_core::{
@@ -87,13 +87,19 @@ impl HayroDocument {
     let pages = self.pdf.pages();
     let cache = RenderCache::new();
     let interp = interpreter_settings(opts);
-    let settings = render_settings(opts);
+    let settings = pixmap_settings(opts);
 
     indices
       .iter()
       .map(|&i| {
         let page = pages.get(i).ok_or(PapyraError::PageOutOfRange(i))?;
-        Ok(to_bitmap(hayro::render(page, &cache, &interp, &settings)))
+        Ok(to_bitmap(hayro::render(
+          page,
+          &cache,
+          &interp,
+          &RenderSettings::default(),
+          &settings,
+        )))
       })
       .collect()
   }
@@ -111,13 +117,19 @@ impl HayroDocument {
   ) -> Result<Vec<Bitmap>> {
     let pages = self.pdf.pages();
     let interp = interpreter_settings(opts);
-    let settings = render_settings(opts);
+    let settings = pixmap_settings(opts);
 
     indices
       .par_iter()
       .map_init(RenderCache::new, |cache, &i| {
         let page = pages.get(i).ok_or(PapyraError::PageOutOfRange(i))?;
-        Ok(to_bitmap(hayro::render(page, cache, &interp, &settings)))
+        Ok(to_bitmap(hayro::render(
+          page,
+          cache,
+          &interp,
+          &RenderSettings::default(),
+          &settings,
+        )))
       })
       .collect()
   }
@@ -154,12 +166,10 @@ fn interpreter_settings(opts: &RenderOptions) -> InterpreterSettings {
   }
 }
 
-fn render_settings(opts: &RenderOptions) -> RenderSettings {
-  RenderSettings {
+fn pixmap_settings(opts: &RenderOptions) -> PixmapSettings {
+  PixmapSettings {
     x_scale: opts.scale,
     y_scale: opts.scale,
-    width: None,
-    height: None,
     bg_color: if opts.white_background {
       hayro::vello_cpu::color::palette::css::WHITE
     } else {
@@ -189,7 +199,7 @@ fn to_bitmap(pixmap: hayro::vello_cpu::Pixmap) -> Bitmap {
     height,
     stride: width * 4,
     format: PixelFormat::Rgba8,
-    data: bytemuck::cast_vec::<_, u8>(pixmap.take_unpremultiplied()),
+    data: pixmap.take_rgba8(hayro::vello_cpu::peniko::ImageAlphaType::Alpha),
   }
 }
 
@@ -265,7 +275,8 @@ impl Document for HayroDocument {
       page,
       &cache,
       &interpreter_settings(opts),
-      &render_settings(opts),
+      &RenderSettings::default(),
+      &pixmap_settings(opts),
     )))
   }
 }
@@ -284,6 +295,28 @@ mod thread_safety {
     assert_sync::<hayro_syntax::Pdf>();
     assert_send::<HayroDocument>();
     assert_sync::<HayroDocument>();
+  }
+}
+
+#[cfg(test)]
+mod render {
+  use super::*;
+
+  /// CAD stroke text draws a capital M as one open `m l l l l` polyline whose four
+  /// corners are the corners of its bounding box. hayro-interpret 0.7's rectangle
+  /// fast path matched any five-element path touching all four corners, so the M
+  /// was stroked as a closed rectangle — a hollow box in place of every M.
+  #[test]
+  fn polyline_touching_its_bbox_corners_is_not_a_rect() {
+    let doc = HayroDocument {
+      pdf: fixtures::page_with_content("2 w 100 100 m 100 230 l 140 140 l 180 230 l 180 100 l S"),
+    };
+    let bitmap = doc.render_page(0, &RenderOptions::default()).unwrap();
+    // Red channel at a point in PDF space; the page is 792pt tall and rendered at 1x.
+    let red = |x: u32, y: u32| bitmap.data[((792 - y) * bitmap.stride + x * 4) as usize];
+
+    assert!(red(140, 140) < 64, "the M's middle vertex is drawn");
+    assert!(red(140, 230) > 192, "nothing joins the tops of its legs");
   }
 }
 
@@ -327,7 +360,8 @@ mod svg {
   /// geometry is still geometry and not a raster of it.
   #[test]
   fn fills_stay_vector() {
-    let svg = doc("1 0 0 rg 100 100 200 300 re f")
+    // Not a `re`: hayro-svg writes an axis-aligned rectangle as `<rect>`.
+    let svg = doc("1 0 0 rg 100 100 m 300 100 l 200 400 l f")
       .page_svg(0, &RenderOptions::default())
       .unwrap();
 

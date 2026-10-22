@@ -9,14 +9,14 @@
 //! line, and where the spaces go. A PDF has no notion of either. Both are recovered
 //! from geometry, below.
 
-use hayro_interpret::font::Glyph;
+use hayro_interpret::font::{Glyph, GlyphRun};
 use hayro_interpret::util::TransformExt;
 use hayro_interpret::{
-  BlendMode, ClipPath, Context, Device, GlyphDrawMode, Image, InterpreterCache,
-  InterpreterSettings, Paint, PathDrawMode, SoftMask, interpret_page,
+  BlendMode, ClipPath, Context, Device, DrawMode, DrawProps, Image, ImageDrawProps,
+  InterpreterCache, InterpreterSettings, SoftMask, interpret_page,
 };
 use hayro_syntax::page::Page;
-use kurbo::{Affine, BezPath, Rect};
+use kurbo::{BezPath, Rect};
 use papyra_core::{PageText, TextLine};
 
 /// Glyphs whose baselines differ by more than this fraction of the em size start a new
@@ -104,48 +104,42 @@ struct TextCollector {
 }
 
 impl<'a> Device<'a> for TextCollector {
-  fn draw_glyph(
-    &mut self,
-    glyph: &Glyph<'a>,
-    transform: Affine,
-    glyph_transform: Affine,
-    _paint: &Paint<'a>,
-    _draw_mode: &GlyphDrawMode,
-  ) {
-    // `GlyphDrawMode::Invisible` is deliberately not filtered: an OCR layer over a
-    // scanned page is invisible text, and it is the only text such a page has.
-    let Some(text) = unicode_of(glyph).filter(|t| !t.is_empty()) else {
-      self.undecoded += 1;
-      return;
-    };
+  fn draw_glyph_run(&mut self, run: &GlyphRun<'_, 'a>, props: DrawProps<'a>, _: &DrawMode) {
+    // `DrawMode::Invisible` is deliberately not filtered: an OCR layer over a scanned
+    // page is invisible text, and it is the only text such a page has.
+    for glyph in run.glyphs() {
+      let Some(text) = unicode_of(glyph).filter(|t| !t.is_empty()) else {
+        self.undecoded += 1;
+        continue;
+      };
 
-    // The renderer draws a glyph as `transform * glyph_transform * outline`, and
-    // outlines are in a 1000-unit em, so this matrix maps font units to page space.
-    let m = (transform * glyph_transform).as_coeffs();
-    let origin = (m[4] as f32, m[5] as f32);
-    // Images of the font-space axes. The x axis runs along the baseline; the length
-    // of the y axis over one em is the font size on the page.
-    let (ax, ay) = (m[0] as f32, m[1] as f32);
-    let (bx, by) = (m[2] as f32, m[3] as f32);
+      // Outlines are in a 1000-unit em, so this matrix maps font units to page space.
+      let m = (props.transform * glyph.transform()).as_coeffs();
+      let origin = (m[4] as f32, m[5] as f32);
+      // Images of the font-space axes. The x axis runs along the baseline; the length
+      // of the y axis over one em is the font size on the page.
+      let (ax, ay) = (m[0] as f32, m[1] as f32);
+      let (bx, by) = (m[2] as f32, m[3] as f32);
 
-    let along = (ax * ax + ay * ay).sqrt();
-    let size = (bx * bx + by * by).sqrt() * UNITS_PER_EM;
-    // A degenerate matrix — a zero-size or fully collapsed glyph — has no position to
-    // report and no extent to highlight.
-    if along == 0.0 || !size.is_finite() || size <= 0.0 {
-      return;
+      let along = (ax * ax + ay * ay).sqrt();
+      let size = (bx * bx + by * by).sqrt() * UNITS_PER_EM;
+      // A degenerate matrix — a zero-size or fully collapsed glyph — has no position to
+      // report and no extent to highlight.
+      if along == 0.0 || !size.is_finite() || size <= 0.0 {
+        continue;
+      }
+
+      self.glyphs.push(Placed {
+        text,
+        origin,
+        dir: (ax / along, ay / along),
+        size,
+        nominal_advance: nominal_advance(glyph) * along * UNITS_PER_EM,
+        // Innermost first: a `/Span` inside a `/P` tags its glyphs with the span, which
+        // is the more specific and therefore more useful element of the two.
+        mcid: self.marked_content.iter().rev().find_map(|frame| *frame),
+      });
     }
-
-    self.glyphs.push(Placed {
-      text,
-      origin,
-      dir: (ax / along, ay / along),
-      size,
-      nominal_advance: nominal_advance(glyph) * along * UNITS_PER_EM,
-      // Innermost first: a `/Span` inside a `/P` tags its glyphs with the span, which
-      // is the more specific and therefore more useful element of the two.
-      mcid: self.marked_content.iter().rev().find_map(|frame| *frame),
-    });
   }
 
   fn begin_marked_content(&mut self, _tag: &[u8], mcid: Option<i32>) {
@@ -161,13 +155,11 @@ impl<'a> Device<'a> for TextCollector {
   }
 
   // Text extraction ignores everything else the page draws.
-  fn set_soft_mask(&mut self, _: Option<SoftMask<'a>>) {}
-  fn set_blend_mode(&mut self, _: BlendMode) {}
-  fn draw_path(&mut self, _: &BezPath, _: Affine, _: &Paint<'a>, _: &PathDrawMode) {}
+  fn draw_path(&mut self, _: &BezPath, _: DrawProps<'a>, _: &DrawMode) {}
   fn push_clip_path(&mut self, _: &ClipPath) {}
   fn push_transparency_group(&mut self, _: f32, _: Option<SoftMask<'a>>, _: BlendMode) {}
-  fn draw_image(&mut self, _: Image<'a, '_>, _: Affine) {}
-  fn pop_clip_path(&mut self) {}
+  fn draw_image(&mut self, _: Image<'a, '_>, _: ImageDrawProps<'a>) {}
+  fn pop_clip(&mut self) {}
   fn pop_transparency_group(&mut self) {}
 }
 

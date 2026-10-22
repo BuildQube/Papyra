@@ -26,10 +26,10 @@ papyra-tables = { path = "crates/papyra-tables" }
 papyra-tiff = { path = "crates/papyra-tiff" }
 papyra-office = { path = "crates/papyra-office" }
 
-hayro = "0.7.1"
-hayro-interpret = "0.7.0"
-hayro-svg = "0.7.0"
-hayro-syntax = "0.7.2"
+hayro = "0.8.0"
+hayro-interpret = "0.8.0"
+hayro-svg = "0.8.0"
+hayro-syntax = "0.8.0"
 
 base64 = "0.22"
 bytemuck = "1"
