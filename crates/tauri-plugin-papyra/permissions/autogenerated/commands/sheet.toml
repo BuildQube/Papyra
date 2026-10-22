@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-sheet"
+description = "Enables the sheet command without any pre-configured scope."
+commands.allow = ["sheet"]
+
+[[permission]]
+identifier = "deny-sheet"
+description = "Denies the sheet command without any pre-configured scope."
+commands.deny = ["sheet"]

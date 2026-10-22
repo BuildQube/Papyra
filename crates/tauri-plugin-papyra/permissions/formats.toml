@@ -1,0 +1,14 @@
+"$schema" = "schemas/schema.json"
+
+# One set per Cargo feature. Grant the ones for the formats the app enabled: a
+# command whose feature is off is not registered, so its permission grants nothing.
+
+[[set]]
+identifier = "tiff"
+description = "Opening TIFFs, with the `tiff` feature. Pages are served over the papyra:// protocol and closed by `close`, both in `papyra:default`."
+permissions = ["allow-open-tiff"]
+
+[[set]]
+identifier = "tables"
+description = "Opening spreadsheets and delimited text and reading their cells, with the `tables` feature. Closed by `close`, in `papyra:default`."
+permissions = ["allow-open-workbook", "allow-sheet", "allow-window"]

@@ -367,6 +367,30 @@
           "markdownDescription": "Denies the open_count command without any pre-configured scope."
         },
         {
+          "description": "Enables the open_tiff command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-open-tiff",
+          "markdownDescription": "Enables the open_tiff command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the open_tiff command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-open-tiff",
+          "markdownDescription": "Denies the open_tiff command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the open_workbook command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-open-workbook",
+          "markdownDescription": "Enables the open_workbook command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the open_workbook command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-open-workbook",
+          "markdownDescription": "Denies the open_workbook command without any pre-configured scope."
+        },
+        {
           "description": "Enables the outline command without any pre-configured scope.",
           "type": "string",
           "const": "allow-outline",
@@ -403,6 +427,18 @@
           "markdownDescription": "Denies the page_text command without any pre-configured scope."
         },
         {
+          "description": "Enables the sheet command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-sheet",
+          "markdownDescription": "Enables the sheet command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the sheet command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-sheet",
+          "markdownDescription": "Denies the sheet command without any pre-configured scope."
+        },
+        {
           "description": "Enables the struct_tree command without any pre-configured scope.",
           "type": "string",
           "const": "allow-struct-tree",
@@ -415,10 +451,34 @@
           "markdownDescription": "Denies the struct_tree command without any pre-configured scope."
         },
         {
+          "description": "Enables the window command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-window",
+          "markdownDescription": "Enables the window command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the window command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-window",
+          "markdownDescription": "Denies the window command without any pre-configured scope."
+        },
+        {
           "description": "Everything the viewer's TauriEngine calls: opening, reading and closing documents. Pages are served over the papyra:// protocol, which needs no permission.\n#### This default permission set includes:\n\n- `allow-open`\n- `allow-close`\n- `allow-page-text`\n- `allow-outline`\n- `allow-links`\n- `allow-page-labels`\n- `allow-attachments`\n- `allow-attachment-data`\n- `allow-struct-tree`",
           "type": "string",
           "const": "default",
           "markdownDescription": "Everything the viewer's TauriEngine calls: opening, reading and closing documents. Pages are served over the papyra:// protocol, which needs no permission.\n#### This default permission set includes:\n\n- `allow-open`\n- `allow-close`\n- `allow-page-text`\n- `allow-outline`\n- `allow-links`\n- `allow-page-labels`\n- `allow-attachments`\n- `allow-attachment-data`\n- `allow-struct-tree`"
+        },
+        {
+          "description": "Opening TIFFs, with the `tiff` feature. Pages are served over the papyra:// protocol and closed by `close`, both in `papyra:default`.\n#### This permission set includes:\n\n- `allow-open-tiff`",
+          "type": "string",
+          "const": "tiff",
+          "markdownDescription": "Opening TIFFs, with the `tiff` feature. Pages are served over the papyra:// protocol and closed by `close`, both in `papyra:default`.\n#### This permission set includes:\n\n- `allow-open-tiff`"
+        },
+        {
+          "description": "Opening spreadsheets and delimited text and reading their cells, with the `tables` feature. Closed by `close`, in `papyra:default`.\n#### This permission set includes:\n\n- `allow-open-workbook`\n- `allow-sheet`\n- `allow-window`",
+          "type": "string",
+          "const": "tables",
+          "markdownDescription": "Opening spreadsheets and delimited text and reading their cells, with the `tables` feature. Closed by `close`, in `papyra:default`.\n#### This permission set includes:\n\n- `allow-open-workbook`\n- `allow-sheet`\n- `allow-window`"
         }
       ]
     }

@@ -14,52 +14,48 @@ fn corpus(name: &str) -> Option<Vec<u8>> {
   .ok()
 }
 
-/// The mock context has no ACL, so it would refuse every plugin command. Grant this
-/// plugin's commands to the `main` window — what `papyra:default` resolves to.
+/// A fixture checked in beside another crate's tests: always present.
+#[cfg(any(feature = "tiff", feature = "tables"))]
+fn fixture(path: &str) -> Vec<u8> {
+  std::fs::read(format!("{}/../{path}", env!("CARGO_MANIFEST_DIR"))).unwrap()
+}
+
+/// The mock context has no ACL, so it would refuse every plugin command. Resolve the
+/// plugin's own permission files instead, for a capability granting what the guide
+/// tells an app to — so a command missing from its set fails here, not in an app.
 fn context() -> tauri::Context<tauri::test::MockRuntime> {
+  use tauri_utils::acl::capability::Capability;
   use tauri_utils::acl::manifest::Manifest;
-  use tauri_utils::acl::resolved::{Resolved, ResolvedCommand};
-  const COMMANDS: &[&str] = &[
-    "open",
-    "close",
-    "open_count",
-    "page_text",
-    "outline",
-    "links",
-    "page_labels",
-    "attachments",
-    "attachment_data",
-    "struct_tree",
-  ];
-  let allowed_commands = COMMANDS
-    .iter()
-    .map(|cmd| {
-      let resolved = ResolvedCommand {
-        windows: vec![glob::Pattern::new("main").unwrap()],
-        ..Default::default()
-      };
-      (format!("plugin:papyra|{cmd}"), vec![resolved])
-    })
-    .collect();
-  let acl = [(
-    "papyra".to_string(),
-    Manifest {
-      default_permission: None,
-      permissions: Default::default(),
-      permission_sets: Default::default(),
-      global_scope_schema: None,
-    },
-  )]
-  .into_iter()
+  use tauri_utils::acl::resolved::Resolved;
+  let files = glob::glob(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/permissions/**/*.toml"
+  ))
+  .unwrap()
+  .map(|path| toml::from_str(&std::fs::read_to_string(path.unwrap()).unwrap()).unwrap())
   .collect();
+  let acl = [("papyra".to_string(), Manifest::new(files, None))]
+    .into_iter()
+    .collect();
+  let capability: Capability = serde_json::from_value(serde_json::json!({
+    "identifier": "test",
+    "windows": ["main"],
+    "permissions": [
+      "papyra:default",
+      "papyra:allow-open-count",
+      "papyra:tiff",
+      "papyra:tables",
+    ],
+  }))
+  .unwrap();
+  let resolved = Resolved::resolve(
+    &acl,
+    [("test".to_string(), capability)].into_iter().collect(),
+    tauri_utils::platform::Target::current(),
+  )
+  .expect("the permission sets resolve");
   let mut context = mock_context(noop_assets());
-  *context.runtime_authority_mut() = tauri::ipc::RuntimeAuthority::new(
-    acl,
-    Resolved {
-      allowed_commands,
-      ..Default::default()
-    },
-  );
+  *context.runtime_authority_mut() = tauri::ipc::RuntimeAuthority::new(acl, resolved);
   context
 }
 
@@ -204,4 +200,145 @@ fn open_refuses_a_json_body() {
   )
   .unwrap_err();
   assert!(refused.as_str().unwrap().contains("request body"));
+}
+
+#[cfg(feature = "tiff")]
+#[test]
+fn opens_a_tiff_and_serves_its_pages_through_the_shared_table() {
+  let (app, webview) = app();
+  let opened = json(
+    call(
+      &webview,
+      "open_tiff",
+      InvokeBody::Raw(fixture("papyra-tiff/tests/fixtures/g4.tif")),
+      &[],
+    )
+    .unwrap(),
+  );
+  let id = opened["id"].as_u64().unwrap();
+  let page = &opened["pages"][0];
+  assert_eq!(page["compression"], "ccitt-g4");
+  assert!(page["width"].as_u64().unwrap() > 0);
+  assert!(page.get("bitsPerSample").is_some());
+
+  // A TIFF is not a PDF: the PDF commands refuse its id by kind.
+  let refused = call(
+    &webview,
+    "outline",
+    InvokeBody::Json(serde_json::json!({ "id": id })),
+    &[],
+  )
+  .unwrap_err();
+  assert!(
+    refused
+      .as_str()
+      .unwrap()
+      .contains("is not a paged document")
+  );
+
+  call(
+    &webview,
+    "close",
+    InvokeBody::Json(serde_json::json!({ "id": id })),
+    &[],
+  )
+  .unwrap();
+  assert!(app.state::<tauri_plugin_papyra::Documents>().is_empty());
+}
+
+#[cfg(feature = "tables")]
+#[test]
+fn opens_a_workbook_and_reads_a_packed_window() {
+  let (_app, webview) = app();
+  let opened = json(
+    call(
+      &webview,
+      "open_workbook",
+      InvokeBody::Raw(fixture("papyra-tables/tests/fixtures/styled.xlsx")),
+      &[],
+    )
+    .unwrap(),
+  );
+  assert_eq!(opened["format"], "xlsx");
+  assert_eq!(opened["sheets"][0]["kind"], "worksheet");
+  assert_eq!(opened["sheets"][0]["visibility"], "visible");
+  let id = opened["id"].as_u64().unwrap();
+
+  let sheet = json(
+    call(
+      &webview,
+      "sheet",
+      InvokeBody::Json(serde_json::json!({ "id": id, "index": 0 })),
+      &[],
+    )
+    .unwrap(),
+  );
+  let (rows, cols) = (
+    sheet["rows"].as_u64().unwrap(),
+    sheet["cols"].as_u64().unwrap(),
+  );
+  assert!(rows > 0 && cols > 0);
+  assert!(sheet["styles"].as_array().unwrap().len() > 1);
+  assert!(sheet["layout"]["cols"].is_array());
+
+  let InvokeResponseBody::Raw(packed) = call(
+    &webview,
+    "window",
+    InvokeBody::Json(serde_json::json!({
+      "id": id, "sheet": 0, "rowStart": 0, "rowEnd": 1000, "colStart": 0, "colEnd": 1000,
+    })),
+    &[],
+  )
+  .unwrap() else {
+    panic!("a window is a binary response");
+  };
+  let u32_at = |i: usize| u32::from_le_bytes(packed[i * 4..i * 4 + 4].try_into().unwrap());
+  // Clamped to the sheet, and every array where the layout says.
+  assert_eq!((u32_at(0), u32_at(1)), (0, 0));
+  assert_eq!((u64::from(u32_at(2)), u64::from(u32_at(3))), (rows, cols));
+  let n = (rows * cols) as usize;
+  let offsets_at = (16 + n).next_multiple_of(8) + n * 8 + n * 4;
+  let text_at = offsets_at + (n + 1) * 4 + n * 2;
+  // The last offset is the text's length, which for this ASCII sheet is its bytes.
+  let last = u32::from_le_bytes(packed[offsets_at + n * 4..][..4].try_into().unwrap());
+  let text = std::str::from_utf8(&packed[text_at..]).unwrap();
+  assert!(!text.is_empty());
+  assert_eq!(text.len(), last as usize);
+}
+
+#[cfg(feature = "tables")]
+#[test]
+fn workbook_options_travel_in_a_header_and_encryption_is_tagged() {
+  let (_app, webview) = app();
+  let tsv = call(
+    &webview,
+    "open_workbook",
+    InvokeBody::Raw(b"a\tb\n1\t2\n".to_vec()),
+    &[("x-papyra-options", "%7B%22format%22%3A%22tsv%22%7D")],
+  )
+  .unwrap();
+  assert_eq!(json(tsv)["format"], "tsv");
+
+  let bad = call(
+    &webview,
+    "open_workbook",
+    InvokeBody::Raw(b"a,b".to_vec()),
+    &[("x-papyra-options", "%7B%22delimiter%22%3A%22%3B%3B%22%7D")],
+  )
+  .unwrap_err();
+  assert!(bad.as_str().unwrap().contains("single ASCII character"));
+
+  let encrypted = call(
+    &webview,
+    "open_workbook",
+    InvokeBody::Raw(fixture("papyra-tables/tests/fixtures/encrypted.xlsx")),
+    &[],
+  )
+  .unwrap_err();
+  assert!(
+    encrypted
+      .as_str()
+      .unwrap()
+      .starts_with("papyra/encrypted-workbook")
+  );
 }
