@@ -44,4 +44,4 @@ The platform binaries (`@build-qube/papyra-office-native-darwin-arm64`,
 package manager installs the one that matches.
 
 Isolation, the viewer integration and the rest: the
-[Engines section of the papyra README](https://github.com/BuildQube/Papyra#engines).
+[Engines guide](https://buildqube.github.io/Papyra/docs/guides/engines).

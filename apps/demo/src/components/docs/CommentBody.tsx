@@ -1,5 +1,13 @@
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@workspace/ui/components/table';
 import { cn } from '@workspace/ui/lib/utils';
-import type { CommentPart } from '../../lib/apiModel.js';
+import { type CommentPart, slugify } from '../../lib/apiModel.js';
 
 /**
  * `readme` is the package README opening the reference page; `prose` is a doc
@@ -16,9 +24,11 @@ type Variant = 'prose' | 'readme';
  * contain a backtick. So the parts are re-grouped into blocks here rather than being
  * mapped one-to-one onto elements, which is what makes lists and `**bold**` survive.
  *
- * The package README arrives through the same stream (TypeDoc's `readme` option), so
- * headings and `[text](url)` are handled here too — that is the whole markdown
- * surface the quickstart uses, and the reason the reference needs no markdown parser.
+ * The package README arrives through the same stream (TypeDoc's `readme` option), and
+ * so do the guides (`projectDocuments`), so headings, `[text](url)` and pipe tables
+ * are handled here too — that is the whole markdown surface they use, and the reason
+ * the site needs no markdown parser. Link text is plain: a code span inside `[…]`
+ * splits the link across parts and it renders as literal brackets.
  */
 
 type InlineBase =
@@ -37,7 +47,9 @@ type Inline = InlineBase & { strong?: boolean };
 type Block =
   | { kind: 'p' | 'li'; inline: Inline[] }
   | { kind: 'h'; level: number; inline: Inline[] }
-  | { kind: 'code'; code: string };
+  | { kind: 'code'; code: string }
+  /** The first row is the header; the `| --- |` delimiter row is dropped. */
+  | { kind: 'table'; rows: Inline[][][] };
 
 /** A bullet's own text, so a list item is keyed by content rather than position. */
 function inlineKey(inline: readonly Inline[]): string {
@@ -79,6 +91,26 @@ function inlineText(text: string, strong: boolean): [Inline[], boolean] {
   return [out, bold];
 }
 
+/**
+ * Only a run's outer edges are trimmed. Whitespace *inside* it is real: TypeDoc puts
+ * the space between a word and the link after it at the end of the preceding text
+ * token, so trimming every token welds the two together.
+ */
+function trimEdges(inline: readonly Inline[]): Inline[] {
+  return inline
+    .map((part, i) => {
+      if (part.t !== 'text') return part;
+      let v = part.v;
+      if (i === 0) v = v.trimStart();
+      if (i === inline.length - 1) v = v.trimEnd();
+      return { ...part, v };
+    })
+    .filter((part) => part.v !== '');
+}
+
+const TABLE_ROW = /^\s*\|/;
+const TABLE_DELIMITER = /^:?-+:?$/;
+
 function toBlocks(parts: readonly CommentPart[]): Block[] {
   const blocks: Block[] = [];
   let inline: Inline[] = [];
@@ -87,20 +119,35 @@ function toBlocks(parts: readonly CommentPart[]): Block[] {
   let inList = false;
   let heading: number | null = null;
   let strong = false;
+  // The table row being read, as cells. A row is a line but not a part — a code span
+  // in a cell splits it — so it stays open across parts until the next newline.
+  let row: Inline[][] | null = null;
+
+  const rowText = (text: string): void => {
+    for (const [i, cell] of text.split('|').entries()) {
+      if (i > 0) row?.push([]);
+      if (cell) row?.at(-1)?.push(...inlineText(cell, false)[0]);
+    }
+  };
+
+  const endRow = (): void => {
+    if (!row) return;
+    // `| a | b |` splits into an empty cell either side of the real ones.
+    const cells = row
+      .slice(1, row.at(-1)?.length ? undefined : -1)
+      .map(trimEdges);
+    row = null;
+    const delimiter = cells.every(
+      (c) => c.length === 1 && TABLE_DELIMITER.test(c[0]?.v ?? ''),
+    );
+    if (delimiter) return;
+    const last = blocks.at(-1);
+    if (last?.kind === 'table') last.rows.push(cells);
+    else blocks.push({ kind: 'table', rows: [cells] });
+  };
 
   const flush = (): void => {
-    // Only the block's outer edges are trimmed. Whitespace *inside* it is real:
-    // TypeDoc puts the space between a word and the link after it at the end of the
-    // preceding text token, so trimming every token welds the two together.
-    const kept = inline
-      .map((part, i) => {
-        if (part.t !== 'text') return part;
-        let v = part.v;
-        if (i === 0) v = v.trimStart();
-        if (i === inline.length - 1) v = v.trimEnd();
-        return { ...part, v };
-      })
-      .filter((part) => part.v !== '');
+    const kept = trimEdges(inline);
     if (kept.length) {
       blocks.push(
         heading !== null
@@ -115,6 +162,17 @@ function toBlocks(parts: readonly CommentPart[]): Block[] {
   };
 
   for (const part of parts) {
+    if (row && part.kind !== 'text') {
+      row
+        .at(-1)
+        ?.push(
+          part.kind === 'code'
+            ? { t: 'code', v: part.text.replace(/^`|`$/g, '') }
+            : { t: 'link', v: part.text, target: part.target },
+        );
+      continue;
+    }
+
     if (part.kind === 'code') {
       if (part.text.startsWith('```')) {
         flush();
@@ -141,8 +199,18 @@ function toBlocks(parts: readonly CommentPart[]): Block[] {
     // difference matters because a part very often ends mid-sentence on one — the
     // text before an inline `code` span is its own part, trailing newline included.
     // Splitting on blank lines first is what keeps that sentence in one paragraph.
-    for (const [pi, para] of part.text.split(/\n[ \t]*\n/).entries()) {
+    let rest = part.text;
+    if (row) {
+      const nl = rest.indexOf('\n');
+      rowText(nl < 0 ? rest : rest.slice(0, nl));
+      if (nl < 0) continue;
+      endRow();
+      rest = rest.slice(nl);
+    }
+
+    for (const [pi, para] of rest.split(/\n[ \t]*\n/).entries()) {
       if (pi > 0) {
+        endRow();
         flush();
         inList = false;
       }
@@ -156,6 +224,16 @@ function toBlocks(parts: readonly CommentPart[]): Block[] {
 
         // A heading ends at its own line break, not at the next blank line.
         if (i > 0 && heading !== null) flush();
+
+        if (TABLE_ROW.test(line)) {
+          flush();
+          inList = false;
+          row = [[]];
+          rowText(line);
+          // The part's last line may continue into the next part.
+          if (i < lines.length - 1) endRow();
+          continue;
+        }
 
         if (hashes) {
           flush();
@@ -179,6 +257,7 @@ function toBlocks(parts: readonly CommentPart[]): Block[] {
       }
     }
   }
+  endRow();
   flush();
   return blocks;
 }
@@ -254,10 +333,12 @@ const README_HEADINGS: Record<number, string> = {
 
 /** `#`..`######` as the matching element, so the README keeps its own outline. */
 function Heading({
+  id,
   level,
   variant,
   children,
 }: {
+  id?: string;
   level: number;
   variant: Variant;
   children: React.ReactNode;
@@ -265,6 +346,7 @@ function Heading({
   const Tag = `h${Math.min(Math.max(level, 1), 6)}` as 'h1';
   return (
     <Tag
+      id={id}
       className={cn(
         'font-medium',
         variant === 'readme' && (README_HEADINGS[level] ?? 'mt-4 text-[13px]'),
@@ -324,9 +406,44 @@ export function CommentBody({
           <code className="font-mono">{block.code}</code>
         </pre>,
       );
+    } else if (block.kind === 'table') {
+      const [head = [], ...body] = block.rows;
+      rendered.push(
+        <Table className="my-3 text-xs" key={`table-${i}`}>
+          <TableHeader>
+            <TableRow>
+              {head.map((cell) => (
+                <TableHead key={inlineKey(cell)}>
+                  <Inlines hrefFor={hrefFor} inline={cell} />
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {body.map((cells) => (
+              <TableRow key={cells.map(inlineKey).join('|')}>
+                {cells.map((cell, c) => (
+                  // Columns are positional; two cells of a row can say the same.
+                  // biome-ignore lint/suspicious/noArrayIndexKey: see above
+                  <TableCell className="whitespace-normal" key={c}>
+                    <Inlines hrefFor={hrefFor} inline={cell} />
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>,
+      );
     } else if (block.kind === 'h') {
       rendered.push(
-        <Heading key={`h-${i}`} level={block.level} variant={variant}>
+        <Heading
+          id={
+            variant === 'readme' ? slugify(inlineKey(block.inline)) : undefined
+          }
+          key={`h-${i}`}
+          level={block.level}
+          variant={variant}
+        >
           <Inlines hrefFor={hrefFor} inline={block.inline} />
         </Heading>,
       );

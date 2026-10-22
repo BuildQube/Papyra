@@ -380,8 +380,8 @@ surfaces read (`usePageEngine()`). A surface draws no link overlay for a documen
 whose capabilities have none, so an office document never reaches a PDF command.
 
 Choosing, installing and scoping an engine:
-[the root README's Engines section](../../README.md#engines), and the
-[pdf.js](../pdfjs/README.md) and [Tauri](../tauri/README.md) engines' own READMEs.
+the [Engines guide](https://buildqube.github.io/Papyra/docs/guides/engines), the
+[Tauri guide](https://buildqube.github.io/Papyra/docs/guides/tauri), and the [pdf.js](../pdfjs/README.md) engine's own README.
 
 ## The showcase
 

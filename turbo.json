@@ -109,7 +109,8 @@
         "typedoc.json",
         "typedoc.registry.json",
         "../papyra/src/**",
-        "../pdf-viewer/src/**"
+        "../pdf-viewer/src/**",
+        "../../docs/guides/**"
       ],
       "outputs": [
         "../../apps/demo/public/papyra-api.json",
@@ -166,6 +167,9 @@
         "../../packages/pdf-viewer/src/**"
       ]
     },
+    // The demo's units render the docs components from source. The generic `test`
+    // task's `dependsOn: build` would build the demo, wasm included, to run them.
+    "papyra-demo#test": { "inputs": ["src/**", "test/**"] },
     "dev": { "cache": false, "persistent": true },
     "test": {
       "dependsOn": ["build"],

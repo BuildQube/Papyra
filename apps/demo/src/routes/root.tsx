@@ -51,7 +51,8 @@ export function RootShell() {
   const matchRoute = useMatchRoute();
   const engine = usePdfEngine();
   const standalone =
-    !!matchRoute({ to: '/docs' }) || !!matchRoute({ to: '/components' });
+    !!matchRoute({ to: '/docs', fuzzy: true }) ||
+    !!matchRoute({ to: '/components' });
 
   return (
     // `h-dvh`, not `h-screen` (100vh): on mobile Safari 100vh is the height with
