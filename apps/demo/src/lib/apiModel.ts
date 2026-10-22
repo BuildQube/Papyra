@@ -237,7 +237,10 @@ export function slugOf(node: Reflection): string {
   return node.name;
 }
 
-const GITHUB_BLOB = 'https://github.com/BuildQube/Papyra/blob/main/';
+/** The repository the site documents; the header links here too. */
+export const REPO_URL = 'https://github.com/BuildQube/Papyra';
+
+const GITHUB_BLOB = `${REPO_URL}/blob/main/`;
 
 /** Link to the exact line this member is declared on. */
 export function sourceUrl(source: Source): string {

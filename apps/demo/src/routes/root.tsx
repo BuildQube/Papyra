@@ -27,6 +27,7 @@ import {
 import { cn } from '@workspace/ui/lib/utils';
 import { FileUpIcon, TriangleAlertIcon, UploadIcon } from 'lucide-react';
 import { useCallback, useState } from 'react';
+import { REPO_URL } from '../lib/apiModel.js';
 import { ShowPropertiesContext } from '../lib/properties.js';
 import { useFileParam, usePageUrlSync } from '../lib/urlSync.js';
 
@@ -115,7 +116,7 @@ export function RootShell() {
           <a
             className={buttonVariants({ variant: 'ghost', size: 'icon-sm' })}
             aria-label="GitHub repository"
-            href="https://github.com/BuildQube/Papyra"
+            href={REPO_URL}
             target="_blank"
             rel="noopener noreferrer"
           >
