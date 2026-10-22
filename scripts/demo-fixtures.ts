@@ -31,8 +31,8 @@ const WANTED = [
 
 /**
  * The PDFs no corpus file covers, built here rather than fetched. Exported for the
- * tests too: nothing in the pdf.js suite embeds a file, defines page labels or maps
- * its tags through a `/RoleMap`, so without these those paths are never reached.
+ * tests too: nothing in the pdf.js suite embeds a file or maps its tags through a
+ * `/RoleMap`, so without these those paths are never reached.
  */
 export const GENERATED = {
   'rotated.pdf': rotatedTextPdf,
