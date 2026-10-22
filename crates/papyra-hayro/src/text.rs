@@ -107,6 +107,7 @@ impl<'a> Device<'a> for TextCollector {
   fn draw_glyph_run(&mut self, run: &GlyphRun<'_, 'a>, props: DrawProps<'a>, _: &DrawMode) {
     // `DrawMode::Invisible` is deliberately not filtered: an OCR layer over a scanned
     // page is invisible text, and it is the only text such a page has.
+
     // Innermost first: a `/Span` inside a `/P` tags its glyphs with the span, which is
     // the more specific and therefore more useful element of the two.
     let mcid = self.marked_content.iter().rev().find_map(|frame| *frame);
