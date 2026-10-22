@@ -1,0 +1,5 @@
+"$schema" = "schemas/schema.json"
+
+[default]
+description = "Opening Word documents and PowerPoint decks, and registering fonts for their layout. Pages are served over tauri-plugin-papyra's papyra:// protocol and closed by its `close`, both in `papyra:default`."
+permissions = ["allow-open", "allow-add-font"]

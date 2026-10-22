@@ -3,7 +3,7 @@
 
 use tauri::Manager;
 use tauri::ipc::{CallbackFn, InvokeBody, InvokeResponseBody};
-use tauri::test::{INVOKE_KEY, get_ipc_response, mock_builder, mock_context, noop_assets};
+use tauri::test::{INVOKE_KEY, get_ipc_response, mock_builder};
 use tauri::webview::InvokeRequest;
 
 fn corpus(name: &str) -> Option<Vec<u8>> {
@@ -20,43 +20,21 @@ fn fixture(path: &str) -> Vec<u8> {
   std::fs::read(format!("{}/../{path}", env!("CARGO_MANIFEST_DIR"))).unwrap()
 }
 
-/// The mock context has no ACL, so it would refuse every plugin command. Resolve the
-/// plugin's own permission files instead, for a capability granting what the guide
-/// tells an app to — so a command missing from its set fails here, not in an app.
+mod common {
+  pub mod acl;
+}
+
+/// What the guide tells an app to grant, every format included.
 fn context() -> tauri::Context<tauri::test::MockRuntime> {
-  use tauri_utils::acl::capability::Capability;
-  use tauri_utils::acl::manifest::Manifest;
-  use tauri_utils::acl::resolved::Resolved;
-  let files = glob::glob(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/permissions/**/*.toml"
-  ))
-  .unwrap()
-  .map(|path| toml::from_str(&std::fs::read_to_string(path.unwrap()).unwrap()).unwrap())
-  .collect();
-  let acl = [("papyra".to_string(), Manifest::new(files, None))]
-    .into_iter()
-    .collect();
-  let capability: Capability = serde_json::from_value(serde_json::json!({
-    "identifier": "test",
-    "windows": ["main"],
-    "permissions": [
+  common::acl::context(
+    &[("papyra", env!("CARGO_MANIFEST_DIR"))],
+    &[
       "papyra:default",
       "papyra:allow-open-count",
       "papyra:tiff",
       "papyra:tables",
     ],
-  }))
-  .unwrap();
-  let resolved = Resolved::resolve(
-    &acl,
-    [("test".to_string(), capability)].into_iter().collect(),
-    tauri_utils::platform::Target::current(),
   )
-  .expect("the permission sets resolve");
-  let mut context = mock_context(noop_assets());
-  *context.runtime_authority_mut() = tauri::ipc::RuntimeAuthority::new(acl, resolved);
-  context
 }
 
 fn app() -> (

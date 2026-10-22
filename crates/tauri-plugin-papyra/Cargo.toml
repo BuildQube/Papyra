@@ -11,7 +11,11 @@ links = "tauri-plugin-papyra"
 # Its own workspace, not a member of the root one: compiling Tauri on Linux needs
 # webkit2gtk's development headers, which no existing CI job installs, and a root
 # member would put that cost on every `cargo clippy --workspace`.
+#
+# `office` is the git-only office plugin: a member so the two share one lock and one
+# build. `cargo package` leaves a nested package out of this crate's tarball.
 [workspace]
+members = ["office"]
 
 # PDF is always built. Each other format is a feature, so an app compiles only the
 # readers it serves; each has a permission set of the same name.
