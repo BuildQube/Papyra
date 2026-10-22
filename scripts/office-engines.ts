@@ -28,7 +28,7 @@
  * saved in `docProps/app.xml` — the closest thing to a reference rendering we have.
  */
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { OFFICE_FONTS } from '../apps/demo/src/lib/officeFonts.js';
 
@@ -402,7 +402,7 @@ async function fetchCorpus(): Promise<void> {
     ...FILES.map((f) => ({ url: f.url, to: join(CORPUS, f.name) })),
     ...OFFICE_FONTS.map((url) => ({
       url,
-      to: join(FONTS, decodeURIComponent(url.split('/').at(-1) as string)),
+      to: join(FONTS, decodeURIComponent(basename(url))),
     })),
   ];
   for (const { url, to } of wanted) {

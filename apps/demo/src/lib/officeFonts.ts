@@ -3,7 +3,7 @@
  * for Cambria, Arimo for Arial, Tinos for Times New Roman — from Google Fonts at a
  * pinned commit. Without them a browser has no font with Calibri's widths, and a
  * Word document's line and page breaks drift from where Word puts them.
- * `scripts/office-engines.ts` registers the same list, so the fidelity check
+ * `scripts/office-engines.ts` registers these too, so the fidelity check
  * paginates as the demo does.
  */
 export const OFFICE_FONTS = [

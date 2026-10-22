@@ -140,11 +140,8 @@ When upstream breaks something only we hit, don't patch around it in
    `bump <engine>` returns to storytold. `bump` warns about any fork commit the new
    rev lacks, so leaving too early is visible.
 
-Active forks:
-
-| Engine | Fork commit | Fix | Upstream PR |
-|---|---|---|---|
-| none | | | |
+Active forks: none. List each one here (engine, fork commit, fix, upstream PR) while
+its pin is on the fork.
 
 ## Why the check runs on wasm, under Node
 
