@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
 const NATIVE = '@build-qube/papyra-native';
+const OFFICE_NATIVE = '@build-qube/papyra-office-native';
 const SRC = resolve(import.meta.dir, '../../src');
 
 /**
@@ -61,19 +62,38 @@ function graph(entry: string): {
 describe('@build-qube/papyra/core', () => {
   test('never loads the native package', () => {
     // The whole point of the entry: importing it must not fetch or start the wasm.
-    expect([...graph(`${SRC}/core.ts`).packages]).not.toContain(NATIVE);
+    const { packages } = graph(`${SRC}/core.ts`);
+    expect([...packages]).not.toContain(NATIVE);
+    expect([...packages]).not.toContain(OFFICE_NATIVE);
   });
 
   test('does not reach the native package even through import()', () => {
     // A bundler emits the wasm once its graph reaches the loader, lazily or not, so
     // an app whose viewer runs on another engine would ship it all the same.
-    expect([...graph(`${SRC}/core.ts`).lazy]).not.toContain(NATIVE);
+    const { lazy } = graph(`${SRC}/core.ts`);
+    expect([...lazy]).not.toContain(NATIVE);
+    expect([...lazy]).not.toContain(OFFICE_NATIVE);
   });
 
   test('/engine reaches the native package, and only through import()', () => {
     const engine = graph(`${SRC}/papyra-engine.ts`);
     expect([...engine.packages]).not.toContain(NATIVE);
     expect([...engine.lazy]).toContain(NATIVE);
+  });
+
+  test('the main entry and /engine never reach the office addon', () => {
+    // It is its own wasm module, about 5.7 MB gzipped: only /office may name it.
+    for (const entry of ['index.ts', 'papyra-engine.ts']) {
+      const { packages, lazy } = graph(`${SRC}/${entry}`);
+      expect([...packages, ...lazy]).not.toContain(OFFICE_NATIVE);
+    }
+  });
+
+  test('/office reaches the office addon only through import()', () => {
+    const office = graph(`${SRC}/office.ts`);
+    expect([...office.packages]).not.toContain(OFFICE_NATIVE);
+    expect([...office.lazy]).toContain(OFFICE_NATIVE);
+    expect([...office.packages, ...office.lazy]).not.toContain(NATIVE);
   });
 
   test('the check can fail', () => {

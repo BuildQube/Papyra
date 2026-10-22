@@ -1,4 +1,4 @@
-import type { PdfEngine } from '@build-qube/papyra/core';
+import type { PagedEngine, PdfEngine } from '@build-qube/papyra/core';
 import { TriangleAlertIcon } from 'lucide-react';
 import { createContext, type ReactNode, use, useState } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -52,12 +52,55 @@ export function usePdfEngine(): PdfEngine {
   return use(PdfEngineContext);
 }
 
+/**
+ * The engine the page column renders through, when that is not the PDF engine.
+ * Unset everywhere but under {@link PageEngineScope}.
+ */
+const PageEngineContext = createContext<PagedEngine | null>(null);
+
+/** Props for {@link PageEngineScope}. */
+export interface PageEngineScopeProps {
+  /** The engine that opened the documents shown below: papyra's office engine, say. */
+  engine: PagedEngine;
+  /** The page column. */
+  children: ReactNode;
+}
+
+/**
+ * Renders the page column below it through an engine that only draws pages — Word
+ * and PowerPoint through papyra's office engine — rather than the PDF engine.
+ *
+ * Only the page surfaces read it. Everything that needs a PDF (links, text, the
+ * outline) keeps using {@link usePdfEngine}, and the surface draws no link overlay
+ * for a document whose capabilities say it has none, so a document from this engine
+ * never reaches a PDF command.
+ */
+export function PageEngineScope({ engine, children }: PageEngineScopeProps) {
+  return <PageEngineContext value={engine}>{children}</PageEngineContext>;
+}
+
+/**
+ * The engine the page surfaces render with: the one a {@link PageEngineScope}
+ * set, else the PDF engine in scope.
+ */
+export function usePageEngine(): PagedEngine {
+  const paged = use(PageEngineContext);
+  const pdf = use(PdfEngineContext);
+  return paged ?? pdf;
+}
+
 /** Props for {@link PdfEngineGuard}. */
 export interface PdfEngineGuardProps {
   /** The viewer, rendered only when the engine in scope can run here. */
   children: ReactNode;
   /** Replaces the engine's own explanation, for apps that word their own errors. */
   fallback?: ReactNode;
+}
+
+/** Props for {@link EngineGuard}. */
+export interface EngineGuardProps extends PdfEngineGuardProps {
+  /** The engine the children render with. */
+  engine: PagedEngine;
 }
 
 /**
@@ -71,8 +114,21 @@ export interface PdfEngineGuardProps {
  * no such thing — pdf.js, or a native one inside an app shell — is always let through.
  */
 export function PdfEngineGuard({ children, fallback }: PdfEngineGuardProps) {
+  return (
+    <EngineGuard engine={usePdfEngine()} fallback={fallback}>
+      {children}
+    </EngineGuard>
+  );
+}
+
+/**
+ * {@link PdfEngineGuard} for any engine: renders `children` only when `engine` can
+ * run here, and otherwise says why in its own words. The office view guards on the
+ * office engine with it.
+ */
+export function EngineGuard({ engine, children, fallback }: EngineGuardProps) {
   // Not state: availability cannot change without a reload.
-  const available = usePdfEngine().availability();
+  const available = engine.availability();
   if (available.ok) return <>{children}</>;
   if (fallback) return <>{fallback}</>;
 

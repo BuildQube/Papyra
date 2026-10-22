@@ -76,6 +76,17 @@
         "typescript": "5.9.3",
       },
     },
+    "packages/office-bindings": {
+      "name": "@build-qube/papyra-office-native",
+      "version": "0.4.0",
+      "devDependencies": {
+        "@emnapi/core": "2.0.0-alpha.4",
+        "@emnapi/runtime": "2.0.0-alpha.4",
+        "@napi-rs/cli": "^3.8.6",
+        "@napi-rs/wasm-runtime": "^1.2.3",
+        "emnapi": "2.0.0-alpha.4",
+      },
+    },
     "packages/papyra": {
       "name": "@build-qube/papyra",
       "version": "0.4.0",
@@ -83,8 +94,15 @@
         "@build-qube/papyra-native": "0.4.0",
       },
       "devDependencies": {
+        "@build-qube/papyra-office-native": "workspace:*",
         "typescript": "^7.0.2",
       },
+      "peerDependencies": {
+        "@build-qube/papyra-office-native": "0.4.0",
+      },
+      "optionalPeers": [
+        "@build-qube/papyra-office-native",
+      ],
     },
     "packages/pdf-viewer": {
       "name": "@workspace/pdf-viewer",
@@ -257,6 +275,8 @@
     "@build-qube/papyra": ["@build-qube/papyra@workspace:packages/papyra"],
 
     "@build-qube/papyra-native": ["@build-qube/papyra-native@workspace:packages/bindings"],
+
+    "@build-qube/papyra-office-native": ["@build-qube/papyra-office-native@workspace:packages/office-bindings"],
 
     "@build-qube/papyra-pdfjs": ["@build-qube/papyra-pdfjs@workspace:packages/pdfjs"],
 
