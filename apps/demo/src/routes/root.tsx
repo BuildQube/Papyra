@@ -27,6 +27,7 @@ import {
 import { cn } from '@workspace/ui/lib/utils';
 import { FileUpIcon, TriangleAlertIcon, UploadIcon } from 'lucide-react';
 import { useCallback, useState } from 'react';
+import { REPO_URL } from '../lib/apiModel.js';
 import { ShowPropertiesContext } from '../lib/properties.js';
 import { useFileParam, usePageUrlSync } from '../lib/urlSync.js';
 
@@ -59,7 +60,7 @@ export function RootShell() {
     // the address bar hidden, so the bottom of the page sits under it.
     <ShowPropertiesContext value={openProperties}>
       <div className="flex h-dvh flex-col">
-        <header className="flex flex-none items-center gap-3 border-b bg-card px-4 py-2.5">
+        <header className="flex flex-none flex-wrap items-center gap-3 border-b bg-card px-4 py-2.5">
           <h1 className="font-heading text-sm font-semibold tracking-wide">
             papyra
           </h1>
@@ -68,7 +69,7 @@ export function RootShell() {
             {engine.id === 'papyra' ? backend() : engine.id}
           </Badge>
 
-          <nav className="flex items-center gap-1">
+          <nav className="flex flex-wrap items-center gap-1">
             <NavLink to="/" exact>
               viewer
             </NavLink>
@@ -111,6 +112,19 @@ export function RootShell() {
               {loaded.name ?? 'document.pdf'}
             </Button>
           )}
+
+          <a
+            className={buttonVariants({ variant: 'ghost', size: 'icon-sm' })}
+            aria-label="GitHub repository"
+            href={REPO_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {/* GitHub's mark, unmodified (brand.github.com/foundations/logo): lucide 1.x ships no brand icons. */}
+            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M6.766 11.328c-2.063-.25-3.516-1.734-3.516-3.656 0-.781.281-1.625.75-2.188-.203-.515-.172-1.609.063-2.062.625-.078 1.468.25 1.968.703.594-.187 1.219-.281 1.985-.281.765 0 1.39.094 1.953.265.484-.437 1.344-.765 1.969-.687.218.422.25 1.515.046 2.047.5.593.766 1.39.766 2.203 0 1.922-1.453 3.375-3.547 3.64.531.344.89 1.094.89 1.954v1.625c0 .468.391.734.86.547C13.781 14.359 16 11.53 16 8.03 16 3.61 12.406 0 7.984 0 3.563 0 0 3.61 0 8.031a7.88 7.88 0 0 0 5.172 7.422c.422.156.828-.125.828-.547v-1.25c-.219.094-.5.156-.75.156-1.031 0-1.64-.562-2.078-1.609-.172-.422-.36-.672-.719-.719-.187-.015-.25-.093-.25-.187 0-.188.313-.328.625-.328.453 0 .844.281 1.25.86.313.452.64.655 1.031.655s.641-.14 1-.5c.266-.265.47-.5.657-.656" />
+            </svg>
+          </a>
         </header>
 
         {error && (
