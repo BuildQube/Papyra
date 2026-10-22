@@ -260,8 +260,9 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run check:registry --published
 
-  # papyra-core, papyra-encode, papyra-hayro and tauri-plugin-papyra, on the
-  # version the root `version` script gave them, which is the npm packages'.
+  # papyra-core, papyra-encode, papyra-hayro, papyra-tables, papyra-tiff and
+  # tauri-plugin-papyra, on the version the root `version` script gave them, which
+  # is the npm packages'. tauri-plugin-papyra-office is publish = false.
   #
   # After npm rather than beside it, so a failed npm publish releases no crates.
   # macOS because `cargo publish` verifies by compiling, and Tauri on Linux needs

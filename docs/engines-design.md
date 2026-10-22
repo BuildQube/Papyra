@@ -149,7 +149,8 @@ Measured or decided while implementing; the sections below are kept as written.
     `PdfIsolationGuard`, which the default path keeps.
   - **The grid stayed synchronous.** A Tauri sheet's cells come over whole, in one
     packed binary call, and windows are cut in the WebView — about 19 bytes a cell
-    plus text, held twice. The async-window grid §7 called "the largest single
+    plus text, held twice, capped at a million cells and at sixteen times what the
+    sheet stores, since the file's author sets its bounding box. The async-window grid §7 called "the largest single
     piece of UI work" is deferred until a real phone needs it; the plugin's
     `window` command is already the shape it would call.
   - **One table, one protocol.** The host's documents are an enum (paged, TIFF,

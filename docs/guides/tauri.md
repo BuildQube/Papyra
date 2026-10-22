@@ -153,16 +153,26 @@ const FilePreview = createFilePreview([
 - **Spreadsheets cost memory twice.** The grid reads cells synchronously, a window per
   frame, and IPC is not synchronous, so a sheet's cells come over **whole** when it is
   first shown and windows are cut from that copy in the WebView. That is about 19
-  bytes a cell plus its text, held in the host and in the WebView: a million cells is
-  about 25 MB, and the default cap of 8 million cells about 150 MB or more. On a
-  phone, lower the cap with `maxCells` — a sheet past it shows its first whole rows
-  and says so. The cap counts the sheet's whole rectangle, empty cells included, so a
-  sparse sheet with a stray value far out is cut to its first rows too:
+  bytes a cell plus its text, held in the host and in the WebView. The copy counts
+  the sheet's whole rectangle, empty cells included, so the host bounds it twice and
+  marks a sheet cut by either `truncated`, showing its first whole rows:
+  - at most a million cells — about 19 MB on each side, plus text up to 64 MB —
+    however high `maxCells` is set;
+  - at most sixteen times the cells the sheet actually holds, and no less than
+    65,536. A ten-kilobyte file with one value in A1 and one in XFD1048576 is
+    seventeen billion cells as a rectangle; this ships it as a megabyte.
+
+  A lower `maxCells` lowers both the cells parsed and the first cap:
 
   ```tsx
-  const open = (file: File) => openWorkbook(file, { maxCells: 1_000_000 });
+  const open = (file: File) => openWorkbook(file, { maxCells: 250_000 });
   spreadsheetRenderer.with({ open });
   ```
+
+- **Panics.** A page whose engine panics — a malformed file can do that to any of
+  them — is answered with a 500 carrying the message, so the viewer shows an error
+  rather than spinning. That needs unwinding: an app built with `panic = "abort"` in
+  its release profile loses the whole process instead.
 
 ### Word and PowerPoint: depend on the repository
 
