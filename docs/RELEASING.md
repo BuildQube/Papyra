@@ -230,5 +230,10 @@ what it finds under `npm/<platform>/` in the addon's package, which is filled fr
 CI artifacts. If a build matrix leg failed, its package is silently skipped —
 check the `build` jobs before assuming the publish worked.
 
+**The `registry` job fails right after a publish.** npm can take a minute to serve a
+new version everywhere, and `check:registry --published` installs the release it
+just made. If the failure is an unresolvable `@build-qube/papyra@^x`, re-run the job;
+it publishes nothing.
+
 **The Version Packages PR does not appear.** Either the "allow Actions to create
 pull requests" setting above is off, or there were no changesets to version.
