@@ -2,14 +2,14 @@
 //!
 //! usage: cargo run --release -p papyra-hayro --example per_page -- <file.pdf> [n]
 
-use hayro_interpret::font::Glyph;
+use hayro_interpret::font::GlyphRun;
 use hayro_interpret::hayro_syntax::Pdf;
 use hayro_interpret::util::TransformExt;
 use hayro_interpret::{
-  BlendMode, ClipPath, Context, Device, GlyphDrawMode, Image, InterpreterCache,
-  InterpreterSettings, Paint, PathDrawMode, SoftMask, interpret_page,
+  BlendMode, ClipPath, Context, Device, DrawMode, DrawProps, Image, ImageDrawProps,
+  InterpreterCache, InterpreterSettings, SoftMask, interpret_page,
 };
-use kurbo::{Affine, BezPath, Rect};
+use kurbo::{BezPath, Rect};
 use papyra_core::{Document as _, Engine, RenderOptions};
 use papyra_hayro::HayroEngine;
 use std::time::Instant;
@@ -22,23 +22,21 @@ struct Counter {
 }
 
 impl<'a> Device<'a> for Counter {
-  fn set_soft_mask(&mut self, _: Option<SoftMask<'a>>) {}
-  fn set_blend_mode(&mut self, _: BlendMode) {}
-  fn draw_path(&mut self, _: &BezPath, _: Affine, _: &Paint<'a>, _: &PathDrawMode) {
+  fn draw_path(&mut self, _: &BezPath, _: DrawProps<'a>, _: &DrawMode) {
     self.draws += 1;
   }
   fn push_clip_path(&mut self, _: &ClipPath) {}
   fn push_transparency_group(&mut self, _: f32, _: Option<SoftMask<'a>>, _: BlendMode) {
     self.groups += 1;
   }
-  fn draw_glyph(&mut self, _: &Glyph<'a>, _: Affine, _: Affine, _: &Paint<'a>, _: &GlyphDrawMode) {
-    self.draws += 1;
+  fn draw_glyph_run(&mut self, run: &GlyphRun<'_, 'a>, _: DrawProps<'a>, _: &DrawMode) {
+    self.draws += run.glyphs().len() as u64;
   }
-  fn draw_image(&mut self, _: Image<'a, '_>, _: Affine) {
+  fn draw_image(&mut self, _: Image<'a, '_>, _: ImageDrawProps<'a>) {
     self.images += 1;
     self.draws += 1;
   }
-  fn pop_clip_path(&mut self) {}
+  fn pop_clip(&mut self) {}
   fn pop_transparency_group(&mut self) {}
 }
 
