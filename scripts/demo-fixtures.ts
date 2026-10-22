@@ -29,39 +29,49 @@ const WANTED = [
   'pr6531_1.pdf',
 ];
 
-const root = join(import.meta.dir, '..');
-const from = join(root, 'corpus');
-const to = join(root, 'apps', 'demo', 'public');
+/**
+ * The PDFs no corpus file covers, built here rather than fetched. Exported for the
+ * tests too: nothing in the pdf.js suite embeds a file, defines page labels or maps
+ * its tags through a `/RoleMap`, so without these those paths are never reached.
+ */
+export const GENERATED: Record<string, () => Uint8Array> = {
+  'rotated.pdf': rotatedTextPdf,
+  'labelled.pdf': labelledPdf,
+  'tagged-columns.pdf': taggedColumnsPdf,
+  'hybrid-invoice.pdf': hybridInvoicePdf,
+};
 
-await mkdir(to, { recursive: true });
+if (import.meta.main) {
+  const root = join(import.meta.dir, '..');
+  const from = join(root, 'corpus');
+  const to = join(root, 'apps', 'demo', 'public');
 
-let copied = 0;
-for (const name of WANTED) {
-  try {
-    await copyFile(join(from, name), join(to, name));
-    console.log(`  ✓ ${name}`);
-    copied++;
-  } catch {
-    console.error(
-      `  ✗ ${name} — not in ./corpus, run \`bun run corpus\` first`,
-    );
+  await mkdir(to, { recursive: true });
+
+  let copied = 0;
+  for (const name of WANTED) {
+    try {
+      await copyFile(join(from, name), join(to, name));
+      console.log(`  ✓ ${name}`);
+      copied++;
+    } catch {
+      console.error(
+        `  ✗ ${name} — not in ./corpus, run \`bun run corpus\` first`,
+      );
+    }
   }
-}
 
-const generated: [string, Uint8Array][] = [
-  ['rotated.pdf', rotatedTextPdf()],
-  ['labelled.pdf', labelledPdf()],
-  ['tagged-columns.pdf', taggedColumnsPdf()],
-  ['hybrid-invoice.pdf', hybridInvoicePdf()],
-];
-for (const [name, bytes] of generated) {
-  await writeFile(join(to, name), bytes);
-  console.log(`  ✓ ${name} (generated)`);
-}
+  const generated = Object.entries(GENERATED);
+  for (const [name, build] of generated) {
+    const bytes = build();
+    await writeFile(join(to, name), bytes);
+    console.log(`  ✓ ${name} (generated)`);
+  }
 
-console.log(
-  `\n${copied + generated.length} in apps/demo/public — open with ?file=/<name>`,
-);
+  console.log(
+    `\n${copied + generated.length} in apps/demo/public — open with ?file=/<name>`,
+  );
+}
 
 /**
  * A page of text at four different angles.

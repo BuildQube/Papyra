@@ -9,6 +9,7 @@ import {
   type PdfDoc,
   quadBounds,
 } from '@build-qube/papyra';
+import { GENERATED } from '../../../../scripts/demo-fixtures.js';
 import { PdfjsEngine } from '../../src/index.js';
 
 /**
@@ -16,20 +17,23 @@ import { PdfjsEngine } from '../../src/index.js';
  * `OffscreenCanvas`, so rendering is checked in a browser instead.
  *
  * In `test/integration` because papyra's side needs the built addon. The corpus is
- * fetched (`bun run corpus`), and the demo's generated fixtures (labels, attachments,
- * a rotated page) are used when `bun run --filter papyra-demo fixtures` has run.
+ * fetched (`bun run corpus`); the demo's generated fixtures (labels, attachments, a
+ * rotated page) are built in-process, since nothing in the corpus has those.
  */
 const ROOT = join(import.meta.dir, '..', '..', '..', '..');
 const DIRS = [join(ROOT, 'corpus'), join(ROOT, 'apps', 'demo', 'public')];
-const files = DIRS.filter(existsSync).flatMap((dir) =>
-  readdirSync(dir)
-    .filter((f) => f.endsWith('.pdf'))
-    .map((f) => join(dir, f)),
-);
-const read = (name: string) => {
-  const path = files.find((f) => f.endsWith(`/${name}`));
-  return path ? new Uint8Array(readFileSync(path)) : null;
-};
+const files = new Map<string, () => Uint8Array>([
+  ...DIRS.filter(existsSync).flatMap((dir) =>
+    readdirSync(dir)
+      .filter((f) => f.endsWith('.pdf'))
+      .map((f): [string, () => Uint8Array] => [
+        f,
+        () => new Uint8Array(readFileSync(join(dir, f))),
+      ]),
+  ),
+  ...Object.entries(GENERATED),
+]);
+const read = (name: string) => files.get(name)?.() ?? null;
 
 // The legacy build: the modern one needs `DOMMatrix`, which Bun does not have.
 const pdfjs = new PdfjsEngine({
@@ -48,14 +52,10 @@ async function both(bytes: Uint8Array): Promise<[PdfDoc, PdfDoc] | null> {
   }
 }
 
-const describeWithCorpus = files.length > 0 ? describe : describe.skip;
-
-describeWithCorpus('pdf.js agrees with papyra', () => {
-  for (const path of files) {
-    const name = path.split('/').pop() as string;
-
+describe('pdf.js agrees with papyra', () => {
+  for (const [name, bytes] of files) {
     test(name, async () => {
-      const opened = await both(new Uint8Array(readFileSync(path)));
+      const opened = await both(bytes());
       if (!opened) return;
       const [hayro, js] = opened;
 
@@ -81,9 +81,15 @@ describeWithCorpus('pdf.js agrees with papyra', () => {
         titles(await defaultPdfEngine.outline(hayro)),
       );
 
+      const embedded = await defaultPdfEngine.attachments(hayro);
       expect((await pdfjs.attachments(js)).map((a) => a.name)).toEqual(
-        (await defaultPdfEngine.attachments(hayro)).map((a) => a.name),
+        embedded.map((a) => a.name),
       );
+      for (const { index } of embedded) {
+        expect(await pdfjs.attachmentData(js, index)).toEqual(
+          await defaultPdfEngine.attachmentData(hayro, index),
+        );
+      }
 
       // Every link papyra finds, pdf.js finds. Not the reverse: issue6204.pdf names
       // its targets in a PDF 1.1 `/Dests` dictionary, which papyra does not read.
@@ -100,7 +106,7 @@ describeWithCorpus('pdf.js agrees with papyra', () => {
   }
 });
 
-describeWithCorpus('text, through search', () => {
+describe('text, through search', () => {
   test('a word papyra finds is found by pdf.js, in about the same place', async () => {
     const bytes = read('tracemonkey.pdf');
     if (!bytes) return;
@@ -137,7 +143,7 @@ describeWithCorpus('text, through search', () => {
   });
 });
 
-describeWithCorpus('passwords', () => {
+describe('passwords', () => {
   test('missing and wrong passwords map to papyra’s two errors', async () => {
     const bytes = read('pr6531_1.pdf');
     if (!bytes) return;
