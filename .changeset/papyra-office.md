@@ -13,4 +13,4 @@ depends on. Documents report `RENDER_ONLY` capabilities: pages, no text or links
 
 It runs on a separate addon, the optional peer `@build-qube/papyra-office-native`,
 which `/office` imports on first use, so neither the main entry nor `/core` ever
-loads it. That package is not published yet.
+loads it. That package publishes with this release, on the same version.

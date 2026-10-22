@@ -1,5 +1,9 @@
 import type { Attachment } from './attachments.js';
 import { type CacheStats, RenderCache } from './cache.js';
+import type {
+  IncorrectPasswordError,
+  PasswordRequiredError,
+} from './errors.js';
 import type { PageLink } from './links.js';
 import type { OutlineNode } from './outline.js';
 import { DEFAULT_PRIORITY, type JobHandle, Scheduler } from './scheduler.js';

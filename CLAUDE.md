@@ -78,8 +78,9 @@ bun run office fidelity    # render corpus/office on wasm, diff crates/papyra-of
 ```
 
 Releases go through changesets: `bun run change` to add one, `bun run release` to publish.
-`@build-qube/papyra`, `@build-qube/papyra-native`, `@build-qube/papyra-pdfjs` and
-`@build-qube/papyra-tauri` are version-locked (`fixed` in `.changeset/config.json`); `papyra-demo`, `papyra-bench` and `@workspace/ui` are
+`@build-qube/papyra`, `@build-qube/papyra-native`, `@build-qube/papyra-office-native`,
+`@build-qube/papyra-pdfjs` and `@build-qube/papyra-tauri` are version-locked (`fixed`
+in `.changeset/config.json`); `papyra-demo`, `papyra-bench` and `@workspace/ui` are
 ignored. `@workspace/pdf-viewer` is **not** — it is private and never published, but
 `privatePackages: { version: true, tag: false }` gives it a version and a CHANGELOG,
 because its registry items are installed by URL and that changelog is the only record
@@ -88,6 +89,12 @@ every push to `main`. `tag: false` keeps it out of the git tags, which name publ
 packages; being private exempts it from the rule that a dependent of an ignored
 package must itself be ignored, which is what lets it depend on `@workspace/ui`.
 Because of `updateInternalDependencies: "patch"` a papyra release bumps it too.
+The crates `papyra-core`, `papyra-encode`, `papyra-hayro` and
+`tauri-plugin-papyra` take the fixed group's version: the root `version` script, which
+generates the Version Packages PR, runs `scripts/sync-crate-versions.ts` after
+`changeset version`, and release.yml's `crates` job publishes them. A new package
+name, npm or crates.io, needs bootstrapping by hand before CI can publish it; see
+`docs/RELEASING.md`.
 
 ## Architecture
 
