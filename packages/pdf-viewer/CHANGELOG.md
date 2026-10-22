@@ -1,5 +1,123 @@
 # @workspace/pdf-viewer
 
+## 0.4.0
+
+### Minor Changes
+
+- 9ea9c7b: The file preview can share a file instead of downloading it, for iOS WKWebView
+  hosts, where `<a download>` does nothing.
+  
+  - New `file-preview-actions` item, which `file-preview` now depends on.
+    `<FileActionsProvider share>` makes the download button a Share button that opens
+    the system share sheet (Save to Files, Print, other apps) when
+    `navigator.canShare({ files })` says yes and the file is already in hand;
+    otherwise, or when sharing fails, it downloads. Cancelling the sheet is not an
+    error.
+  - Without a provider nothing changes: the button downloads, as before.
+  - `heldFile` in `file-preview-core`'s source module returns a source's bytes when
+    they are already in hand, without downloading.
+- fcb17be: The file preview can go full screen, and its formats take options.
+  
+  - `file-preview` has a full-screen button beside Download (`fullscreen={false}` to
+    hide it). A PDF inside the preview no longer shows its own.
+  - Renderers take options for their view, as defaults with
+    `pdfRenderer.with({ thumbnails: true })` or per preview with
+    `options={{ pdf: { search: true } }}`. Both are typed from the renderers the preview
+    was created with.
+  - `createFilePreview` takes optional defaults for every preview it makes: `allow`,
+    `options`, `cache`, `fullscreen`, `displaySize` and `displayRenderTime`. Props
+    on an instance override them; `options` merge per renderer, field by field.
+  - New `pdf-viewer-configurable` block: one viewer whose thumbnails, outline, tags,
+    attachments, search, document-properties dialog and single-page/continuous view
+    are each a prop. In the file preview, the properties dialog gets the file's name
+    and size from the file, and shows the size regardless of `displaySize`.
+    `file-preview-pdf` now shows it, as a continuous scrolling column by default
+    (`view: 'page'` for one page at a time), so its options are that block's props.
+  - Render timings and the file size are hidden by default. Set `displayRenderTime`
+    (on `FilePreview`, `PdfViewer`, `PdfViewerConfigurable`, `ViewerLayout`, `Sidebar`
+    and the panels) or `displaySize` (on `FilePreview`) to show them.
+  - `Properties`' `name` and `byteLength` are optional, shown as a dash when absent.
+  - The zoom bar's "⌘/ctrl + scroll, pinch…" hint moved from the toolbar into a
+    tooltip on the zoom select. The zoom bar now depends on shadcn's `tooltip`.
+  - New `use-fullscreen` hook, shared by the viewer layout and the preview.
+- 24ac39a: The viewer runs on an engine, chosen by the app, so it can render where papyra's
+  wasm cannot — a mobile WebView that is never cross-origin isolated, say.
+  
+  - New **`pdf-default-engine`** item: the engine a viewer uses when no provider is
+    mounted — papyra's own. An app that never runs papyra's engine aliases this one
+    file to its own engine, and papyra's wasm leaves its bundle (6.5 MB, measured).
+  - New **`pdf-engine`** item: `PdfEngineProvider` (an engine, or a list to take the
+    first available from), `usePdfEngine()`, and `PdfEngineGuard`, which explains in
+    the engine's own words why it cannot run. With no provider, every viewer uses
+    papyra's own engine, exactly as before.
+  - Commands go through the engine: `doc.render(…)` became
+    `engine.render(doc, …)`, and so on for `stream`, `search`, `pageText`,
+    `outline`, `links`, `pageLabels`, `attachments`, `attachmentData` and
+    `structTree`. Changed files: `pdf-viewer`, `pdf-viewer-basic`,
+    `pdf-viewer-configurable`, `pdf-page-preview`, `pdf-page-surface`,
+    `pdf-thumbnails`, `pdf-find-bar`, `pdf-structure`, `pdf-links`, `pdf-outline`,
+    `pdf-attachments`, `pdf-sidebar` and `use-pdf-page-labels`.
+  - Props take a `PdfDoc` rather than a `Document`. A `Document` is one, so existing
+    callers compile unchanged. `pdf-page-canvas` and `pdf-page-view` paint any
+    `PageBitmap`.
+  - The PDF blocks and `file-preview-pdf` guard with `PdfEngineGuard`.
+    `PdfIsolationGuard` is unchanged, and still guards TIFF and spreadsheets.
+  - `pdf-viewer-store` opens through its `engine` option, which `PdfViewerProvider`
+    fills from context. It closes the documents its `load` opened when they are
+    replaced, never one handed to `setDocument`. `file-preview-pdf` closes what it
+    opened when the file changes and on unmount.
+  - Panels hide when the engine cannot fill them: outline, tags and attachments by
+    capability, search and the find bar without text, and the annotation switch
+    when the engine cannot turn annotations off. The properties dialog gains an
+    "Engine" row.
+- 09ff328: Word and PowerPoint in the file preview (experimental), drawn by papyra's office
+  engine in the PDF viewer's continuous column, with its zoom bar.
+  
+  - New **`file-preview-pptx`** item: `pptxRenderer`, for PowerPoint decks.
+  - New **`file-preview-docx-paged`** item: `docxPagedRenderer`, Word paginated as
+    Word prints it. `docxRenderer` (docx-preview) is unchanged; both claim `.docx`, so
+    list whichever should win first.
+  - New **`file-preview-office-view`** item: the view both share. Both renderers take
+    `fonts`, URLs of fonts to register before the first document opens.
+  - `pdf-engine` gains `PageEngineScope` and `usePageEngine()`, which set and read the
+    engine the page column renders through, falling back to the PDF engine; and
+    `EngineGuard`, `PdfEngineGuard` for any engine.
+  - `pdf-page-surface` and `pdf-continuous-pages` take any `PagedDoc`, and draw links
+    only when its capabilities include them. A `PdfDoc` is one, so existing callers
+    compile unchanged.
+
+### Patch Changes
+
+- 24ac39a: Every item now needs `@build-qube/papyra@^0.5.0`, and the items that only draw
+  import from `@build-qube/papyra/core`, which loads no wasm. The ones that open a
+  file (`file-preview-pdf`, `file-preview-tiff`, `file-preview-sheet` and
+  `pdf-viewer-store`) still import `@build-qube/papyra`.
+  
+  A vendored copy can take this by hand: in `pdf-viewer`, `pdf-viewer-basic`,
+  `pdf-viewer-configurable`, `pdf-page-canvas`, `pdf-page-view`, `pdf-page-surface`,
+  `pdf-continuous-pages`, `pdf-highlights`, `pdf-links`, `pdf-structure` and
+  `pdf-attachments`, replace `'@build-qube/papyra'` with `'@build-qube/papyra/core'`.
+  Nothing else in those files changed.
+- 356f52f: Fix 404s when installing through the `@papyra` namespace into a Tailwind v4 project
+  whose `components.json` style is `new-york`, or that names no style.
+  
+  The shadcn CLI rewrites that style to `new-york-v4` before filling in `{style}`, and the
+  registry had no directory by that name. Those projects now get the Radix items.
+  
+  The search results list also no longer uses `Item`'s `xs` size, which the `new-york-v4`
+  `Item` does not have. It looks the same as before.
+- Updated dependencies [64531eb]
+- Updated dependencies [eb23a56]
+- Updated dependencies [24ac39a]
+- Updated dependencies [24ac39a]
+- Updated dependencies [913c91e]
+- Updated dependencies [24ac39a]
+- Updated dependencies [24ac39a]
+- Updated dependencies [24ac39a]
+- Updated dependencies [24ac39a]
+- Updated dependencies [09ff328]
+  - @build-qube/papyra@0.5.0
+
 ## 0.3.0
 
 ### Minor Changes

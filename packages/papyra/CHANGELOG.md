@@ -1,5 +1,94 @@
 # @build-qube/papyra
 
+## 0.5.0
+
+### Minor Changes
+
+- 24ac39a: An engine's backend can declare `abortable`: then a render that has started is
+  aborted, through the signal `renderPage` receives, once nobody waits for it any more.
+  papyra's own backend does not declare it, since its renders cannot stop part-way,
+  so a started render the reader scrolls back to is still joined rather than repeated.
+  `SchedulerJob` gains the same `abortable` flag and passes `run` a signal.
+  
+  `fingerprint` and `toBytes` are exported from `@build-qube/papyra/core`, for engines:
+  one that fingerprints with papyra's content hash gives a file the same key on every
+  engine.
+- 24ac39a: `engine.close(doc)` and `Document.close()` return a promise, settled once the backend
+  has let go and rejected if it could not; a backend's `close` may be async. The handle
+  is closed the moment `close` returns, and a document that is not open still throws
+  at once.
+- 24ac39a: Add `@build-qube/papyra/core`: everything that runs without the engine — painting,
+  page geometry, search over extracted text, outline and structure trees, the
+  priority queue, the error types — importable without loading the native module.
+  
+  Importing the main entry loads the engine, which in a browser is a wasm module of
+  about 2.5 MB that needs a cross-origin-isolated page to start. Code that only draws
+  pages, or that will open documents through another engine, can import from `/core`
+  and fetch nothing until a document is opened. The main entry still exports all of
+  it, so no existing import changes.
+  
+  `RenderHandle` now lives with the other shared types; it is exported from both
+  entries as before.
+- 24ac39a: `defaultPdfEngine`, in `@build-qube/papyra/engine`: the one `PapyraEngine` that
+  `open()` goes through, and the one a viewer uses when the app names none. A document
+  belongs to the engine that opened it, so sharing this instance is what lets a
+  `Document` from `open()` be passed to an engine-driven viewer as it is.
+  
+  `PapyraEngine.open` now resolves to a `Document`, so code holding a `PdfDoc` from
+  papyra's engine can reach `renderImage`, `renderSvg` or `cache` with an
+  `instanceof Document` check. Closing a document through the engine closes the
+  `Document` too, whichever name is used, and a stream over a document that closes
+  ends instead of throwing.
+- 24ac39a: Engines. `PagedEngine` and `PdfEngine` in `@build-qube/papyra/core` hold the
+  priority queue, the render and text caches, `fitWidth` and search, written once; an
+  engine supplies a loader and a backend and gets all of it. `PapyraEngine` is papyra's
+  own, in `@build-qube/papyra/engine`, and loads the addon on its first `open` rather
+  than when imported. `/core` never reaches it, so an app whose viewer runs on another
+  engine ships none of papyra's wasm.
+  
+  `Document` and `open()` are unchanged to call, and now go through `PapyraEngine`.
+  `Document` also gains `close()`, `engine` and `capabilities`, which makes it a
+  `PdfDoc` that any engine-driven viewer accepts. `paintToCanvas` takes an
+  `ImageBitmap` as well as a `RenderedPage`, for engines that rasterise elsewhere.
+- 09ff328: Add `@build-qube/papyra/office` (experimental): Word (`.docx`, `.docm`, `.dotx`,
+  `.dotm`) and PowerPoint (`.pptx` and its template, show and macro-enabled twins)
+  pages, laid out and drawn in Rust over WordCraft and DeckCraft.
+  
+  `PapyraOfficeEngine` is a `PagedEngine`, so its pages get the same queue, coalescing,
+  render cache and `fitWidth` sizing as a PDF's; `officeEngine` is the shared instance,
+  and `officeEngine.addFont(bytes)` registers the metric-compatible fonts the layout
+  depends on. Documents report `RENDER_ONLY` capabilities: pages, no text or links.
+  
+  It runs on a separate addon, the optional peer `@build-qube/papyra-office-native`,
+  which `/office` imports on first use, so neither the main entry nor `/core` ever
+  loads it. That package publishes with this release, on the same version.
+
+### Patch Changes
+
+- 64531eb: The engines and Tauri setup docs move to guide pages on the doc site,
+  https://buildqube.github.io/Papyra/docs/guides/engines and
+  https://buildqube.github.io/Papyra/docs/guides/tauri. The READMEs link there instead
+  of repeating them; the `tauri-plugin-papyra` crate's README does the same.
+- eb23a56: Document engines — choosing one, installing it, scoping it into the viewer, and when
+  to import `/core` — and that a panic in the browser build is fatal until reload. Add a
+  README for `@build-qube/papyra-office-native`.
+- 913c91e: A closed `Document` now refuses everything that reaches its queue or caches —
+  `indexText`, `renderImage`, `renderSvg`, `renderPages`, `pageSize` and the cache and
+  queue stats — with the same error `render` already threw. Previously these kept
+  working after `close()`, and `indexText` refilled the text cache it had just released.
+  Work still running when a document closes no longer writes its result into the
+  closed cache.
+- 24ac39a: `toPageText`, `toPageLink`, `toAttachment` and `rethrowLoadError` are exported from
+  `@build-qube/papyra/core`, for an engine whose host answers in the native bindings'
+  shapes — as `tauri-plugin-papyra` does — so it normalises exactly as papyra does.
+- Updated dependencies [64531eb]
+- Updated dependencies [eb23a56]
+- Updated dependencies [8a8a481]
+- Updated dependencies [96417eb]
+- Updated dependencies [23670dd]
+  - @build-qube/papyra-office-native@0.5.0
+  - @build-qube/papyra-native@0.5.0
+
 ## 0.4.0
 
 ### Minor Changes

@@ -12,16 +12,16 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.4.0"
+version = "0.5.0"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/BuildQube/papyra"
 rust-version = "1.92"
 
 [workspace.dependencies]
-papyra-core = { path = "crates/papyra-core", version = "0.4.0" }
-papyra-encode = { path = "crates/papyra-encode", version = "0.4.0" }
-papyra-hayro = { path = "crates/papyra-hayro", version = "0.4.0" }
+papyra-core = { path = "crates/papyra-core", version = "0.5.0" }
+papyra-encode = { path = "crates/papyra-encode", version = "0.5.0" }
+papyra-hayro = { path = "crates/papyra-hayro", version = "0.5.0" }
 papyra-tables = { path = "crates/papyra-tables" }
 papyra-tiff = { path = "crates/papyra-tiff" }
 papyra-office = { path = "crates/papyra-office" }

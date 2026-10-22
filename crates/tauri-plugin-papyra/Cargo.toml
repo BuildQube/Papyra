@@ -1,7 +1,7 @@
 [package]
 name = "tauri-plugin-papyra"
 description = "papyra's PDF engine inside a Tauri 2 app: native rendering for the viewer's TauriEngine"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/BuildQube/papyra"
@@ -14,9 +14,9 @@ links = "tauri-plugin-papyra"
 [workspace]
 
 [dependencies]
-papyra-core = { path = "../papyra-core", version = "0.4.0" }
-papyra-encode = { path = "../papyra-encode", version = "0.4.0" }
-papyra-hayro = { path = "../papyra-hayro", version = "0.4.0" }
+papyra-core = { path = "../papyra-core", version = "0.5.0" }
+papyra-encode = { path = "../papyra-encode", version = "0.5.0" }
+papyra-hayro = { path = "../papyra-hayro", version = "0.5.0" }
 percent-encoding = "2"
 serde = { version = "1", features = ["derive"] }
 tauri = "2"
