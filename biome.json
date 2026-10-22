@@ -7,7 +7,11 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["**", "!crates/tauri-plugin-papyra/permissions/schemas"]
+    "includes": [
+      "**",
+      "!crates/tauri-plugin-papyra/permissions/schemas",
+      "!crates/tauri-plugin-papyra/office/permissions/schemas"
+    ]
   },
   "formatter": {
     "enabled": true,
