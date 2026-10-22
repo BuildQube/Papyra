@@ -98,6 +98,26 @@ fn failure(status: StatusCode, message: String) -> Response<Vec<u8>> {
     .expect("a static response is valid")
 }
 
+/// [`render`], answering a panic in the engine with a 500 that carries it. Without
+/// this the responder is dropped unanswered and the WebView's fetch never settles —
+/// a page that spins forever. Needs unwinding: an app built with `panic = "abort"`
+/// loses the process instead.
+pub(crate) fn serve(docs: &Documents, request: &Request<Vec<u8>>) -> Response<Vec<u8>> {
+  std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| render(docs, request))).unwrap_or_else(
+    |panic| {
+      let message = panic
+        .downcast_ref::<&str>()
+        .map(|s| s.to_string())
+        .or_else(|| panic.downcast_ref::<String>().cloned())
+        .unwrap_or_default();
+      failure(
+        StatusCode::INTERNAL_SERVER_ERROR,
+        format!("papyra: rendering panicked: {message}"),
+      )
+    },
+  )
+}
+
 pub(crate) fn render(docs: &Documents, request: &Request<Vec<u8>>) -> Response<Vec<u8>> {
   let Some(page) = parse(request.uri().path(), request.uri().query()) else {
     return failure(
@@ -345,5 +365,38 @@ mod tests {
       get(&docs, &format!("papyra://localhost/{id}/9")).status(),
       StatusCode::UNPROCESSABLE_ENTITY
     );
+  }
+
+  /// A page whose engine panics, as a malformed file can make WordCraft or hayro do.
+  #[derive(Debug)]
+  struct Panics;
+
+  impl papyra_core::Document for Panics {
+    fn page_count(&self) -> usize {
+      1
+    }
+    fn page_size(&self, _: usize) -> papyra_core::Result<papyra_core::PageSize> {
+      Ok(papyra_core::PageSize {
+        width: 10.0,
+        height: 10.0,
+      })
+    }
+    fn render_page(&self, _: usize, _: &RenderOptions) -> papyra_core::Result<Bitmap> {
+      panic!("a malformed page");
+    }
+  }
+
+  #[test]
+  fn a_panicking_render_is_answered_not_dropped() {
+    let docs = Documents::default();
+    let id = docs.insert_paged("main", Panics).unwrap();
+    let request = Request::builder()
+      .uri(format!("papyra://localhost/{id}/0"))
+      .body(Vec::new())
+      .unwrap();
+    let response = serve(&docs, &request);
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(response.headers()["access-control-allow-origin"], "*");
+    assert!(String::from_utf8_lossy(response.body()).contains("a malformed page"));
   }
 }

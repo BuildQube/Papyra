@@ -169,7 +169,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
     .register_asynchronous_uri_scheme_protocol("papyra", |ctx, request, responder| {
       let app = ctx.app_handle().clone();
       tauri::async_runtime::spawn_blocking(move || {
-        responder.respond(protocol::render(&app.state::<Documents>(), &request));
+        responder.respond(protocol::serve(&app.state::<Documents>(), &request));
       });
     })
     .setup(|app, _| {
