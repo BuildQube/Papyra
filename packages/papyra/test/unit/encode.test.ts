@@ -27,28 +27,48 @@ describe('encodedImage', () => {
     );
   });
 
-  test('toDataUrl round-trips bytes that would break a naive btoa', () => {
-    // Every byte value, including the ones outside Latin-1 printable range.
-    const all = new Uint8Array(256).map((_, i) => i);
-    const url = encodedImage(all, 'jpeg').toDataUrl();
-    const decoded = Uint8Array.from(
-      atob(url.slice('data:image/jpeg;base64,'.length)),
-      (c) => c.charCodeAt(0),
-    );
-    expect(decoded).toEqual(all);
-  });
+  // Bun has `Buffer`, so without hiding it these would only ever test Node's path.
+  for (const path of ['Buffer', 'browser'] as const) {
+    const run = (body: () => void) => () => {
+      const g = globalThis as { Buffer?: unknown };
+      const saved = g.Buffer;
+      if (path === 'browser') delete g.Buffer;
+      try {
+        body();
+      } finally {
+        g.Buffer = saved;
+      }
+    };
 
-  test('toDataUrl handles a payload larger than one fromCharCode chunk', () => {
-    // The browser path chunks at 0x8000 to avoid blowing the argument stack.
-    const big = new Uint8Array(0x8000 * 2 + 7).map((_, i) => i % 251);
-    const url = encodedImage(big, 'webp').toDataUrl();
-    const decoded = Uint8Array.from(
-      atob(url.slice('data:image/webp;base64,'.length)),
-      (c) => c.charCodeAt(0),
+    test(
+      `toDataUrl round-trips bytes that would break a naive btoa (${path})`,
+      run(() => {
+        // Every byte value, including the ones outside Latin-1 printable range.
+        const all = new Uint8Array(256).map((_, i) => i);
+        const url = encodedImage(all, 'jpeg').toDataUrl();
+        const decoded = Uint8Array.from(
+          atob(url.slice('data:image/jpeg;base64,'.length)),
+          (c) => c.charCodeAt(0),
+        );
+        expect(decoded).toEqual(all);
+      }),
     );
-    expect(decoded.length).toBe(big.length);
-    expect(decoded).toEqual(big);
-  });
+
+    test(
+      `toDataUrl handles a payload larger than one fromCharCode chunk (${path})`,
+      run(() => {
+        // The browser path chunks at 0x8000 to avoid blowing the argument stack.
+        const big = new Uint8Array(0x8000 * 2 + 7).map((_, i) => i % 251);
+        const url = encodedImage(big, 'webp').toDataUrl();
+        const decoded = Uint8Array.from(
+          atob(url.slice('data:image/webp;base64,'.length)),
+          (c) => c.charCodeAt(0),
+        );
+        expect(decoded.length).toBe(big.length);
+        expect(decoded).toEqual(big);
+      }),
+    );
+  }
 
   test('toBlob copies, so wasm shared memory never reaches the Blob', () => {
     const img = encodedImage(bytes, 'png');

@@ -63,12 +63,16 @@ jobs:
               - 'turbo.json'
               - 'tsconfig.base.json'
               - 'scripts/fetch-corpus.ts'
-            # The coverage job's TypeScript half runs the wrapper's own suites, so
-            # a wrapper change moves its numbers without touching any Rust.
+            # The coverage job's TypeScript half runs the wrapper's, pdfjs's and
+            # tauri's own suites, so a change to any of them moves its numbers
+            # without touching any Rust.
             coverage:
               - 'packages/papyra/**'
+              - 'packages/pdfjs/**'
+              - 'packages/tauri/**'
               - 'scripts/coverage.ts'
               - 'scripts/coverage-report.ts'
+              - 'scripts/demo-fixtures.ts'
             registry:
               - 'packages/papyra/**'
               - 'packages/pdf-viewer/**'
@@ -78,6 +82,7 @@ jobs:
               - 'packages/pdfjs/**'
               - 'packages/tauri/**'
               - 'apps/bench/**'
+              - 'scripts/demo-fixtures.ts'
             demo:
               - 'packages/papyra/**'
               - 'packages/pdfjs/**'

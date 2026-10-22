@@ -513,6 +513,10 @@ gate; CI needed no new job.
   test/unit` covers 6 of the 13 files in the wrapper, silently omitting `document.ts`.
   `packages/papyra/test/coverage-entry.ts` is preloaded solely to import the package
   entrypoint and drag the rest into the denominator. There is no `--coverage.all`.
+  The converse bites too: it lists everything a test *did* import, napi's generated
+  `index.js` loaders included — `office-bindings/index.js` alone was 543 of the 879
+  lines the TypeScript total called uncovered. `scripts/coverage.ts` therefore keeps
+  only each package's own `src/`, rather than skipping paths it knows about.
 - **Never call calamine's `worksheet_range` for xlsx or xlsb.** It builds a
   *dense* grid over the bounding box of whatever cells exist, so a valid file with
   values in A1 and XFD1048576 asks for seventeen billion cells. Natively that hangs
