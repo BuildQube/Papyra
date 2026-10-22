@@ -584,6 +584,8 @@ export class Document implements PdfDoc {
    * goes. This only trades a pause now for instant results later.
    */
   async indexText(options: { priority?: number } = {}): Promise<void> {
+    // The memo would otherwise answer a closed document without reaching the guard.
+    void this.#state;
     this.#indexed ??= this.#index(options).catch((e: unknown) => {
       // A failed pass must not be remembered as a completed one.
       this.#indexed = undefined;

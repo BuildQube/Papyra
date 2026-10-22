@@ -616,6 +616,13 @@ describe('the Document facade, through the public API', () => {
     expect(text.stats.entries).toBe(0);
   });
 
+  test('indexText rejects after close even once it has completed', async () => {
+    const doc = await generated('labelled.pdf');
+    await doc.indexText();
+    await doc.close();
+    await expect(doc.indexText()).rejects.toThrow(/closed/);
+  });
+
   test('a close during indexText drops what it extracted', async () => {
     const doc = await generated('labelled.pdf');
     const { text } = stateOf(null, doc);
