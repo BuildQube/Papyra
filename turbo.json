@@ -66,6 +66,57 @@
         "*.wasi-browser.js"
       ]
     },
+    // The same for papyra's own addon, whose crates sit outside its package too: a
+    // hayro bump touches only crates/ and Cargo.lock, and would otherwise redeploy
+    // the cached wasm it was meant to replace.
+    "@build-qube/papyra-native#build": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "src/**",
+        "**/*.rs",
+        "Cargo.toml",
+        "package.json",
+        "../../crates/papyra-core/src/**",
+        "../../crates/papyra-core/Cargo.toml",
+        "../../crates/papyra-encode/src/**",
+        "../../crates/papyra-encode/Cargo.toml",
+        "../../crates/papyra-hayro/src/**",
+        "../../crates/papyra-hayro/Cargo.toml",
+        "../../crates/papyra-tables/src/**",
+        "../../crates/papyra-tables/Cargo.toml",
+        "../../crates/papyra-tiff/src/**",
+        "../../crates/papyra-tiff/Cargo.toml",
+        "../../Cargo.lock"
+      ],
+      "outputs": ["*.node", "index.js", "index.d.ts", "browser.js"]
+    },
+    "@build-qube/papyra-native#build:wasm": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "src/**",
+        "**/*.rs",
+        "Cargo.toml",
+        "../../crates/papyra-core/src/**",
+        "../../crates/papyra-core/Cargo.toml",
+        "../../crates/papyra-encode/src/**",
+        "../../crates/papyra-encode/Cargo.toml",
+        "../../crates/papyra-hayro/src/**",
+        "../../crates/papyra-hayro/Cargo.toml",
+        "../../crates/papyra-tables/src/**",
+        "../../crates/papyra-tables/Cargo.toml",
+        "../../crates/papyra-tiff/src/**",
+        "../../crates/papyra-tiff/Cargo.toml",
+        "../../Cargo.lock"
+      ],
+      "outputs": [
+        "*.wasm",
+        "*.cjs",
+        "*.cts",
+        "*.mjs",
+        "browser.js",
+        "*.wasi-browser.js"
+      ]
+    },
     // TypeDoc cannot run on this repo's TypeScript 7 (its compiler API is gone, and
     // TypeStrong/typedoc#3098 has no timeline), so papyra-docs-gen pins its own
     // TypeScript 5 and emits the API model the /docs route fetches. It reaches both
