@@ -183,6 +183,17 @@ pub enum Visibility {
   VeryHidden,
 }
 
+impl Visibility {
+  /// The name the TypeScript wrapper reads.
+  pub fn as_str(self) -> &'static str {
+    match self {
+      Self::Visible => "visible",
+      Self::Hidden => "hidden",
+      Self::VeryHidden => "veryHidden",
+    }
+  }
+}
+
 /// What a sheet holds. Only worksheets have cells worth showing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SheetKind {
@@ -191,6 +202,19 @@ pub enum SheetKind {
   Dialog,
   Macro,
   Vba,
+}
+
+impl SheetKind {
+  /// The name the TypeScript wrapper reads.
+  pub fn as_str(self) -> &'static str {
+    match self {
+      Self::Worksheet => "worksheet",
+      Self::Chartsheet => "chartsheet",
+      Self::Dialog => "dialog",
+      Self::Macro => "macro",
+      Self::Vba => "vba",
+    }
+  }
 }
 
 /// A sheet's entry in the workbook, available without reading its cells.
@@ -413,6 +437,35 @@ pub struct LoadOptions {
   pub delimited: DelimitedOptions,
   /// Cells held per sheet before it is truncated. See [`DEFAULT_MAX_CELLS`].
   pub max_cells: usize,
+}
+
+impl LoadOptions {
+  /// From the TypeScript wrapper's `WorkbookOptions`, every field optional. The error
+  /// says which field is wrong.
+  pub fn parse(
+    format: Option<&str>,
+    delimiter: Option<&str>,
+    encoding: Option<String>,
+    max_cells: Option<usize>,
+  ) -> std::result::Result<Self, String> {
+    let format = match format {
+      Some(name) => Some(Format::parse(name).ok_or_else(|| format!("unknown format {name:?}"))?),
+      None => None,
+    };
+    let delimiter = match delimiter.map(str::as_bytes) {
+      None => None,
+      Some([b]) if b.is_ascii() => Some(*b),
+      Some(_) => return Err("delimiter must be a single ASCII character".into()),
+    };
+    Ok(Self {
+      format,
+      delimited: DelimitedOptions {
+        delimiter,
+        encoding,
+      },
+      max_cells: max_cells.unwrap_or(DEFAULT_MAX_CELLS),
+    })
+  }
 }
 
 impl Default for LoadOptions {

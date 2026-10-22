@@ -103,6 +103,17 @@ export type {
   VerticalAlign,
 } from './styles.js';
 export { cssColor } from './styles.js';
+export type {
+  SheetInfo,
+  SheetKind,
+  SheetSource,
+  SheetVisibility,
+  WindowRange,
+  WorkbookFormat,
+  WorkbookOptions,
+  WorkbookSource,
+} from './sheets.js';
+export { openWorkbookWith, Sheet, Workbook } from './sheets.js';
 export type { PageText, Quad, Rect, TextLine } from './text.js';
 export {
   lineQuad,
@@ -112,6 +123,13 @@ export {
   scaleRect,
   toPageText,
 } from './text.js';
+export type {
+  TiffCompression,
+  TiffPage,
+  TiffRenderOptions,
+  TiffSource,
+} from './tiff-image.js';
+export { TIFF_MAX_PIXELS, TiffImage } from './tiff-image.js';
 export type {
   DocumentMetadata,
   OpenOptions,
