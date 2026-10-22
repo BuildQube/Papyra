@@ -60,7 +60,7 @@ export function RootShell() {
     // the address bar hidden, so the bottom of the page sits under it.
     <ShowPropertiesContext value={openProperties}>
       <div className="flex h-dvh flex-col">
-        <header className="flex flex-none items-center gap-3 border-b bg-card px-4 py-2.5">
+        <header className="flex flex-none flex-wrap items-center gap-3 border-b bg-card px-4 py-2.5">
           <h1 className="font-heading text-sm font-semibold tracking-wide">
             papyra
           </h1>
@@ -69,7 +69,7 @@ export function RootShell() {
             {engine.id === 'papyra' ? backend() : engine.id}
           </Badge>
 
-          <nav className="flex items-center gap-1">
+          <nav className="flex flex-wrap items-center gap-1">
             <NavLink to="/" exact>
               viewer
             </NavLink>
