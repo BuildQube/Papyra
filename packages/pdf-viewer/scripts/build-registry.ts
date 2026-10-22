@@ -71,18 +71,17 @@ const STYLE_DIRS: Record<string, 'base' | 'radix'> = {
  * project installing both items, and the newer item fails to compile — 0.6.0
  * shipped with exactly that split. Raise the range for every item at once.
  */
-const ranges = new Map<string, Set<string>>();
+const ranges = new Map<string, string>();
 for (const dep of registry.items.flatMap((i) => i.dependencies ?? [])) {
   const [, name, range] = dep.match(/^(@build-qube\/[^@]+)@(.+)$/) ?? [];
-  if (name && range)
-    ranges.set(name, (ranges.get(name) ?? new Set()).add(range));
-}
-for (const [name, set] of ranges) {
-  if (set.size > 1) {
+  if (!name || !range) continue;
+  const seen = ranges.get(name) ?? range;
+  if (seen !== range) {
     throw new Error(
-      `items name different ranges of ${name}: ${[...set].join(', ')}`,
+      `items name different ranges of ${name}: ${seen}, ${range}`,
     );
   }
+  ranges.set(name, range);
 }
 
 /**
