@@ -19,7 +19,9 @@ export function sniffTiff(head: Uint8Array): boolean {
  * to something a canvas holds while it decodes.
  *
  * As heavy as the PDF renderer, and for the same reason — papyra's wasm module — but
- * nothing is fetched until a TIFF is opened. Needs a cross-origin isolated page.
+ * nothing is fetched until a TIFF is opened. Needs a cross-origin isolated page —
+ * unless given another opener, as `tiffRenderer.with({ open: openTiff })` with
+ * `@build-qube/papyra-tauri`'s, which decodes in a Tauri app's host process.
  */
 export const tiffRenderer = defineRenderer({
   id: 'tiff',

@@ -1,4 +1,7 @@
-import { WorkbookView } from '@/components/file-preview-sheet';
+import {
+  type WorkbookFileViewOptions,
+  WorkbookView,
+} from '@/components/file-preview-sheet';
 import type { FileViewProps } from '@/lib/file-preview-core';
 
 /**
@@ -7,6 +10,9 @@ import type { FileViewProps } from '@/lib/file-preview-core';
  * Loaded by `csvRenderer` — import that, not this, so papyra stays out of the bundle
  * until a CSV is opened.
  */
-export function CsvFileView({ file }: FileViewProps) {
-  return <WorkbookView className="min-h-0 flex-1" file={file} />;
+export function CsvFileView({
+  file,
+  options,
+}: FileViewProps<WorkbookFileViewOptions>) {
+  return <WorkbookView className="min-h-0 flex-1" file={file} {...options} />;
 }

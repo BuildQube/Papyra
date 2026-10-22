@@ -695,7 +695,7 @@
         }
       },
       "description": "TIFF for the file preview — scanned drawings and faxes, one page or many — decoded by papyra in Rust, CCITT Group 4 included, and reduced while it decodes so a sheet of hundreds of megapixels still opens. Zoomed and rotated like an image.",
-      "dependencies": ["@build-qube/papyra@^0.4.0", "lucide-react"],
+      "dependencies": ["@build-qube/papyra@^0.6.0", "lucide-react"],
       "registryDependencies": [
         "empty",
         "spinner",
@@ -776,7 +776,7 @@
       "type": "registry:component",
       "title": "Sheet view",
       "description": "The grid the spreadsheet and CSV renderers share: opens a workbook through papyra, shows its sheets as tabs, and draws only the cells on screen — with xlsx column widths, row heights, fonts, fills, borders and alignment.",
-      "dependencies": ["@build-qube/papyra@^0.4.0", "lucide-react"],
+      "dependencies": ["@build-qube/papyra@^0.6.0", "lucide-react"],
       "registryDependencies": [
         "empty",
         "spinner",

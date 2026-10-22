@@ -1,7 +1,7 @@
 import {
   openTiff,
+  type PageBitmap,
   paintToCanvas,
-  type RenderedPage,
   TIFF_MAX_PIXELS,
   type TiffImage,
   type TiffPage,
@@ -46,9 +46,20 @@ function pointSize(page: TiffPage): Size {
   return { width: (page.width * 72) / x, height: (page.height * 72) / y };
 }
 
+/** What a preview may set for its TIFFs. */
+export interface TiffFileViewOptions {
+  /**
+   * Opens the file. papyra's own `openTiff` when unset; `openTiff` from
+   * `@build-qube/papyra-tauri` decodes in a Tauri app's host process instead, as
+   * `tiffRenderer.with({ open: openTiff })`. An opener of its own is trusted to run
+   * where it is, so the cross-origin isolation papyra's wasm needs is not checked.
+   */
+  open?: (file: File) => Promise<TiffImage<PageBitmap>>;
+}
+
 type Opened =
   | { status: 'opening' }
-  | { status: 'open'; tiff: TiffImage }
+  | { status: 'open'; tiff: TiffImage<PageBitmap> }
   | { status: 'failed'; error: unknown };
 
 /**
@@ -63,28 +74,49 @@ type Opened =
  * Loaded by `tiffRenderer` — import that, not this, so papyra stays out of the bundle
  * until a TIFF is opened.
  */
-export function TiffFileView({ file }: FileViewProps) {
+export function TiffFileView({
+  file,
+  options,
+}: FileViewProps<TiffFileViewOptions>) {
+  if (options.open) return <OpenedTiff file={file} open={options.open} />;
   return (
     <PdfIsolationGuard>
-      <OpenedTiff file={file} />
+      <OpenedTiff file={file} open={openTiff} />
     </PdfIsolationGuard>
   );
 }
 
-function OpenedTiff({ file }: Pick<FileViewProps, 'file'>) {
+function OpenedTiff({
+  file,
+  open,
+}: Pick<FileViewProps, 'file'> & Required<TiffFileViewOptions>) {
   const [opened, setOpened] = useState<Opened>({ status: 'opening' });
 
   useEffect(() => {
     let live = true;
     setOpened({ status: 'opening' });
-    openTiff(file).then(
-      (tiff) => live && setOpened({ status: 'open', tiff }),
+    open(file).then(
+      (tiff) => {
+        // Opened after the file changed or the view went away: nobody shows it.
+        if (!live) return void tiff.close().catch(() => {});
+        setOpened({ status: 'open', tiff });
+      },
       (error: unknown) => live && setOpened({ status: 'failed', error }),
     );
     return () => {
       live = false;
     };
-  }, [file]);
+  }, [file, open]);
+
+  // Closed when the file changes or the view goes away: a host holding it — a
+  // Tauri app's — would otherwise keep it until the page reloads.
+  const tiff = opened.status === 'open' ? opened.tiff : null;
+  useEffect(() => {
+    if (!tiff) return;
+    return () => {
+      tiff.close().catch(() => {});
+    };
+  }, [tiff]);
 
   switch (opened.status) {
     case 'opening':
@@ -106,10 +138,10 @@ function OpenedTiff({ file }: Pick<FileViewProps, 'file'>) {
 
 type Decoded =
   | { status: 'decoding' }
-  | { status: 'ready'; bitmap: RenderedPage }
+  | { status: 'ready'; bitmap: PageBitmap }
   | { status: 'failed'; error: unknown };
 
-function TiffPages({ tiff }: { tiff: TiffImage }) {
+function TiffPages({ tiff }: { tiff: TiffImage<PageBitmap> }) {
   const [index, setIndex] = useState(0);
   const [rotation, setRotation] = useState<Rotation>(0);
   const [decoded, setDecoded] = useState<Decoded>({ status: 'decoding' });

@@ -1,4 +1,6 @@
 import {
+  type PagedEngine,
+  type PdfSource,
   type Rotation,
   rotateSize,
   type SearchMatch,
@@ -38,26 +40,43 @@ export interface OfficeFileViewOptions {
    * open does not change that file's layout.
    */
   fonts?: readonly string[];
+  /**
+   * Lays out and draws the files. papyra's own `officeEngine` when unset;
+   * `TauriOfficeEngine` from `@build-qube/papyra-tauri` runs them in a Tauri app's
+   * host process instead, as `pptxRenderer.with({ engine })`.
+   */
+  engine?: OfficeEngine;
 }
 
-/** Each URL fetched once per page load, whichever preview asks first. */
-const registered = new Map<string, Promise<void>>();
+/** What the view needs of an office engine: pages, and fonts for their layout. */
+export type OfficeEngine = PagedEngine<OfficeDoc> & {
+  /** Register a font for documents opened after it; see papyra's `addFont`. */
+  addFont(source: PdfSource): Promise<number>;
+};
 
-function registerFonts(urls: readonly string[]): Promise<void> {
+/** Each URL fetched once per engine and page load, whichever preview asks first. */
+const registered = new WeakMap<OfficeEngine, Map<string, Promise<void>>>();
+
+function registerFonts(
+  engine: OfficeEngine,
+  urls: readonly string[],
+): Promise<void> {
+  const known = registered.get(engine) ?? new Map<string, Promise<void>>();
+  registered.set(engine, known);
   return Promise.all(
     urls.map((url) => {
-      let done = registered.get(url);
+      let done = known.get(url);
       if (!done) {
         // A font that fails to load costs fidelity, not the preview: the engines
         // fall back to what they have.
         done = fetch(url)
           .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(r.status)))
-          .then((b) => officeEngine.addFont(new Uint8Array(b)))
+          .then((b) => engine.addFont(new Uint8Array(b)))
           .then(
             () => undefined,
             (e: unknown) => console.warn(`papyra: font ${url} not loaded`, e),
           );
-        registered.set(url, done);
+        known.set(url, done);
       }
       return done;
     }),
@@ -84,9 +103,10 @@ export function OfficeFileView({
   file,
   options,
 }: FileViewProps<OfficeFileViewOptions>) {
+  const engine = options.engine ?? officeEngine;
   return (
-    <EngineGuard engine={officeEngine}>
-      <OpenedOffice file={file} fonts={options.fonts} />
+    <EngineGuard engine={engine}>
+      <OpenedOffice engine={engine} file={file} fonts={options.fonts} />
     </EngineGuard>
   );
 }
@@ -94,7 +114,11 @@ export function OfficeFileView({
 function OpenedOffice({
   file,
   fonts,
-}: Pick<FileViewProps, 'file'> & { fonts?: readonly string[] }) {
+  engine,
+}: Pick<FileViewProps, 'file'> & {
+  fonts?: readonly string[] | undefined;
+  engine: OfficeEngine;
+}) {
   const [opened, setOpened] = useState<Opened>({ status: 'opening' });
   // Joined so that a new array with the same URLs, as an inline `options` object
   // makes on every render, does not reopen the file.
@@ -103,12 +127,12 @@ function OpenedOffice({
   useEffect(() => {
     let live = true;
     setOpened({ status: 'opening' });
-    registerFonts(fontKey ? fontKey.split('\n') : [])
-      .then(() => officeEngine.open(file))
+    registerFonts(engine, fontKey ? fontKey.split('\n') : [])
+      .then(() => engine.open(file))
       .then(
         (doc) => {
           // Opened after the file changed or the view went away: nobody shows it.
-          if (!live) return void officeEngine.close(doc).catch(() => {});
+          if (!live) return void engine.close(doc).catch(() => {});
           setOpened({ status: 'open', doc });
         },
         (error: unknown) => live && setOpened({ status: 'failed', error }),
@@ -116,16 +140,16 @@ function OpenedOffice({
     return () => {
       live = false;
     };
-  }, [file, fontKey]);
+  }, [file, fontKey, engine]);
 
   // Closed when the file changes or the view goes away, so its pages leave the cache.
   const doc = opened.status === 'open' ? opened.doc : null;
   useEffect(() => {
     if (!doc) return;
     return () => {
-      officeEngine.close(doc).catch(() => {});
+      engine.close(doc).catch(() => {});
     };
-  }, [doc]);
+  }, [doc, engine]);
 
   switch (opened.status) {
     case 'opening':
@@ -143,7 +167,7 @@ function OpenedOffice({
       // column sizes itself from the first page.
       if (opened.doc.pageCount === 0) return <NoPages kind={opened.doc.kind} />;
       return (
-        <PageEngineScope engine={officeEngine}>
+        <PageEngineScope engine={engine}>
           <OfficePages doc={opened.doc} />
         </PageEngineScope>
       );

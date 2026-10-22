@@ -75,8 +75,20 @@ const OVERSCAN = 4;
  */
 const MAX_EXTENT = 8_000_000;
 
+/** What a preview may set for its spreadsheets and delimited text. */
+export interface WorkbookFileViewOptions {
+  /**
+   * Opens the file. papyra's own `openWorkbook` when unset; `openWorkbook` from
+   * `@build-qube/papyra-tauri` parses in a Tauri app's host process instead, as
+   * `spreadsheetRenderer.with({ open: openWorkbook })`. An opener of its own is
+   * trusted to run where it is, so the cross-origin isolation papyra's wasm needs
+   * is not checked.
+   */
+  open?: (file: File, options?: WorkbookOptions) => Promise<Workbook>;
+}
+
 /** Props for {@link WorkbookView}. */
-export interface WorkbookViewProps {
+export interface WorkbookViewProps extends WorkbookFileViewOptions {
   /** The spreadsheet or delimited text file. */
   file: File;
   /** Passed to papyra's `openWorkbook` — a delimiter or an encoding to force. */
@@ -100,21 +112,31 @@ type State =
  * a date reads `2024-03-15`.
  */
 export function WorkbookView(props: WorkbookViewProps) {
+  if (props.open) return <OpenedWorkbook {...props} open={props.open} />;
   return (
     <PdfIsolationGuard>
-      <OpenedWorkbook {...props} />
+      <OpenedWorkbook {...props} open={openWorkbook} />
     </PdfIsolationGuard>
   );
 }
 
-function OpenedWorkbook({ file, options, className }: WorkbookViewProps) {
+function OpenedWorkbook({
+  file,
+  options,
+  className,
+  open,
+}: WorkbookViewProps & Required<WorkbookFileViewOptions>) {
   const [state, setState] = useState<State>({ status: 'opening' });
 
   useEffect(() => {
     let live = true;
     setState({ status: 'opening' });
-    openWorkbook(file, options).then(
-      (book) => live && setState({ status: 'open', book }),
+    open(file, options).then(
+      (book) => {
+        // Opened after the file changed or the view went away: nobody shows it.
+        if (!live) return void book.close().catch(() => {});
+        setState({ status: 'open', book });
+      },
       (error: unknown) => {
         if (!live) return;
         setState(
@@ -127,7 +149,17 @@ function OpenedWorkbook({ file, options, className }: WorkbookViewProps) {
     return () => {
       live = false;
     };
-  }, [file, options]);
+  }, [file, options, open]);
+
+  // Closed when the file changes or the view goes away: a host holding it — a
+  // Tauri app's — would otherwise keep it until the page reloads.
+  const book = state.status === 'open' ? state.book : null;
+  useEffect(() => {
+    if (!book) return;
+    return () => {
+      book.close().catch(() => {});
+    };
+  }, [book]);
 
   switch (state.status) {
     case 'opening':

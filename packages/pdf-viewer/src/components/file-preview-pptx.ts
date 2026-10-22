@@ -12,7 +12,9 @@ import { defineRenderer } from '@/lib/file-preview-core';
  * Takes `fonts`, as `pptxRenderer.with({ fonts: [...] })` — without them a browser
  * has nothing like Calibri, and slide text comes out in Ubuntu Light. Needs a
  * cross-origin isolated page, and fetches its own wasm module (separate from the PDF
- * one) the first time a deck is opened.
+ * one) the first time a deck is opened — unless given another engine, as
+ * `pptxRenderer.with({ engine })` with `@build-qube/papyra-tauri`'s
+ * `TauriOfficeEngine`, which draws in a Tauri app's host process.
  */
 export const pptxRenderer = defineRenderer({
   id: 'pptx',

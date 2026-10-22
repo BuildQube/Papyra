@@ -12,7 +12,8 @@ import { defineRenderer } from '@/lib/file-preview-core';
  *
  * Shares papyra with the PDF and spreadsheet renderers, so it is heavy for a text
  * format — the price of the encoding detection, and of a grid that stays fast on a
- * million rows. Needs a cross-origin isolated page.
+ * million rows. Needs a cross-origin isolated page — unless given another opener, as
+ * `csvRenderer.with({ open: openWorkbook })` with `@build-qube/papyra-tauri`'s.
  */
 export const csvRenderer = defineRenderer({
   id: 'csv',
