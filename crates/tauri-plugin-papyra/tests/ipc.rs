@@ -307,67 +307,55 @@ fn workbook_options_travel_in_a_header_and_encryption_is_tagged() {
 
 #[cfg(feature = "tables")]
 #[test]
-fn a_sparse_sheet_is_cut_to_what_maxcells_holds_dense() {
+fn a_sparse_sheet_ships_what_it_stores_not_its_bounding_box() {
   let (_app, webview) = app();
-  // Values in A1 and XFD1048576: two cells, seventeen billion in a dense window.
-  let opened = json(
-    call(
-      &webview,
-      "open_workbook",
-      InvokeBody::Raw(fixture("papyra-tables/tests/fixtures/extent.xlsx")),
-      &[("x-papyra-options", "%7B%22maxCells%22%3A100000%7D")],
-    )
-    .unwrap(),
-  );
-  let id = opened["id"].as_u64().unwrap();
-  // However high the app sets the cap, a dense window stays within the default.
-  let generous = json(
-    call(
-      &webview,
-      "open_workbook",
-      InvokeBody::Raw(fixture("papyra-tables/tests/fixtures/extent.xlsx")),
-      &[("x-papyra-options", "%7B%22maxCells%22%3A10000000000%7D")],
-    )
-    .unwrap(),
-  );
-  let refused = call(
-    &webview,
-    "window",
-    InvokeBody::Json(serde_json::json!({
-      "id": generous["id"], "sheet": 0, "rowStart": 0, "rowEnd": 1_048_576, "colStart": 0, "colEnd": 16_384,
-    })),
-    &[],
-  )
-  .unwrap_err();
-  assert!(refused.as_str().unwrap().contains("cell cap"));
-  let sheet = json(
-    call(
-      &webview,
-      "sheet",
-      InvokeBody::Json(serde_json::json!({ "id": id, "index": 0 })),
-      &[],
-    )
-    .unwrap(),
-  );
-  let (rows, cols) = (
-    sheet["rows"].as_u64().unwrap(),
-    sheet["cols"].as_u64().unwrap(),
-  );
-  assert_eq!(cols, 16384);
-  assert!(rows * cols <= 100_000 && rows > 0);
-  assert_eq!(sheet["truncated"], true);
+  // Ten kilobytes, values in A1 and XFD1048576: two cells stored, seventeen billion
+  // dense. Opened at the default cap, and at one an app set far too high.
+  for options in ["%7B%7D", "%7B%22maxCells%22%3A10000000000%7D"] {
+    let opened = json(
+      call(
+        &webview,
+        "open_workbook",
+        InvokeBody::Raw(fixture("papyra-tables/tests/fixtures/extent.xlsx")),
+        &[("x-papyra-options", options)],
+      )
+      .unwrap(),
+    );
+    let id = &opened["id"];
+    let sheet = json(
+      call(
+        &webview,
+        "sheet",
+        InvokeBody::Json(serde_json::json!({ "id": id, "index": 0 })),
+        &[],
+      )
+      .unwrap(),
+    );
+    let (rows, cols) = (
+      sheet["rows"].as_u64().unwrap(),
+      sheet["cols"].as_u64().unwrap(),
+    );
+    assert_eq!(cols, 16384);
+    assert!(rows > 0, "{options}");
+    assert_eq!(sheet["truncated"], true, "{options}");
 
-  let window = |rows: u64| {
-    call(
-      &webview,
-      "window",
-      InvokeBody::Json(serde_json::json!({
-        "id": id, "sheet": 0, "rowStart": 0, "rowEnd": rows, "colStart": 0, "colEnd": cols,
-      })),
-      &[],
-    )
-  };
-  assert!(window(rows).is_ok());
-  let refused = window(1_048_576).unwrap_err();
-  assert!(refused.as_str().unwrap().contains("cell cap"));
+    let window = |rows: u64| {
+      call(
+        &webview,
+        "window",
+        InvokeBody::Json(serde_json::json!({
+          "id": id, "sheet": 0, "rowStart": 0, "rowEnd": rows, "colStart": 0, "colEnd": cols,
+        })),
+        &[],
+      )
+    };
+    // What the WebView fetches: the rows `sheet` reported, a megabyte or two.
+    let InvokeResponseBody::Raw(packed) = window(rows).unwrap() else {
+      panic!("a window is a binary response");
+    };
+    assert!(packed.len() < 2 << 20, "{options}: {} bytes", packed.len());
+    // And anything wider is refused, whoever asks.
+    let refused = window(1_048_576).unwrap_err();
+    assert!(refused.as_str().unwrap().contains("cell cap"), "{options}");
+  }
 }

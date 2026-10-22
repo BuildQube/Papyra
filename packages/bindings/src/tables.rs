@@ -335,9 +335,19 @@ impl Sheet {
   /// caller asks for — a screenful is a few thousand cells and well under a
   /// millisecond. Ask for a screenful.
   #[napi]
-  pub fn window(&self, row_start: u32, row_end: u32, col_start: u32, col_end: u32) -> CellWindow {
-    let w = self.inner.window(row_start, row_end, col_start, col_end);
-    CellWindow {
+  pub fn window(
+    &self,
+    row_start: u32,
+    row_end: u32,
+    col_start: u32,
+    col_end: u32,
+  ) -> Result<CellWindow> {
+    // A screenful never nears it; the cap is what keeps text offsets within u32.
+    let w = self
+      .inner
+      .window(row_start, row_end, col_start, col_end, u32::MAX as usize)
+      .map_err(map_err)?;
+    Ok(CellWindow {
       row_start: w.row_start,
       col_start: w.col_start,
       rows: w.rows,
@@ -348,6 +358,6 @@ impl Sheet {
       offsets: Uint32Array::new(w.offsets),
       styles: Uint16Array::new(w.styles),
       colors: Uint32Array::new(w.colors),
-    }
+    })
   }
 }

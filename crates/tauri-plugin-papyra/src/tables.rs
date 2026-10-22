@@ -43,6 +43,28 @@ pub struct WorkbookOpened {
   pub delimiter: Option<String>,
 }
 
+/// The most cells one window may hold, about 19 MB in each of host and WebView. A
+/// window is dense, so this is what the host allocates however high an app sets
+/// `maxCells` for the sparse sheet — and what a phone keeps while a sheet is shown.
+const DENSE_CELLS: usize = 1 << 20;
+
+/// Every sheet may be fetched this densely, whatever it stores: a few screenfuls.
+const DENSE_FLOOR: usize = 1 << 16;
+
+/// How much denser than its stored cells a sheet may be fetched. A sheet's extent is
+/// its bounding box, which the file's author sets: ten kilobytes with values in A1 and
+/// XFD1048576 is seventeen billion cells dense.
+const DENSE_RATIO: usize = 16;
+
+/// The most text one window may carry. Many cells naming one huge shared string
+/// otherwise grow it without bound.
+const MAX_TEXT: usize = 64 << 20;
+
+/// The dense cells one sheet of this workbook may be fetched as.
+fn dense_cap(s: &papyra_tables::Sheet, max_cells: usize) -> usize {
+  max_cells.min((s.stored_cells() * DENSE_RATIO).max(DENSE_FLOOR))
+}
+
 fn workbook(docs: &Documents, id: u32) -> Result<(Arc<papyra_tables::Workbook>, usize)> {
   match docs.get(id)? {
     Doc::Workbook(book, max_cells) => Ok((book, max_cells)),
@@ -70,9 +92,7 @@ pub(crate) async fn open_workbook<R: Runtime>(
     o.max_cells,
   )
   .map_err(Error::Options)?;
-  // A window is dense, so its cap is also what the host can allocate: never past
-  // the default, however high the app sets `maxCells` for the sparse sheet.
-  let max_cells = options.max_cells.min(papyra_tables::DEFAULT_MAX_CELLS);
+  let max_cells = options.max_cells.min(DENSE_CELLS);
   let book = blocking(move || Ok(papyra_tables::Workbook::load(bytes, &options)?)).await?;
   let book = Arc::new(book);
   Ok(WorkbookOpened {
@@ -154,10 +174,9 @@ fn edge(e: Option<papyra_tables::Edge>) -> Option<BorderEdge> {
 /// Read one sheet, and describe it: everything but its cells, which [`window`]
 /// reads. Parsed once; later calls for the same sheet are free.
 ///
-/// `rows` stops where the sheet's first rows fill `maxCells` as a dense window, and
-/// says `truncated` when that cut it: the cells are held sparse, but the WebView
-/// fetches the sheet whole as one dense window, and a sheet's extent is its bounding
-/// box — one value at XFD1048576 makes that seventeen billion cells.
+/// `rows` stops where the sheet's first rows fill [`dense_cap`], and says `truncated`
+/// when that cut it: the cells are held sparse, but the WebView fetches the sheet
+/// whole as one dense window.
 #[tauri::command]
 pub(crate) async fn sheet(id: u32, index: usize, docs: State<'_, Documents>) -> Result<Sheet> {
   let (book, max_cells) = workbook(&docs, id)?;
@@ -167,7 +186,7 @@ pub(crate) async fn sheet(id: u32, index: usize, docs: State<'_, Documents>) -> 
       0 => s.rows,
       cols => s
         .rows
-        .min(u32::try_from(max_cells / cols as usize).unwrap_or(u32::MAX)),
+        .min(u32::try_from(dense_cap(&s, max_cells) / cols as usize).unwrap_or(u32::MAX)),
     };
     Ok(Sheet {
       name: s.name.clone(),
@@ -224,8 +243,8 @@ pub(crate) async fn sheet(id: u32, index: usize, docs: State<'_, Documents>) -> 
 }
 
 /// `[rowStart, rowEnd) x [colStart, colEnd)` of one sheet, clamped to it, packed by
-/// [`pack`]. Refused past the workbook's `maxCells`: any page in the WebView can ask,
-/// and a window is dense.
+/// [`pack`]. Refused past [`dense_cap`] cells or [`MAX_TEXT`] bytes of text: a
+/// window is dense, and the file's author sets its extent.
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn window(
@@ -242,11 +261,12 @@ pub(crate) async fn window(
     let s = book.sheet(sheet)?;
     let span = |start: u32, end: u32, len: u32| u64::from(end.min(len).saturating_sub(start));
     let area = span(row_start, row_end, s.rows) * span(col_start, col_end, s.cols);
-    if area > max_cells as u64 {
-      return Err(Error::WindowTooLarge(area, max_cells));
+    let cap = dense_cap(&s, max_cells);
+    if area > cap as u64 {
+      return Err(Error::WindowTooLarge(area, cap));
     }
     Ok(Bytes::new(pack(
-      &s.window(row_start, row_end, col_start, col_end),
+      &s.window(row_start, row_end, col_start, col_end, MAX_TEXT)?,
     )))
   })
   .await

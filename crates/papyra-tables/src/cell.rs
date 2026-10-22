@@ -200,8 +200,12 @@ impl Window {
     col_start: u32,
     rows: u32,
     cols: u32,
+    max_text: usize,
     mut entry: impl FnMut(u32, u32) -> Entry<'a>,
-  ) -> Self {
+  ) -> crate::Result<Self> {
+    // UTF-16 offsets never exceed UTF-8 bytes, so a limit within u32 keeps every
+    // offset in range: past it the `as u32` below would wrap silently.
+    let max_text = max_text.min(u32::MAX as usize);
     let n = rows as usize * cols as usize;
     let mut w = Self {
       row_start,
@@ -220,6 +224,11 @@ impl Window {
     for r in row_start..row_start + rows {
       for c in col_start..col_start + cols {
         let e = entry(r, c);
+        if w.text.len() + e.text.len() > max_text {
+          return Err(crate::TableError::TooLarge(format!(
+            "a window whose text passes {max_text} bytes"
+          )));
+        }
         w.kinds.push(e.cell.kind() as u8);
         w.numbers.push(e.cell.number());
         at += e.text.encode_utf16().count() as u32;
@@ -229,7 +238,7 @@ impl Window {
         w.colors.push(e.color.map_or(0, |c| 0x0100_0000 | c));
       }
     }
-    w
+    Ok(w)
   }
 }
 
@@ -267,12 +276,13 @@ mod tests {
       Cell::Text("é".into()),
       Cell::Bool(true),
     ];
-    let w = Window::encode(0, 0, 1, 3, |_, c| Entry {
+    let w = Window::encode(0, 0, 1, 3, usize::MAX, |_, c| Entry {
       cell: &cells[c as usize],
       text: cells[c as usize].text(),
       style: 0,
       color: (c == 2).then_some(0),
-    });
+    })
+    .unwrap();
     // An emoji is one char, four UTF-8 bytes and two UTF-16 units.
     assert_eq!(w.offsets, vec![0, 2, 3, 7]);
     assert_eq!(w.kinds, vec![2, 2, 3]);

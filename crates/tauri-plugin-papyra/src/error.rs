@@ -36,7 +36,7 @@ pub enum Error {
   #[error("papyra: bad workbook options: {0}")]
   Options(String),
   #[cfg(feature = "tables")]
-  #[error("papyra: a window of {0} cells is over this workbook's {1}-cell cap")]
+  #[error("papyra: a window of {0} cells is over this sheet's {1}-cell cap")]
   WindowTooLarge(u64, usize),
   /// The host failed around the work: a poisoned lock, a blocking task that died.
   #[error("papyra: {0}")]
