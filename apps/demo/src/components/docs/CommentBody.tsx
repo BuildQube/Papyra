@@ -123,10 +123,10 @@ function toBlocks(parts: readonly CommentPart[]): Block[] {
   // in a cell splits it — so it stays open across parts until the next newline.
   let row: Inline[][] | null = null;
 
-  const rowText = (text: string): void => {
+  const rowText = (cells: Inline[][], text: string): void => {
     for (const [i, cell] of text.split('|').entries()) {
-      if (i > 0) row?.push([]);
-      if (cell) row?.at(-1)?.push(...inlineText(cell, false)[0]);
+      if (i > 0) cells.push([]);
+      if (cell) cells.at(-1)?.push(...inlineText(cell, false)[0]);
     }
   };
 
@@ -162,16 +162,8 @@ function toBlocks(parts: readonly CommentPart[]): Block[] {
   };
 
   for (const part of parts) {
-    if (row && part.kind !== 'text') {
-      row
-        .at(-1)
-        ?.push(
-          part.kind === 'code'
-            ? { t: 'code', v: part.text.replace(/^`|`$/g, '') }
-            : { t: 'link', v: part.text, target: part.target },
-        );
-      continue;
-    }
+    // Inside a table row, a span belongs to the cell being read.
+    const sink = row?.at(-1) ?? inline;
 
     if (part.kind === 'code') {
       if (part.text.startsWith('```')) {
@@ -185,13 +177,13 @@ function toBlocks(parts: readonly CommentPart[]): Block[] {
           code: (nl < 0 ? body : body.slice(nl + 1)).replace(/\n+$/, ''),
         });
       } else {
-        inline.push({ t: 'code', v: part.text.replace(/^`|`$/g, ''), strong });
+        sink.push({ t: 'code', v: part.text.replace(/^`|`$/g, ''), strong });
       }
       continue;
     }
 
     if (part.kind === 'inline-tag') {
-      inline.push({ t: 'link', v: part.text, target: part.target, strong });
+      sink.push({ t: 'link', v: part.text, target: part.target, strong });
       continue;
     }
 
@@ -202,7 +194,7 @@ function toBlocks(parts: readonly CommentPart[]): Block[] {
     let rest = part.text;
     if (row) {
       const nl = rest.indexOf('\n');
-      rowText(nl < 0 ? rest : rest.slice(0, nl));
+      rowText(row, nl < 0 ? rest : rest.slice(0, nl));
       if (nl < 0) continue;
       endRow();
       rest = rest.slice(nl);
@@ -229,7 +221,7 @@ function toBlocks(parts: readonly CommentPart[]): Block[] {
           flush();
           inList = false;
           row = [[]];
-          rowText(line);
+          rowText(row, line);
           // The part's last line may continue into the next part.
           if (i < lines.length - 1) endRow();
           continue;
@@ -407,31 +399,22 @@ export function CommentBody({
         </pre>,
       );
     } else if (block.kind === 'table') {
+      const row = (cells: Inline[][], Cell: typeof TableCell) => (
+        <TableRow key={cells.map(inlineKey).join('|')}>
+          {cells.map((cell, c) => (
+            // Columns are positional; two cells of a row can say the same.
+            // biome-ignore lint/suspicious/noArrayIndexKey: see above
+            <Cell className="whitespace-normal" key={c}>
+              <Inlines hrefFor={hrefFor} inline={cell} />
+            </Cell>
+          ))}
+        </TableRow>
+      );
       const [head = [], ...body] = block.rows;
       rendered.push(
         <Table className="my-3 text-xs" key={`table-${i}`}>
-          <TableHeader>
-            <TableRow>
-              {head.map((cell) => (
-                <TableHead key={inlineKey(cell)}>
-                  <Inlines hrefFor={hrefFor} inline={cell} />
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {body.map((cells) => (
-              <TableRow key={cells.map(inlineKey).join('|')}>
-                {cells.map((cell, c) => (
-                  // Columns are positional; two cells of a row can say the same.
-                  // biome-ignore lint/suspicious/noArrayIndexKey: see above
-                  <TableCell className="whitespace-normal" key={c}>
-                    <Inlines hrefFor={hrefFor} inline={cell} />
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
+          <TableHeader>{row(head, TableHead)}</TableHeader>
+          <TableBody>{body.map((cells) => row(cells, TableCell))}</TableBody>
         </Table>,
       );
     } else if (block.kind === 'h') {

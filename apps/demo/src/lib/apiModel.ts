@@ -244,8 +244,21 @@ export function sourceUrl(source: Source): string {
   return `${GITHUB_BLOB}${source.fileName}#L${source.line}`;
 }
 
-/** Fetch and index the generated model. */
-export async function loadApi(): Promise<ApiIndex> {
+let loaded: Promise<ApiIndex> | undefined;
+
+/**
+ * Fetch and index the generated model, once: the reference and every guide share it,
+ * so nothing about which route remounts can cost a second 144 KB fetch.
+ */
+export function loadApi(): Promise<ApiIndex> {
+  loaded ??= fetchApi().catch((e: unknown) => {
+    loaded = undefined;
+    throw e;
+  });
+  return loaded;
+}
+
+async function fetchApi(): Promise<ApiIndex> {
   const url = `${import.meta.env.BASE_URL}papyra-api.json`;
   const res = await fetch(url);
   if (!res.ok) {

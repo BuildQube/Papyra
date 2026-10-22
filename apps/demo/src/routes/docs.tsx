@@ -170,9 +170,15 @@ export function DocsRoute() {
               <ul>
                 {group.members.map((node) => (
                   <li key={node.id}>
-                    <a className={NAV_LINK} href={refHref(node.name, slug)}>
+                    <Link
+                      // Every member is on /docs; only the hash tells them apart.
+                      activeOptions={{ includeHash: true }}
+                      className={NAV_LINK}
+                      hash={node.name}
+                      to="/docs"
+                    >
                       {node.name}
-                    </a>
+                    </Link>
                   </li>
                 ))}
               </ul>
