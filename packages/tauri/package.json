@@ -1,6 +1,6 @@
 {
   "name": "@build-qube/papyra-tauri",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "A Tauri engine for papyra's viewer: PDFs parsed and rendered in the app's host process by tauri-plugin-papyra",
   "license": "MIT",
   "repository": {
@@ -42,7 +42,7 @@
     "@tauri-apps/api": "^2.0.0"
   },
   "devDependencies": {
-    "@build-qube/papyra": "0.5.0",
+    "@build-qube/papyra": "0.6.0",
     "@tauri-apps/api": "^2.9.0",
     "typescript": "^7.0.2"
   }

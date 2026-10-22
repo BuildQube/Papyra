@@ -1,5 +1,12 @@
 # @build-qube/papyra-pdfjs
 
+## 0.6.0
+
+### Patch Changes
+
+- Updated dependencies [4129b03]
+  - @build-qube/papyra@0.6.0
+
 ## 0.5.0
 
 ### Minor Changes
