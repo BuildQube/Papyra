@@ -1,15 +1,18 @@
 import { describe, expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { GENERATED } from '../../../../scripts/demo-fixtures.js';
 import {
   Document,
   defaultPdfEngine,
   IncorrectPasswordError,
   lineQuad,
+  type OpenOptions,
   open,
   PasswordError,
   PasswordRequiredError,
   quadBounds,
+  type StructNode,
   viewport,
   viewportQuad,
   viewportRect,
@@ -549,5 +552,102 @@ describeWithCorpus('papyra as an engine', () => {
     defaultPdfEngine.close(doc);
     expect(() => doc.render(0)).toThrow('closed');
     expect(() => doc.close()).toThrow('closed');
+  });
+});
+
+/** A fixture from `scripts/demo-fixtures.ts`, opened. */
+const generated = (name: string, options?: OpenOptions) =>
+  open((GENERATED[name] as () => Uint8Array)(), options);
+
+describe('the Document facade, through the public API', () => {
+  test('names its engine and claims every capability', async () => {
+    const doc = await generated('hybrid-invoice.pdf');
+    expect(doc.engine).toBe('papyra');
+    expect(Object.values(doc.capabilities).every(Boolean)).toBe(true);
+  });
+
+  test('reports the concurrency it was opened with', async () => {
+    const doc = await generated('rotated.pdf', { concurrency: 3 });
+    expect(doc.concurrency).toBe(3);
+  });
+
+  test('queued counts pending and running work, and drains', async () => {
+    const doc = await generated('labelled.pdf', { concurrency: 1 });
+    const handles = [0, 1, 2].map((i) => doc.render(i, { dpi: 36 }));
+    expect(doc.queued).toMatchObject({ running: 1, pending: 2 });
+    expect(doc.queued.oldestWaitMs).toBeGreaterThanOrEqual(0);
+    await Promise.all(handles.map((h) => h.promise));
+    expect(doc.queued).toMatchObject({ running: 0, pending: 0 });
+  });
+
+  test('the cache serves a repeat, and clearCache makes it render again', async () => {
+    const doc = await generated('rotated.pdf');
+    await doc.render(0, { dpi: 36 }).promise;
+    expect(doc.render(0, { dpi: 36 }).cached).toBe(true);
+    expect(doc.cache).toMatchObject({ entries: 1, hits: 1 });
+
+    doc.clearCache();
+    expect(doc.cache.entries).toBe(0);
+    expect(doc.render(0, { dpi: 36 }).cached).toBe(false);
+  });
+
+  test('textCache counts a repeated extraction as a hit', async () => {
+    const doc = await generated('rotated.pdf');
+    await doc.pageText(0);
+    await doc.pageText(0);
+    expect(doc.textCache).toMatchObject({ entries: 1, hits: 1, misses: 1 });
+  });
+
+  test('close releases the document, and every call after it throws', async () => {
+    const doc = await generated('rotated.pdf');
+    await doc.render(0, { dpi: 36 }).promise;
+    await doc.close();
+    expect(() => doc.render(0)).toThrow(/closed/);
+  });
+
+  test('stream yields every page asked for, at the size asked', async () => {
+    const doc = await generated('labelled.pdf');
+    const seen: [number, number][] = [];
+    for await (const { page, bitmap } of doc.stream({
+      order: [2, 0],
+      dpi: 36,
+    })) {
+      seen.push([page, bitmap.width]);
+    }
+    expect(seen.sort()).toEqual([
+      [0, 306],
+      [2, 306],
+    ]);
+  });
+
+  test('reads the structure tree through the /RoleMap, memoised', async () => {
+    const doc = await generated('tagged-columns.pdf');
+    const tree = await doc.structTree();
+    const flat = (nodes: StructNode[]): StructNode[] =>
+      nodes.flatMap((n) => [n, ...flat(n.children)]);
+    const columns = flat(tree).filter((n) => n.rawRole === 'Column');
+    expect(columns.map((n) => [n.role, n.title])).toEqual([
+      ['Sect', 'Left column'],
+      ['Sect', 'Right column'],
+    ]);
+    expect(await doc.structTree()).toBe(tree);
+  });
+
+  test('an untagged document has an empty structure tree', async () => {
+    expect(await (await generated('rotated.pdf')).structTree()).toEqual([]);
+  });
+
+  test('lists attachments, and fetches one by index', async () => {
+    const doc = await generated('hybrid-invoice.pdf');
+    const files = await doc.attachments();
+    expect(files.map((f) => [f.index, f.name, f.mediaType])).toEqual([
+      [0, 'factur-x.xml', 'text/xml'],
+      [1, 'notes.txt', 'text/plain'],
+    ]);
+    expect(await doc.attachments()).toBe(files);
+
+    const notes = new TextDecoder().decode(await doc.attachmentData(1));
+    expect(notes).toStartWith('Payment terms: 30 days net.');
+    expect(doc.attachmentData(2)).rejects.toThrow();
   });
 });
