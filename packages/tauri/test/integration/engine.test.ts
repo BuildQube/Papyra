@@ -341,6 +341,20 @@ describe('openTiff', () => {
       args: { id: 3 },
     });
   });
+
+  test('refuses sizes the host could not read, before asking it', async () => {
+    answers['plugin:papyra|open_tiff'] = () => ({ id: 3, pages: [PAGE] });
+    const tiff = await openTiff(new Uint8Array(), { format: 'rgba' });
+    await fetching(async (urls) => {
+      expect(tiff.renderPage(0, { maxWidth: 1e21 })).rejects.toThrow(
+        RangeError,
+      );
+      expect(tiff.renderPage(0, { maxPixels: 0.5 })).rejects.toThrow(
+        RangeError,
+      );
+      expect(urls).toEqual([]);
+    });
+  });
 });
 
 /**
@@ -420,6 +434,14 @@ describe('openWorkbook', () => {
       },
     });
     answers['plugin:papyra|window'] = () => pack(ROWS);
+  });
+
+  test('reads a window that arrives as a number array, as postMessage IPC sends it', async () => {
+    answers['plugin:papyra|window'] = () => [...new Uint8Array(pack(ROWS))];
+    const sheet = await (await openWorkbook(new Uint8Array())).sheet(0);
+    const w = sheet.window({ rowStart: 0, rowEnd: 3 });
+    expect(w.text(0, 2)).toBe('Ünit');
+    expect(w.number(2, 2)).toBe(8);
   });
 
   test('sends the options in a header, and reads names from the file', async () => {

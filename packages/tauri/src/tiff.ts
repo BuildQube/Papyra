@@ -15,6 +15,9 @@ import {
   type TauriPageFormat,
 } from './host.js';
 
+/** The widest page the protocol's `maxWidth` can name. */
+const MAX_U32 = 0xffff_ffff;
+
 /** The plugin's answer to `open_tiff`. */
 interface Opened {
   id: number;
@@ -44,6 +47,20 @@ export async function openTiff(
   return new TiffImage({
     pages: opened.pages,
     renderPage(index, { maxPixels, maxWidth } = {}) {
+      // The host reads both as integers, so refuse here what it would answer with
+      // a bare 400: `1e+21` is not one, and a cap below one pixel is no page.
+      if (maxWidth !== undefined && !(maxWidth >= 1 && maxWidth <= MAX_U32)) {
+        return Promise.reject(
+          new RangeError(
+            `papyra: maxWidth ${maxWidth} is not a width in pixels`,
+          ),
+        );
+      }
+      if (maxPixels !== undefined && !(maxPixels >= 1)) {
+        return Promise.reject(
+          new RangeError(`papyra: maxPixels ${maxPixels} is under one pixel`),
+        );
+      }
       const query = new URLSearchParams();
       if (maxWidth !== undefined) query.set('maxWidth', String(maxWidth));
       if (maxPixels !== undefined) {

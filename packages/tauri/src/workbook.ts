@@ -32,7 +32,11 @@ interface SheetMeta extends Omit<SheetSource, 'window' | 'merges' | 'layout'> {
  * A window as `pack` in the plugin's `tables.rs` lays it out: four u32s, then each
  * array aligned for a view straight over the buffer, then the text as UTF-8.
  */
-function unpack(buffer: ArrayBuffer): NativeWindow {
+function unpack(raw: ArrayBuffer | number[]): NativeWindow {
+  // An ArrayBuffer from the binary IPC; a number[] if Tauri fell back to
+  // postMessage. A view over the first copies nothing, and starts at offset 0 — the
+  // typed views below are aligned to that.
+  const { buffer } = new Uint8Array(raw);
   const [rowStart = 0, colStart = 0, rows = 0, cols = 0] = new Uint32Array(
     buffer,
     0,
@@ -129,8 +133,10 @@ function slice(
  * cells synchronously, a window per frame, and IPC is not synchronous — so each
  * sheet's cells come over **whole**, in one binary call when the sheet is first
  * read, and windows are cut from that copy. That is about 19 bytes a cell plus its
- * text, held in the host and here: a million cells is ~25 MB, and the default
- * 8-million-cell cap ~150 MB or more. On a phone, pass a lower `maxCells`.
+ * text, held in the host and here, over the sheet's whole rectangle — so the host
+ * cuts a sheet to its first rows, marked `truncated`, past a million cells (~19 MB)
+ * or past sixteen times the cells it really holds. A lower `maxCells` lowers the
+ * first.
  *
  * The workbook stays in the host until `close()`.
  */
@@ -155,7 +161,7 @@ export function openWorkbook(
         async sheet(index) {
           const meta = await invoke<SheetMeta>(command('sheet'), { id, index });
           const all = unpack(
-            await invoke<ArrayBuffer>(command('window'), {
+            await invoke<ArrayBuffer | number[]>(command('window'), {
               id,
               sheet: index,
               rowStart: 0,
