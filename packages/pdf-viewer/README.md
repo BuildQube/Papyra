@@ -207,14 +207,16 @@ a base derived from `PAPYRA_BASE` would let a local build emit items pointing at
 host that does not serve them — a failure only the person installing them would ever
 see.
 
-**The items declare `@build-qube/papyra@^0.5.0`, and keep it current.** They call
-APIs older releases lack — `@build-qube/papyra/core`, which most of them import,
-arrived in 0.5.0 — so the range is the oldest release that has everything they use.
-An item that needs something newer should raise it in the same change, ahead of the
-release if need be: an install then stops at `npm error notarget`, which is the
-honest failure. An unversioned dependency would install whatever is published and
-fail later, inside the consumer's build, with a type error about a property that
-does not exist.
+**Every item declares the same `@build-qube/papyra@^0.6.0`, and keeps it current.**
+They call APIs older releases lack — 0.6.0's `Workbook.close()` and generic
+`TiffImage` among them — so the range is the oldest minor that has everything *any*
+item uses, and a raise moves every item at once, ahead of the release if need be: an
+install then stops at `npm error notarget`, which is the honest failure. One range,
+not one per item, because on 0.x a caret stops at the next minor: an item on
+`^0.5.0` installed beside one on `^0.6.0` resolves papyra to 0.5.0, and the newer
+item fails to compile. `scripts/build-registry.ts` refuses a split. An unversioned
+dependency would install whatever is published and fail later, inside the
+consumer's build, with a type error about a property that does not exist.
 
 ## Adding a shadcn primitive
 
