@@ -2433,14 +2433,14 @@ dependencies = [
 
 [[package]]
 name = "papyra-core"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "thiserror 2.0.21",
 ]
 
 [[package]]
 name = "papyra-encode"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "base64 0.22.1",
  "image",
@@ -2449,7 +2449,7 @@ dependencies = [
 
 [[package]]
 name = "papyra-hayro"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "hayro",
  "hayro-interpret",
@@ -3617,7 +3617,7 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-papyra"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "glob",
  "papyra-core",
