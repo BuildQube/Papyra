@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { GENERATED } from '../../../../scripts/demo-fixtures.js';
+import { stateOf } from '../../src/engine.js';
 import {
   backend,
   Document,
@@ -605,6 +606,40 @@ describe('the Document facade, through the public API', () => {
     await doc.render(0, { dpi: 36 }).promise;
     await doc.close();
     expect(() => doc.render(0)).toThrow(/closed/);
+  });
+
+  test('indexText after close rejects, and caches nothing', async () => {
+    const doc = await generated('labelled.pdf');
+    const { text } = stateOf(null, doc);
+    await doc.close();
+    await expect(doc.indexText()).rejects.toThrow(/closed/);
+    expect(text.stats.entries).toBe(0);
+  });
+
+  test('a close during indexText drops what it extracted', async () => {
+    const doc = await generated('labelled.pdf');
+    const { text } = stateOf(null, doc);
+    const indexing = doc.indexText();
+    await doc.close();
+    await expect(indexing).rejects.toThrow(/closed/);
+    expect(text.stats.entries).toBe(0);
+  });
+
+  test.each([
+    ['imageHandle', (doc: Document) => doc.imageHandle(0)],
+    ['svgHandle', (doc: Document) => doc.svgHandle(0)],
+    ['renderPages', (doc: Document) => doc.renderPages(0, 1)],
+    ['pageSize', (doc: Document) => doc.pageSize(0)],
+    ['cache', (doc: Document) => doc.cache],
+    ['clearCache', (doc: Document) => doc.clearCache()],
+    ['textCache', (doc: Document) => doc.textCache],
+    ['queued', (doc: Document) => doc.queued],
+    ['concurrency', (doc: Document) => doc.concurrency],
+  ])('%s throws after close', async (_, call) => {
+    const doc = await generated('labelled.pdf');
+    await doc.close();
+    // `renderPages` rejects where the rest throw; one async wrapper catches both.
+    await expect((async () => call(doc))()).rejects.toThrow(/closed/);
   });
 
   test('stream yields every page asked for, at the size asked', async () => {
