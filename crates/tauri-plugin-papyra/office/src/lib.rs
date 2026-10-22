@@ -18,10 +18,9 @@
 use papyra_core::{Bitmap, Document, PageSize, PapyraError, RenderOptions};
 use papyra_office::{OfficeDocument, OfficeError};
 use serde::Serialize;
-use tauri::ipc::InvokeBody;
 use tauri::plugin::{Builder, TauriPlugin};
 use tauri::{Runtime, State, Webview};
-use tauri_plugin_papyra::Documents;
+use tauri_plugin_papyra::{Documents, Error, Result, blocking, body};
 
 /// An office document as papyra's `Document`: pages only, which is all the page
 /// column asks of it. Every reader it lacks answers empty, by the trait's defaults.
@@ -64,49 +63,35 @@ pub struct Opened {
   pub sizes: Vec<[f32; 2]>,
 }
 
-/// Laying out a document blocks — a Word file is paginated while it opens — so it
-/// runs on the blocking pool.
-async fn blocking<T: Send + 'static>(
-  work: impl FnOnce() -> Result<T, String> + Send + 'static,
-) -> Result<T, String> {
-  tauri::async_runtime::spawn_blocking(work)
-    .await
-    .map_err(|e| e.to_string())?
-}
-
-fn bytes(request: &tauri::ipc::Request<'_>) -> Result<Vec<u8>, String> {
-  match request.body() {
-    InvokeBody::Raw(bytes) => Ok(bytes.clone()),
-    _ => Err("papyra: open takes the file's bytes as the request body".into()),
-  }
-}
-
 /// Open a `.docx` or `.pptx` sent as the raw request body.
 #[tauri::command]
 async fn open<R: Runtime>(
   webview: Webview<R>,
   request: tauri::ipc::Request<'_>,
   docs: State<'_, Documents>,
-) -> Result<Opened, String> {
-  let bytes = bytes(&request)?;
-  let doc = blocking(move || OfficeDocument::load(&bytes).map_err(|e| e.to_string())).await?;
+) -> Result<Opened> {
+  let bytes = body(&request)?;
+  // Laying out a document blocks: a Word file is paginated while it opens.
+  let doc =
+    blocking(move || OfficeDocument::load(&bytes).map_err(|e| papyra_error(e).into())).await?;
   let sizes = (0..doc.page_count())
     .map(|i| doc.page_size(i).map(|s| [s.width, s.height]))
-    .collect::<Result<_, _>>()
-    .map_err(|e| e.to_string())?;
+    .collect::<std::result::Result<_, _>>()
+    .map_err(|e| Error::from(papyra_error(e)))?;
   let kind = doc.kind().as_str();
-  let id = docs
-    .insert_paged(webview.label(), Office(doc))
-    .map_err(|e| e.to_string())?;
-  Ok(Opened { id, kind, sizes })
+  Ok(Opened {
+    id: docs.insert_paged(webview.label(), Office(doc))?,
+    kind,
+    sizes,
+  })
 }
 
 /// Make a font sent as the raw request body available to every document opened
 /// after this. How many faces it added: 0 for bytes that are not a font, or a font
 /// already registered.
 #[tauri::command]
-async fn add_font(request: tauri::ipc::Request<'_>) -> Result<usize, String> {
-  let bytes = bytes(&request)?;
+async fn add_font(request: tauri::ipc::Request<'_>) -> Result<usize> {
+  let bytes = body(&request)?;
   blocking(move || Ok(papyra_office::add_font(bytes))).await
 }
 

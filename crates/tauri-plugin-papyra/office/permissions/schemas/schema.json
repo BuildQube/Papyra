@@ -319,10 +319,10 @@
           "markdownDescription": "Denies the open command without any pre-configured scope."
         },
         {
-          "description": "Opening Word documents and PowerPoint decks, and registering fonts for their layout. Pages are served over tauri-plugin-papyra's papyra:// protocol and closed by its `close`, both in `papyra:default`.\n#### This default permission set includes:\n\n- `allow-open`",
+          "description": "Opening Word documents and PowerPoint decks, and registering fonts for their layout. Pages are served over tauri-plugin-papyra's papyra:// protocol and closed by its `close`, both in `papyra:default`.\n#### This default permission set includes:\n\n- `allow-open`\n- `allow-add-font`",
           "type": "string",
           "const": "default",
-          "markdownDescription": "Opening Word documents and PowerPoint decks, and registering fonts for their layout. Pages are served over tauri-plugin-papyra's papyra:// protocol and closed by its `close`, both in `papyra:default`.\n#### This default permission set includes:\n\n- `allow-open`"
+          "markdownDescription": "Opening Word documents and PowerPoint decks, and registering fonts for their layout. Pages are served over tauri-plugin-papyra's papyra:// protocol and closed by its `close`, both in `papyra:default`.\n#### This default permission set includes:\n\n- `allow-open`\n- `allow-add-font`"
         }
       ]
     }

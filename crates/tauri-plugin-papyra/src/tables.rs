@@ -43,9 +43,9 @@ pub struct WorkbookOpened {
   pub delimiter: Option<String>,
 }
 
-fn workbook(docs: &Documents, id: u32) -> Result<Arc<papyra_tables::Workbook>> {
+fn workbook(docs: &Documents, id: u32) -> Result<(Arc<papyra_tables::Workbook>, usize)> {
   match docs.get(id)? {
-    Doc::Workbook(book) => Ok(book),
+    Doc::Workbook(book, max_cells) => Ok((book, max_cells)),
     _ => Err(Error::WrongKind(id, "workbook")),
   }
 }
@@ -70,9 +70,10 @@ pub(crate) async fn open_workbook<R: Runtime>(
     o.max_cells,
   )
   .map_err(Error::Options)?;
+  let max_cells = options.max_cells;
   let book = blocking(move || Ok(papyra_tables::Workbook::load(bytes, &options)?)).await?;
-  let opened = WorkbookOpened {
-    id: 0,
+  let book = Arc::new(book);
+  Ok(WorkbookOpened {
     format: book.format().as_str(),
     sheets: book
       .sheets()
@@ -85,10 +86,7 @@ pub(crate) async fn open_workbook<R: Runtime>(
       .collect(),
     encoding: book.encoding(),
     delimiter: book.delimiter().map(|d| char::from(d).to_string()),
-  };
-  Ok(WorkbookOpened {
-    id: docs.insert(webview.label(), Doc::Workbook(Arc::new(book)))?,
-    ..opened
+    id: docs.insert(webview.label(), Doc::Workbook(book.clone(), max_cells))?,
   })
 }
 
@@ -153,16 +151,27 @@ fn edge(e: Option<papyra_tables::Edge>) -> Option<BorderEdge> {
 
 /// Read one sheet, and describe it: everything but its cells, which [`window`]
 /// reads. Parsed once; later calls for the same sheet are free.
+///
+/// `rows` stops where the sheet's first rows fill `maxCells` as a dense window, and
+/// says `truncated` when that cut it: the cells are held sparse, but the WebView
+/// fetches the sheet whole as one dense window, and a sheet's extent is its bounding
+/// box — one value at XFD1048576 makes that seventeen billion cells.
 #[tauri::command]
 pub(crate) async fn sheet(id: u32, index: usize, docs: State<'_, Documents>) -> Result<Sheet> {
-  let book = workbook(&docs, id)?;
+  let (book, max_cells) = workbook(&docs, id)?;
   blocking(move || {
     let s = book.sheet(index)?;
+    let rows = match s.cols {
+      0 => s.rows,
+      cols => s
+        .rows
+        .min(u32::try_from(max_cells / cols as usize).unwrap_or(u32::MAX)),
+    };
     Ok(Sheet {
       name: s.name.clone(),
-      rows: s.rows,
+      rows,
       cols: s.cols,
-      truncated: s.truncated,
+      truncated: s.truncated || rows < s.rows,
       merges: s
         .merges
         .iter()
@@ -213,7 +222,8 @@ pub(crate) async fn sheet(id: u32, index: usize, docs: State<'_, Documents>) -> 
 }
 
 /// `[rowStart, rowEnd) x [colStart, colEnd)` of one sheet, clamped to it, packed by
-/// [`pack`].
+/// [`pack`]. Refused past the workbook's `maxCells`: any page in the WebView can ask,
+/// and a window is dense.
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn window(
@@ -225,9 +235,14 @@ pub(crate) async fn window(
   col_end: u32,
   docs: State<'_, Documents>,
 ) -> Result<Bytes> {
-  let book = workbook(&docs, id)?;
+  let (book, max_cells) = workbook(&docs, id)?;
   blocking(move || {
     let s = book.sheet(sheet)?;
+    let span = |start: u32, end: u32, len: u32| u64::from(end.min(len).saturating_sub(start));
+    let area = span(row_start, row_end, s.rows) * span(col_start, col_end, s.cols);
+    if area > max_cells as u64 {
+      return Err(Error::WindowTooLarge(area, max_cells));
+    }
     Ok(Bytes::new(pack(
       &s.window(row_start, row_end, col_start, col_end),
     )))

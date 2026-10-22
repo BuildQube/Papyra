@@ -18,7 +18,7 @@ pub enum Error {
   /// An id the WebView holds that the host does not — closed, or freed by a reload.
   #[error("papyra: no open document {0}")]
   NotOpen(u32),
-  #[error("papyra: open takes the file's bytes as the request body")]
+  #[error("papyra: this command takes the file's bytes as the request body")]
   NotBytes,
   #[error("papyra: the {0} header is not percent-encoded UTF-8")]
   Header(&'static str),
@@ -35,6 +35,9 @@ pub enum Error {
   #[cfg(feature = "tables")]
   #[error("papyra: bad workbook options: {0}")]
   Options(String),
+  #[cfg(feature = "tables")]
+  #[error("papyra: a window of {0} cells is over this workbook's {1}-cell cap")]
+  WindowTooLarge(u64, usize),
   /// The host failed around the work: a poisoned lock, a blocking task that died.
   #[error("papyra: {0}")]
   Host(String),

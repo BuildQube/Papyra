@@ -5,6 +5,7 @@ Opening Word documents and PowerPoint decks, and registering fonts for their lay
 #### This default permission set includes the following:
 
 - `allow-open`
+- `allow-add-font`
 
 ## Permission Table
 

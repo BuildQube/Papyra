@@ -156,7 +156,8 @@ const FilePreview = createFilePreview([
   bytes a cell plus its text, held in the host and in the WebView: a million cells is
   about 25 MB, and the default cap of 8 million cells about 150 MB or more. On a
   phone, lower the cap with `maxCells` — a sheet past it shows its first whole rows
-  and says so:
+  and says so. The cap counts the sheet's whole rectangle, empty cells included, so a
+  sparse sheet with a stray value far out is cut to its first rows too:
 
   ```tsx
   const open = (file: File) => openWorkbook(file, { maxCells: 1_000_000 });

@@ -12,7 +12,7 @@ use crate::models::{Attachment, Opened, OutlineEntry, PageLink, PageText, Struct
 
 /// Parsing and rendering block, so both go to the blocking pool rather than the
 /// async runtime's worker threads.
-pub(crate) async fn blocking<T: Send + 'static>(
+pub async fn blocking<T: Send + 'static>(
   work: impl FnOnce() -> Result<T> + Send + 'static,
 ) -> Result<T> {
   tauri::async_runtime::spawn_blocking(work)
@@ -24,7 +24,7 @@ pub(crate) async fn blocking<T: Send + 'static>(
 const PASSWORD_HEADER: &str = "x-papyra-password";
 
 /// The file's bytes, which every `open` takes as the raw request body.
-pub(crate) fn body(request: &tauri::ipc::Request<'_>) -> Result<Vec<u8>> {
+pub fn body(request: &tauri::ipc::Request<'_>) -> Result<Vec<u8>> {
   match request.body() {
     InvokeBody::Raw(bytes) => Ok(bytes.clone()),
     _ => Err(Error::NotBytes),

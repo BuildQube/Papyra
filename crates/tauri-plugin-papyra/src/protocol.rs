@@ -146,7 +146,7 @@ pub(crate) fn render(docs: &Documents, request: &Request<Vec<u8>>) -> Response<V
       tiff.render(page.page, &options).map_err(Error::from)
     }
     #[cfg(feature = "tables")]
-    Doc::Workbook(_) => Err(Error::WrongKind(page.id, "paged document")),
+    Doc::Workbook(..) => Err(Error::WrongKind(page.id, "paged document")),
   };
   match bitmap {
     Ok(bitmap) => respond_page(bitmap, page.format),

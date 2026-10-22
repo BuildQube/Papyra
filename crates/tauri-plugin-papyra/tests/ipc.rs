@@ -2,9 +2,8 @@
 //! registration, the capability check, argument names, raw bodies and headers.
 
 use tauri::Manager;
-use tauri::ipc::{CallbackFn, InvokeBody, InvokeResponseBody};
-use tauri::test::{INVOKE_KEY, get_ipc_response, mock_builder};
-use tauri::webview::InvokeRequest;
+use tauri::ipc::{InvokeBody, InvokeResponseBody};
+use tauri::test::mock_builder;
 
 fn corpus(name: &str) -> Option<Vec<u8>> {
   std::fs::read(format!(
@@ -21,12 +20,12 @@ fn fixture(path: &str) -> Vec<u8> {
 }
 
 mod common {
-  pub mod acl;
+  pub mod mock;
 }
 
 /// What the guide tells an app to grant, every format included.
 fn context() -> tauri::Context<tauri::test::MockRuntime> {
-  common::acl::context(
+  common::mock::context(
     &[("papyra", env!("CARGO_MANIFEST_DIR"))],
     &[
       "papyra:default",
@@ -57,22 +56,7 @@ fn call(
   body: InvokeBody,
   headers: &[(&'static str, &str)],
 ) -> Result<InvokeResponseBody, serde_json::Value> {
-  let mut map = tauri::http::HeaderMap::new();
-  for (key, value) in headers {
-    map.insert(*key, value.parse().unwrap());
-  }
-  get_ipc_response(
-    webview,
-    InvokeRequest {
-      cmd: format!("plugin:papyra|{cmd}"),
-      callback: CallbackFn(0),
-      error: CallbackFn(1),
-      url: "tauri://localhost".parse().unwrap(),
-      body,
-      headers: map,
-      invoke_key: INVOKE_KEY.to_string(),
-    },
-  )
+  common::mock::call(webview, &format!("plugin:papyra|{cmd}"), body, headers)
 }
 
 fn json(body: InvokeResponseBody) -> serde_json::Value {
@@ -319,4 +303,51 @@ fn workbook_options_travel_in_a_header_and_encryption_is_tagged() {
       .unwrap()
       .starts_with("papyra/encrypted-workbook")
   );
+}
+
+#[cfg(feature = "tables")]
+#[test]
+fn a_sparse_sheet_is_cut_to_what_maxcells_holds_dense() {
+  let (_app, webview) = app();
+  // Values in A1 and XFD1048576: two cells, seventeen billion in a dense window.
+  let opened = json(
+    call(
+      &webview,
+      "open_workbook",
+      InvokeBody::Raw(fixture("papyra-tables/tests/fixtures/extent.xlsx")),
+      &[("x-papyra-options", "%7B%22maxCells%22%3A100000%7D")],
+    )
+    .unwrap(),
+  );
+  let id = opened["id"].as_u64().unwrap();
+  let sheet = json(
+    call(
+      &webview,
+      "sheet",
+      InvokeBody::Json(serde_json::json!({ "id": id, "index": 0 })),
+      &[],
+    )
+    .unwrap(),
+  );
+  let (rows, cols) = (
+    sheet["rows"].as_u64().unwrap(),
+    sheet["cols"].as_u64().unwrap(),
+  );
+  assert_eq!(cols, 16384);
+  assert!(rows * cols <= 100_000 && rows > 0);
+  assert_eq!(sheet["truncated"], true);
+
+  let window = |rows: u64| {
+    call(
+      &webview,
+      "window",
+      InvokeBody::Json(serde_json::json!({
+        "id": id, "sheet": 0, "rowStart": 0, "rowEnd": rows, "colStart": 0, "colEnd": cols,
+      })),
+      &[],
+    )
+  };
+  assert!(window(rows).is_ok());
+  let refused = window(1_048_576).unwrap_err();
+  assert!(refused.as_str().unwrap().contains("cell cap"));
 }

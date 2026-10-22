@@ -2,12 +2,11 @@
 //! document table it opens into.
 
 use tauri::Manager;
-use tauri::ipc::{CallbackFn, InvokeBody, InvokeResponseBody};
-use tauri::test::{INVOKE_KEY, get_ipc_response, mock_builder};
-use tauri::webview::InvokeRequest;
+use tauri::ipc::{InvokeBody, InvokeResponseBody};
+use tauri::test::mock_builder;
 
-#[path = "../../tests/common/acl.rs"]
-mod acl;
+#[path = "../../tests/common/mock.rs"]
+mod mock;
 
 fn sample(name: &str) -> Vec<u8> {
   std::fs::read(format!(
@@ -22,23 +21,12 @@ fn call(
   cmd: &str,
   body: InvokeBody,
 ) -> Result<InvokeResponseBody, serde_json::Value> {
-  get_ipc_response(
-    webview,
-    InvokeRequest {
-      cmd: cmd.to_string(),
-      callback: CallbackFn(0),
-      error: CallbackFn(1),
-      url: "tauri://localhost".parse().unwrap(),
-      body,
-      headers: Default::default(),
-      invoke_key: INVOKE_KEY.to_string(),
-    },
-  )
+  mock::call(webview, cmd, body, &[])
 }
 
 #[test]
 fn opens_into_the_shared_table_and_closes_through_the_pdf_plugin() {
-  let context = acl::context(
+  let context = mock::context(
     &[
       ("papyra", concat!(env!("CARGO_MANIFEST_DIR"), "/..")),
       ("papyra-office", env!("CARGO_MANIFEST_DIR")),

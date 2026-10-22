@@ -43,6 +43,10 @@ use tauri::{Manager, Runtime};
 
 pub use error::{Error, Result};
 
+/// For `tauri-plugin-papyra-office`, whose commands follow the same rules.
+#[doc(hidden)]
+pub use commands::{blocking, body};
+
 /// One open document, of whichever format.
 #[derive(Clone)]
 pub(crate) enum Doc {
@@ -50,8 +54,9 @@ pub(crate) enum Doc {
   Paged(Arc<dyn Document + Send + Sync>),
   #[cfg(feature = "tiff")]
   Tiff(Arc<papyra_tiff::Tiff>),
+  /// With the most cells one window of it may hold: its `maxCells`.
   #[cfg(feature = "tables")]
-  Workbook(Arc<papyra_tables::Workbook>),
+  Workbook(Arc<papyra_tables::Workbook>, usize),
 }
 
 /// The documents this host holds open, by the id the WebView knows them by, each
