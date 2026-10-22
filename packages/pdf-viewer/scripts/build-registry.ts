@@ -66,6 +66,25 @@ const STYLE_DIRS: Record<string, 'base' | 'radix'> = {
 };
 
 /**
+ * Every item must name one range per `@build-qube/*` package. On 0.x a caret range
+ * stops at the next minor, so `^0.5.0` beside `^0.6.0` resolves to 0.5.0 for a
+ * project installing both items, and the newer item fails to compile — 0.6.0
+ * shipped with exactly that split. Raise the range for every item at once.
+ */
+const ranges = new Map<string, string>();
+for (const dep of registry.items.flatMap((i) => i.dependencies ?? [])) {
+  const [, name, range] = dep.match(/^(@build-qube\/[^@]+)@(.+)$/) ?? [];
+  if (!name || !range) continue;
+  const seen = ranges.get(name) ?? range;
+  if (seen !== range) {
+    throw new Error(
+      `items name different ranges of ${name}: ${seen}, ${range}`,
+    );
+  }
+  ranges.set(name, range);
+}
+
+/**
  * Build one flavour from the files under `source` into `out`. `source` is the
  * package itself for Base UI and a scratch copy for Radix; the item paths in
  * `registry.json` are relative, so the same file describes both.

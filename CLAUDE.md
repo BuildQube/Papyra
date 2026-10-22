@@ -140,9 +140,11 @@ real CLI rather than guessed — see `packages/pdf-viewer/README.md`:
 - Sibling items are named by **absolute URL**: a bare `registryDependencies` entry
   always means an official shadcn item. `scripts/build-registry.ts` substitutes
   `{{REGISTRY}}` and turbo runs it before the demo's build, so the items ship with
-  the site. The items pin `@build-qube/papyra@^0.5.0`, the oldest release with
-  every API they call; an item needing something newer raises the range in the
-  same change. They are **written against Base UI** and served from `r/`;
+  the site. Every item names **one shared range** per `@build-qube/*` package —
+  `^0.6.0` now, the oldest minor with every API any item calls — and a raise moves
+  all of them at once: on 0.x a caret stops at the next minor, so `^0.5.0` beside
+  `^0.6.0` installs 0.5.0 and the newer item fails to compile. `build-registry.ts`
+  refuses a split. They are **written against Base UI** and served from `r/`;
   `scripts/radix.ts` rewrites them (`render` → `asChild`, `keepMounted` →
   `forceMount`, …) into a Radix flavour at `r/radix/`. Both are copied under every
   shadcn style name so the namespace URL can be `…/r/{style}/{name}.json` and the
