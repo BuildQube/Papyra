@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Extracts the @build-qube/papyra API model from its TSDoc comments",
   "scripts": {
-    "build": "typedoc && typedoc --options typedoc.registry.json",
+    "build": "typedoc && typedoc --options typedoc.registry.json && typedoc --entryPoints ../papyra/src/index.ts --entryPoints ../papyra/src/office.ts --emit none",
     "clean": "rm -rf ../../apps/demo/src/generated .turbo"
   },
   "devDependencies": {

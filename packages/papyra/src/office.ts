@@ -150,6 +150,7 @@ export class PapyraOfficeEngine extends PagedEngine<OfficeDoc, OfficeBackend> {
     };
   }
 
+  /** @internal Its backend type is private to this file, as is `handle`'s. */
   protected async load(
     source: PdfSource,
     _options: OpenOptions,
@@ -161,6 +162,7 @@ export class PapyraOfficeEngine extends PagedEngine<OfficeDoc, OfficeBackend> {
     return new OfficeBackend(await loadOffice(bytes));
   }
 
+  /** @internal */
   protected handle(backend: OfficeBackend): OfficeDoc {
     return {
       engine: this.id,
