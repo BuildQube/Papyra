@@ -379,15 +379,13 @@ jobs:
       - name: Build
         working-directory: packages/bindings
         run: bunx napi build --platform --release --target ${{ matrix.target }}
-      # The office addon (WordCraft and DeckCraft) is built only for the two targets
-      # smoke and demo run on. Its own per-platform matrix and tests come with its
-      # release wiring; until then this is what keeps the wrapper and the demo honest.
+      # The office addon (WordCraft and DeckCraft) on every target release.yml
+      # publishes it for, so a target it cannot build fails here rather than in the
+      # middle of a release. Only smoke and demo run it, on the two they use.
       - name: Build office
-        if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'wasm32-wasip1-threads'
         working-directory: packages/office-bindings
         run: bunx napi build --platform --release --target ${{ matrix.target }}
       - name: Upload office artifact
-        if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'wasm32-wasip1-threads'
         uses: actions/upload-artifact@v7
         with:
           name: office-bindings-${{ matrix.target }}

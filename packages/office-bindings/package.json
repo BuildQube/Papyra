@@ -1,7 +1,6 @@
 {
   "name": "@build-qube/papyra-office-native",
   "version": "0.4.0",
-  "private": true,
   "description": "Node-API bindings for papyra's Word and PowerPoint renderer — prefer @build-qube/papyra/office",
   "license": "MIT",
   "repository": {
@@ -38,10 +37,17 @@
   "engines": {
     "node": ">= 18"
   },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
   "scripts": {
+    "artifacts": "napi artifacts",
     "build": "napi build --platform --release",
     "build:debug": "napi build --platform",
     "build:wasm": "napi build --platform --release --target wasm32-wasip1-threads",
+    "create-npm-dirs": "napi create-npm-dirs",
+    "publish-platforms": "napi prepublish -t npm --no-gh-release",
     "clean": "rm -rf *.node *.wasm index.js index.d.ts browser.js papyra-office.wasi*.* wasi-worker*.mjs npm"
   },
   "devDependencies": {

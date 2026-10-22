@@ -79,10 +79,10 @@ const server = Bun.serve({
     if (!(await file.exists()))
       return new Response('not found', { status: 404 });
     if (args.published) return new Response(file);
-    // The workspace copy is linked in after install, so the range only has to
+    // The workspace copies are linked in after install, so a range only has to
     // resolve — and before a release it names a version npm does not have yet. The
-    // office addon is not on npm at all before its first release, so it is dropped
-    // from what gets installed and linked in the same way.
+    // bare name installs whatever npm has, so a package npm lacks entirely still
+    // fails here, which is the registry's answer rather than a flag's.
     return Response.json(unreleased(await file.json()));
   },
 });
@@ -92,15 +92,7 @@ const registryUrl = `http://localhost:${server.port}/r`;
 function unreleased<T>(json: T): T {
   const fix = (deps: unknown) =>
     Array.isArray(deps)
-      ? deps
-          .filter(
-            (d) => !String(d).startsWith('@build-qube/papyra-office-native'),
-          )
-          .map((d) =>
-            String(d).startsWith('@build-qube/papyra@')
-              ? '@build-qube/papyra'
-              : d,
-          )
+      ? deps.map((d) => String(d).replace(/^(@build-qube\/[^@]+)@.*/, '$1'))
       : deps;
   const item = (i: Record<string, unknown>) =>
     'dependencies' in i ? { ...i, dependencies: fix(i.dependencies) } : i;

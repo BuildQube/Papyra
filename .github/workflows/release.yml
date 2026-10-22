@@ -4,16 +4,17 @@
 #
 #   version  — changesets are pending. Open/refresh the "Version Packages" PR.
 #   publish  — no changesets pending and something is unreleased. Build every
-#              target and publish to npm.
+#              target and publish to npm, then the crates to crates.io.
 #   none     — nothing to do.
 #
 # So the normal cycle is: merge feature PRs (each with a changeset) -> this
 # workflow keeps a Version Packages PR up to date -> merging *that* PR leaves no
 # changesets behind, which flips the next run into publish mode.
 #
-# Publishing uses npm Trusted Publishing (OIDC), so there is no NPM_TOKEN. That
-# means `id-token: write` must stay scoped to the publish job alone, and npm's
-# trusted-publisher config for every package must name THIS file (release.yml).
+# Publishing uses trusted publishing (OIDC) on npm and crates.io alike, so there is
+# no NPM_TOKEN and no crates.io token. That means `id-token: write` must stay scoped
+# to the two publish jobs, and each registry's trusted-publisher config for every
+# package must name THIS file (release.yml).
 # See docs/RELEASING.md for the one-time npm setup.
 name: Release
 
@@ -42,8 +43,12 @@ jobs:
       - id: select-mode
         uses: changesets/action/select-mode@v2
 
-  # Opens (or refreshes) the Version Packages PR. Needs no build: `changeset
-  # version` only rewrites package.json versions and CHANGELOG.md files.
+  # Opens (or refreshes) the Version Packages PR. Needs no build: the root
+  # `version` script runs `changeset version`, which rewrites package.json versions
+  # and CHANGELOG.md files, then gives the crates the same version, lockfiles
+  # included. It has to be this script rather than a later step, or the crate bumps
+  # would never be in the PR. Its `cargo update -w` runs on the image's rustup,
+  # which installs the toolchain rust-toolchain.toml pins.
   version:
     needs: select-mode
     if: needs.select-mode.outputs.mode == 'version'
@@ -59,6 +64,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - uses: changesets/action/version@v2
         with:
+          script: bun run version
           pr-title: "Version Packages"
           commit-message: "chore: version packages"
 
@@ -100,6 +106,22 @@ jobs:
       - name: Build
         working-directory: packages/bindings
         run: bunx napi build --platform --release --target ${{ matrix.target }}
+      - name: Build office
+        working-directory: packages/office-bindings
+        run: bunx napi build --platform --release --target ${{ matrix.target }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: office-bindings-${{ matrix.target }}
+          path: |
+            packages/office-bindings/*.node
+            packages/office-bindings/*.wasm
+            !packages/office-bindings/*.debug.wasm
+            packages/office-bindings/index.js
+            packages/office-bindings/index.d.ts
+            packages/office-bindings/browser.js
+            packages/office-bindings/papyra-office.wasi*.*
+            packages/office-bindings/wasi-worker*.mjs
+          if-no-files-found: error
       - uses: actions/upload-artifact@v7
         with:
           name: bindings-${{ matrix.target }}
@@ -118,10 +140,13 @@ jobs:
     needs: [select-mode, build]
     if: needs.select-mode.outputs.mode == 'publish'
     runs-on: ubuntu-latest
+    outputs:
+      published: ${{ steps.publish.outputs.published }}
     permissions:
       # `contents: write` pushes the release tags and creates the GitHub releases.
       contents: write
-      # The only job in this repo that may mint an OIDC token.
+      # One of the two jobs in this repo that may mint an OIDC token; `crates` is
+      # the other.
       id-token: write
     steps:
       - uses: actions/checkout@v7
@@ -178,9 +203,23 @@ jobs:
           pattern: bindings-*
           path: packages/bindings/artifacts
 
+      # The same for the office addon. Its glue is also what `/office` in the
+      # wrapper typechecks against, so the wrapper's build needs it as well.
+      - name: Restore generated office glue
+        uses: actions/download-artifact@v8
+        with:
+          name: office-bindings-wasm32-wasip1-threads
+          path: packages/office-bindings
+      - name: Download all office bindings
+        uses: actions/download-artifact@v8
+        with:
+          pattern: office-bindings-*
+          path: packages/office-bindings/artifacts
+
       # `script` runs the root `release` script rather than letting the action call
       # `changeset publish` itself, because napi has to lay out and fill
-      # packages/bindings/npm/<platform>/ and publish those six packages first.
+      # packages/bindings/npm/<platform>/ (and office-bindings') and publish those
+      # twelve packages first.
       #
       # That step used to be the bindings package's `prepublishOnly` hook, which
       # made failures undiagnosable: `changeset publish` invokes `npm publish
@@ -192,11 +231,70 @@ jobs:
       # root package's optionalDependencies, and those have to be in place before
       # the root package is packed.
       #
-      # No NODE_AUTH_TOKEN: all eight packages exist and are configured as trusted
+      # No NODE_AUTH_TOKEN: all seventeen packages exist and are configured as trusted
       # publishers, so both `npm publish` calls authenticate over OIDC. Setting a
       # token here would silently take precedence and OIDC would never be
       # attempted, so the absence of that env block is load-bearing.
       - name: Publish
+        id: publish
         uses: changesets/action/publish@v2
         with:
           script: bun run release
+
+  # Installs every registry item from npm's copy of papyra, which is what tells a
+  # stale item range from a fresh one: an item calling an API newer than its
+  # `@build-qube/papyra@^x` fails to typecheck here. A job of its own, not a step
+  # after Publish, so the shadcn CLI and everything it installs never run where an
+  # OIDC token can be minted.
+  registry:
+    needs: publish
+    if: needs.publish.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: 1.3.11 }
+      - run: bun install --frozen-lockfile
+      - run: bun run check:registry --published
+
+  # papyra-core, papyra-encode, papyra-hayro and tauri-plugin-papyra, on the
+  # version the root `version` script gave them, which is the npm packages'.
+  #
+  # After npm rather than beside it, so a failed npm publish releases no crates.
+  # macOS because `cargo publish` verifies by compiling, and Tauri on Linux needs
+  # webkit2gtk's headers (see the tauri-plugin job in CI.yml).
+  #
+  # Each crate is skipped when its version is already in the index, so re-running
+  # this job after a partial failure finishes the set. `cargo publish` waits for a
+  # crate to appear in the index before returning, so the next one, in dependency
+  # order, resolves it.
+  crates:
+    needs: publish
+    if: needs.publish.outputs.published == 'true'
+    runs-on: macos-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - uses: dtolnay/rust-toolchain@stable
+      # Exchanges the OIDC token for a crates.io token that lives 30 minutes.
+      - uses: rust-lang/crates-io-auth-action@v1
+        id: auth
+      - name: Publish crates
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: |
+          version=$(jq -r .version packages/papyra/package.json)
+          for crate in papyra-core papyra-encode papyra-hayro tauri-plugin-papyra; do
+            if curl -sf "https://index.crates.io/${crate:0:2}/${crate:2:2}/$crate" \
+              | grep -q "\"vers\":\"$version\""; then
+              echo "$crate $version is already on crates.io"
+              continue
+            fi
+            cargo publish --manifest-path "crates/$crate/Cargo.toml"
+          done
