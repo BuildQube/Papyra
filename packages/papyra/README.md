@@ -137,19 +137,16 @@ Cross-Origin-Opener-Policy: same-origin
 Cross-Origin-Embedder-Policy: require-corp
 ```
 
-A panic in the browser build aborts that wasm instance, and papyra fails until the page
-reloads; natively it is a rejected promise like any other error.
+**A panic in the browser build is fatal.** It aborts that wasm instance, and papyra
+fails until the page reloads; natively it is a rejected promise like any other error.
 
 ## Engines
 
-`open()` renders through papyra's own engine. Where a page cannot be cross-origin
-isolated there is a pdf.js engine (`@build-qube/papyra-pdfjs`); in a Tauri app,
-papyra running natively in the host process (`@build-qube/papyra-tauri`); and for Word
-and PowerPoint pages, the experimental `@build-qube/papyra/office`. Code that leaves
-the opening to another engine imports from `@build-qube/papyra/core`, which never
-loads papyra's wasm. The
-[Engines section of the project README](https://github.com/BuildQube/Papyra#engines)
-covers choosing one, installing it, and scoping it into the viewer.
+Other engines — pdf.js for pages that cannot be isolated, Tauri, and the experimental
+Word and PowerPoint `@build-qube/papyra/office` — are covered in the
+[Engines section of the project README](https://github.com/BuildQube/Papyra#engines).
+Code that opens documents with another engine imports from `@build-qube/papyra/core`,
+which never loads papyra's wasm.
 
 ## More
 

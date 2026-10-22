@@ -3,7 +3,6 @@
 '@build-qube/papyra-office-native': patch
 ---
 
-Document engines for consumers: the README points at a new Engines guide (which engine
-to pick, how to install it and scope it into the viewer, and when to import `/core`),
-and warns that a panic in the browser build aborts that wasm instance until reload.
-`@build-qube/papyra-office-native` gains a README for its npm page.
+Document engines — choosing one, installing it, scoping it into the viewer, and when
+to import `/core` — and that a panic in the browser build is fatal until reload. Add a
+README for `@build-qube/papyra-office-native`.

@@ -9,8 +9,7 @@ and as a wasm module for the browser.
 
 **Install it beside [`@build-qube/papyra`](https://www.npmjs.com/package/@build-qube/papyra),
 and import that instead.** This package is the optional peer that
-`@build-qube/papyra/office` loads on its first open — `PapyraOfficeEngine`, with the
-same queue, render cache and `fitWidth` sizing as a PDF. Its own shape is not a stable
+`@build-qube/papyra/office` loads on its first open. Its own shape is not a stable
 public API.
 
 ```bash
@@ -41,8 +40,7 @@ paintToCanvas(await officeEngine.render(doc, 0, { fitWidth: 1200 }).promise, can
 
 The platform binaries (`@build-qube/papyra-office-native-darwin-arm64`,
 `-linux-x64-gnu`, `-wasm32-wasi`, …) are optional dependencies of this package; your
-package manager installs the one that matches. The
-[Engines section of the papyra README](https://github.com/BuildQube/papyra#engines)
-covers isolation, the viewer integration and the rest.
+package manager installs the one that matches.
 
-Source and documentation: <https://github.com/BuildQube/papyra>
+Isolation, the viewer integration and the rest: the
+[Engines section of the papyra README](https://github.com/BuildQube/Papyra#engines).

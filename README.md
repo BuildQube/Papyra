@@ -56,7 +56,7 @@ you tell a long queue from a slow render.
 and the [viewer components](packages/pdf-viewer/README.md) take whichever the app
 names. Each is a class with the same commands — `open`, `render`, `stream`, `search`,
 `outline`, `links`, `close` and the rest — and the same priority queue, render cache
-and `fitWidth` sizing, because those are written once, in `PagedEngine` and `PdfEngine`.
+and `fitWidth` sizing.
 
 | Engine | Import | Renders | Needs | Costs |
 | --- | --- | --- | --- | --- |
@@ -67,43 +67,41 @@ and `fitWidth` sizing, because those are written once, in `PagedEngine` and `Pdf
 
 **Picking one.**
 
-- **You can set response headers.** Use papyra's: serve
-  `Cross-Origin-Opener-Policy: same-origin` and
-  `Cross-Origin-Embedder-Policy: require-corp` (see
-  [Two things that will bite you](#two-things-that-will-bite-you)). It has every
-  feature here, reads text more exactly than pdf.js, and wins on batch work —
+- **You can set response headers.** Use papyra's, and serve the isolation headers
+  (see [Three things that will bite you](#three-things-that-will-bite-you)). It has
+  every feature here, reads text more exactly than pdf.js, and wins on batch work —
   thumbnails, prerendering, export. pdf.js is faster to a single page in a browser;
   see [Performance, honestly](#performance-honestly).
 - **The page cannot be isolated** — a mobile WebView, an app embedding third-party
   content, a host whose headers you do not control. Use pdf.js. Name both engines
-  and the viewer takes papyra's where the page allows it and pdf.js elsewhere. Its
-  text positions are exact only at the ends of each pdf.js text item, and it has no
-  tagged-PDF structure tree.
-- **A Tauri app.** Use `TauriEngine`. A WebView on Android or iOS is never isolated,
-  and this engine needs no wasm: papyra runs in the app's Rust process on the device's
-  own cores, so the output and features are papyra's.
-- **Word and PowerPoint.** Add the office engine beside whichever PDF engine you use.
-  It draws pages only — no text, links or outline — and lays out with the fonts it
-  has, so register metric-compatible ones (Carlito for Calibri, and so on) with
-  `officeEngine.addFont` or a real document paginates differently from Word.
+  and the viewer takes papyra's where the page allows it and pdf.js elsewhere.
+- **A Tauri app.** Use `TauriEngine`: no wasm and no isolation, and the output and
+  features are papyra's, because it is papyra in the app's Rust process.
+- **Word and PowerPoint.** Add the office engine beside your PDF engine. It draws
+  pages only — no text, links or outline. Register metric-compatible fonts (Carlito
+  for Calibri, and so on) with `officeEngine.addFont`, or pagination drifts from
+  Word's.
 
-**Installing.** papyra's engine comes with `@build-qube/papyra`. The pdf.js and Tauri
-engines are packages of their own, with peers to install beside them — their READMEs,
-linked above, have the commands. The office engine ships in `@build-qube/papyra` too,
-but its addon is an optional peer, so a PDF-only app never downloads it:
+**Installing.** papyra's engine and the office engine ship in `@build-qube/papyra`;
+the office addon is an optional peer, so a PDF-only app never downloads it. The pdf.js
+and Tauri engines are packages of their own — their READMEs, linked above, have the
+commands.
 
 ```bash
 npm install @build-qube/papyra @build-qube/papyra-office-native
 ```
 
-**Which entry to import.** `@build-qube/papyra` is everything, plus `open()`, and
-loads papyra's addon when imported. `@build-qube/papyra/core` is everything that runs
-without an engine — painting, viewports, search, the error types, `PagedEngine` and
-`PdfEngine` — and nothing in it reaches papyra's wasm. Import from `/core` whenever
-another engine opens the documents, or a bundler emits papyra's wasm whether or not
-it is ever fetched. `/engine` (`PapyraEngine`, and `defaultPdfEngine`, the instance
-`open()` uses) and `/office` (`PapyraOfficeEngine`, `officeEngine`) each fetch their
-addon on the first open, not on import.
+**Which entry to import.**
+
+- `@build-qube/papyra` — everything but the office engine, plus `open()`. Loads
+  papyra's addon when imported.
+- `@build-qube/papyra/core` — everything that runs without an engine: painting,
+  viewports, search, the error types, `PagedEngine` and `PdfEngine`. Nothing in it
+  reaches papyra's wasm, so import from here whenever another engine opens the
+  documents; a bundler emits the wasm as soon as its graph reaches it, fetched or not.
+- `@build-qube/papyra/engine` (`PapyraEngine`, and `defaultPdfEngine`, the instance
+  `open()` uses) and `@build-qube/papyra/office` (`PapyraOfficeEngine`,
+  `officeEngine`) — each fetches its addon on the first open, not on import.
 
 ```ts
 import { paintToCanvas } from '@build-qube/papyra/core';
@@ -151,20 +149,13 @@ const pdfjs = new PdfjsEngine({ workerSrc });
   </EngineGuard>;
   ```
 
-  The `file-preview-docx-paged` and `file-preview-pptx` items are exactly this,
-  inside the file preview, and take a `fonts` option for `addFont`. Use them rather
-  than building it yourself.
+  The `file-preview-docx-paged` and `file-preview-pptx` items are this, inside the
+  file preview, with a `fonts` option for `addFont`.
 
 An app that never runs papyra's PDF engine also aliases the viewer's default away, so
 none of its wasm is bundled: see
 [Keeping papyra's wasm out of the bundle](packages/tauri/README.md#keeping-papyras-wasm-out-of-the-bundle),
 which is the same for pdf.js.
-
-**A panic in wasm is fatal to that module.** Natively, a Rust panic on a malformed file
-becomes a rejected promise. The browser build cannot unwind: a panic aborts the wasm
-instance, and every later call into that module fails until the page reloads. The PDF
-and office addons are separate instances, so one going down leaves the other working.
-There is no recovering in place: offer a reload, not a retry.
 
 ## Outlines
 
@@ -520,7 +511,7 @@ bun run --filter papyra-demo dev
 bun run --filter papyra-demo fixtures   # corpus PDFs -> public/, open with ?file=/x.pdf
 ```
 
-## Two things that will bite you
+## Three things that will bite you
 
 **The browser build needs cross-origin isolation.** napi-rs generates shared wasm
 memory, so `SharedArrayBuffer` must be available. Serve with:
@@ -537,6 +528,12 @@ false.
 native uses one async task with rayon inside, wasm uses per-page async tasks capped at
 4 in flight. See `docs/spike-results.md` for why — including a memory-growth race and a
 rayon deadlock that shaped the design.
+
+**A panic in the browser build is fatal to that module.** Natively, a Rust panic on a
+malformed file becomes a rejected promise. The wasm build cannot unwind: a panic
+aborts the instance, and every later call into that module fails until the page
+reloads. The PDF and office addons are separate instances, so one going down leaves
+the other working. There is no recovering in place: offer a reload, not a retry.
 
 ## Performance, honestly
 
