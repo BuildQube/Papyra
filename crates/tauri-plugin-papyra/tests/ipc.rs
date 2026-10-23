@@ -163,7 +163,7 @@ fn opens_a_json_array_body() {
 }
 
 #[test]
-fn open_refuses_a_json_body() {
+fn open_refuses_a_json_body_that_is_not_bytes() {
   let (_app, webview) = app();
   let refused = call(
     &webview,

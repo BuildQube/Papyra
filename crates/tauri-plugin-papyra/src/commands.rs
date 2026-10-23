@@ -52,7 +52,7 @@ pub(crate) fn header(
     .transpose()
 }
 
-/// Open a PDF sent as the raw request body. Answers with its id and every page's
+/// Open a PDF sent as the request body. Answers with its id and every page's
 /// size, its metadata and its version — everything a viewer needs before it renders.
 #[tauri::command]
 pub(crate) async fn open<R: Runtime>(

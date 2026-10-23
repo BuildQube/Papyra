@@ -63,7 +63,7 @@ pub struct Opened {
   pub sizes: Vec<[f32; 2]>,
 }
 
-/// Open a `.docx` or `.pptx` sent as the raw request body.
+/// Open a `.docx` or `.pptx` sent as the request body.
 #[tauri::command]
 async fn open<R: Runtime>(
   webview: Webview<R>,
@@ -86,7 +86,7 @@ async fn open<R: Runtime>(
   })
 }
 
-/// Make a font sent as the raw request body available to every document opened
+/// Make a font sent as the request body available to every document opened
 /// after this. How many faces it added: 0 for bytes that are not a font, or a font
 /// already registered.
 #[tauri::command]
