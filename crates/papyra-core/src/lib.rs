@@ -7,6 +7,7 @@
 use std::fmt::Debug;
 
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum PapyraError {
   #[error("failed to parse PDF: {0}")]
   Parse(String),
