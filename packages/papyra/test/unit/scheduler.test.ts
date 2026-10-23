@@ -15,6 +15,27 @@ function deferred<T>() {
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
 describe('Scheduler', () => {
+  test('a job that throws instead of rejecting still frees its slot', async () => {
+    const s = new Scheduler(1);
+    const broken = s.submit<number>({
+      key: 'broken',
+      priority: 0,
+      run: () => {
+        throw new Error('synchronous');
+      },
+    });
+    const joined = s.submit<number>({
+      key: 'broken',
+      priority: 0,
+      run: async () => 0,
+    });
+    const next = s.submit({ key: 'next', priority: 0, run: async () => 1 });
+    await expect(broken.promise).rejects.toThrow('synchronous');
+    await expect(joined.promise).rejects.toThrow('synchronous');
+    expect(await next.promise).toBe(1);
+    expect(s.runningCount).toBe(0);
+  });
+
   test('runs the most urgent pending job first', async () => {
     const order: string[] = [];
     const s = new Scheduler<string>(1);

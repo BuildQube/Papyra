@@ -112,12 +112,13 @@ fn render_opts(dpi: f64, annotations: bool) -> RenderOptions {
   }
 }
 
-/// One page, rendered off the JS thread.
+/// One page, or one tile of it, rendered off the JS thread.
 pub struct RenderTask {
   doc: Arc<HayroDocument>,
   index: usize,
   dpi: f64,
   annotations: bool,
+  tile: Option<papyra_core::Tile>,
 }
 
 impl Task for RenderTask {
@@ -125,10 +126,12 @@ impl Task for RenderTask {
   type JsValue = RenderedPage;
 
   fn compute(&mut self) -> Result<Self::Output> {
-    self
-      .doc
-      .render_page(self.index, &render_opts(self.dpi, self.annotations))
-      .map_err(map_err)
+    let opts = render_opts(self.dpi, self.annotations);
+    match self.tile {
+      Some(tile) => self.doc.render_tile(self.index, &opts, tile),
+      None => self.doc.render_page(self.index, &opts),
+    }
+    .map_err(map_err)
   }
 
   fn resolve(&mut self, _env: Env, out: Self::Output) -> Result<Self::JsValue> {
@@ -963,7 +966,44 @@ impl PdfDocument {
       index: index as usize,
       dpi: dpi.unwrap_or(72.0),
       annotations: annotations.unwrap_or(true),
+      tile: None,
     })
+  }
+
+  /// Render the `width` x `height` window whose corner is (`x`, `y`) in output pixels
+  /// of the page at `dpi`. Each side is at most 65535, hayro's limit; the page is not.
+  #[napi(ts_return_type = "Promise<RenderedPage>")]
+  #[allow(clippy::too_many_arguments)]
+  pub fn render_tile_async(
+    &self,
+    index: u32,
+    dpi: f64,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+    annotations: Option<bool>,
+  ) -> Result<AsyncTask<RenderTask>> {
+    let side = |n: u32| {
+      u16::try_from(n).ok().filter(|&n| n > 0).ok_or_else(|| {
+        Error::new(
+          Status::InvalidArg,
+          format!("tile side {n} is not 1..=65535"),
+        )
+      })
+    };
+    Ok(AsyncTask::new(RenderTask {
+      doc: self.inner.clone(),
+      index: index as usize,
+      dpi,
+      annotations: annotations.unwrap_or(true),
+      tile: Some(papyra_core::Tile {
+        x,
+        y,
+        width: side(width)?,
+        height: side(height)?,
+      }),
+    }))
   }
 
   /// Render one page and keep it in Rust, for encoding. The pixels never reach JS.

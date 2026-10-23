@@ -34,6 +34,7 @@
 import { cp, mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
+import changesets from '../../../.changeset/config.json' with { type: 'json' };
 import registry from '../registry.json' with { type: 'json' };
 import { toRadix } from './radix.js';
 
@@ -82,6 +83,15 @@ for (const dep of registry.items.flatMap((i) => i.dependencies ?? [])) {
     );
   }
   ranges.set(name, range);
+}
+// And one range across the version-locked group: papyra pins office-native exactly,
+// so `papyra@^0.7.0` beside `papyra-office-native@^0.6.0` is a peer conflict.
+const [locked = []] = changesets.fixed;
+const groupRanges = new Set(locked.flatMap((name) => ranges.get(name) ?? []));
+if (groupRanges.size > 1) {
+  throw new Error(
+    `items name different ranges of the fixed group: ${[...groupRanges].join(', ')}`,
+  );
 }
 
 /**

@@ -143,6 +143,7 @@ export type {
   StreamedPage,
   StreamOptions,
   SvgOptions,
+  Tile,
 } from './types.js';
 export type { Rotation, Viewport, ViewportOptions } from './viewport.js';
 export {

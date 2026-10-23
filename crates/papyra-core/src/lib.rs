@@ -98,11 +98,31 @@ impl RenderOptions {
   }
 }
 
+/// A window of a page's render, in its output pixels: the corner's offset from the
+/// page's top-left, and the window's size. A tile may sit anywhere on a page too large
+/// to render whole; each side is a `u16` because that is the rasteriser's limit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Tile {
+  pub x: u32,
+  pub y: u32,
+  pub width: u16,
+  pub height: u16,
+}
+
 /// A loaded PDF document.
 pub trait Document: Debug {
   fn page_count(&self) -> usize;
   fn page_size(&self, index: usize) -> Result<PageSize>;
   fn render_page(&self, index: usize, opts: &RenderOptions) -> Result<Bitmap>;
+
+  /// Render one [`Tile`] of the page at `opts`: the same pixels the page would have
+  /// there, whatever its full size.
+  ///
+  /// Defaulted for the same reason as [`Self::outline`].
+  fn render_tile(&self, index: usize, opts: &RenderOptions, tile: Tile) -> Result<Bitmap> {
+    let _ = (index, opts, tile);
+    Err(PapyraError::Unsupported("tile rendering".to_string()))
+  }
 
   /// The document outline (bookmarks), in pre-order. Empty when there is none, which
   /// is the common case.

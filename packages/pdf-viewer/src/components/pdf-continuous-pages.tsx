@@ -17,7 +17,7 @@ import {
 import { PageSurface } from '@/components/pdf-page-surface';
 import type { ZoomAnchor } from '@/hooks/use-viewer-zoom';
 import type { PdfStructureSlice } from '@/lib/pdf-viewer-store';
-import { CSS_UNITS, renderWidth } from '@/lib/viewer-zoom';
+import { CSS_UNITS, renderWidth, tileDpi } from '@/lib/viewer-zoom';
 
 /** Gap between pages, in CSS pixels. Fixed, so it does not balloon at 800%. */
 const GAP = 16;
@@ -366,35 +366,49 @@ export function ContinuousPages({
       className="relative"
       style={{ width: layout.width, height: layout.height }}
     >
-      {inWindow.map((slot) => (
-        <PageSurface
-          key={slot.index}
-          doc={doc}
-          index={slot.index}
-          top={slot.top}
-          left={slot.left}
-          width={slot.width}
-          height={slot.height}
-          pageWidth={slot.pageWidth}
-          pageHeight={slot.pageHeight}
-          rotation={rotation}
-          annotations={annotations}
-          renderWidth={
-            slot.index >= renderFirst && slot.index <= renderLast
-              ? renderWidth(
-                  { width: slot.pageWidth, height: slot.pageHeight },
-                  renderScale,
-                )
-              : 0
-          }
-          priority={slot.index >= first && slot.index <= last ? 0 : 1}
-          matches={matches}
-          active={active}
-          regions={structure?.page === slot.index ? structure.quads : undefined}
-          current={slot.index === page}
-          onSelect={onPage}
-        />
-      ))}
+      {inWindow.map((slot) => {
+        const onScreen = slot.index >= first && slot.index <= last;
+        return (
+          <PageSurface
+            key={slot.index}
+            doc={doc}
+            index={slot.index}
+            top={slot.top}
+            left={slot.left}
+            width={slot.width}
+            height={slot.height}
+            pageWidth={slot.pageWidth}
+            pageHeight={slot.pageHeight}
+            rotation={rotation}
+            annotations={annotations}
+            renderWidth={
+              slot.index >= renderFirst && slot.index <= renderLast
+                ? renderWidth(
+                    { width: slot.pageWidth, height: slot.pageHeight },
+                    renderScale,
+                  )
+                : 0
+            }
+            priority={onScreen ? 0 : 1}
+            tileDpi={
+              onScreen
+                ? tileDpi(
+                    { width: slot.pageWidth, height: slot.pageHeight },
+                    renderScale,
+                  )
+                : 0
+            }
+            scroller={viewport}
+            matches={matches}
+            active={active}
+            regions={
+              structure?.page === slot.index ? structure.quads : undefined
+            }
+            current={slot.index === page}
+            onSelect={onPage}
+          />
+        );
+      })}
     </div>
   );
 }

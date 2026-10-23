@@ -141,9 +141,9 @@ real CLI rather than guessed — see `packages/pdf-viewer/README.md`:
   always means an official shadcn item. `scripts/build-registry.ts` substitutes
   `{{REGISTRY}}` and turbo runs it before the demo's build, so the items ship with
   the site. Every item names **one shared range** per `@build-qube/*` package —
-  `^0.6.0` now, the oldest minor with every API any item calls — and a raise moves
-  all of them at once: on 0.x a caret stops at the next minor, so `^0.5.0` beside
-  `^0.6.0` installs 0.5.0 and the newer item fails to compile. `build-registry.ts`
+  `^0.7.0` now, the oldest minor with every API any item calls — and a raise moves
+  all of them at once: on 0.x a caret stops at the next minor, so `^0.6.0` beside
+  `^0.7.0` installs 0.6.0 and the newer item fails to compile. `build-registry.ts`
   refuses a split. They are **written against Base UI** and served from `r/`;
   `scripts/radix.ts` rewrites them (`render` → `asChild`, `keepMounted` →
   `forceMount`, …) into a Radix flavour at `r/radix/`. Both are copied under every
@@ -377,14 +377,27 @@ gate; CI needed no new job.
   values back. Since the scheduler coalesces on the key and the LRU is looked up by it,
   `annotationKey()` in `document.ts` appends `:noannots`; without it, asking for a page
   with annotations off is silently served the bitmap that still has them drawn on.
-- **Tile rendering would cost N× rather than save.** It is no longer blocked: hayro 0.8
-  made `render_into(page, …, ctx, transform)` public, so a tile is a `RenderContext`
-  of the tile's size and an `Affine::translate` composed into the page transform —
-  `examples/crop.rs` renders its viewport windows this way. But Addendum 10 measured
-  that hayro does **no viewport culling** — a 10%-area viewport cost 93.7ms against
-  104.6ms for the whole page — so N tiles is roughly N full renders. Tiles buy bounded
-  memory and a way past both the 100 MP cap and hayro's `u16` 65535px-per-side ceiling.
-  They do not buy speed.
+- **A tile costs the page's floor, not the page.** hayro 0.8 made
+  `render_into(page, …, ctx, transform)` public, so a tile is a `RenderContext` of the
+  tile's size and an `Affine::translate` composed into the page transform — `render`
+  in `papyra-hayro` is that, and the whole page is just the tile at the origin (so
+  every full-page render goes through the tile path; it is byte-identical to
+  `hayro::render` across the corpus and hayro's suite). hayro still does **no
+  viewport culling**, so every tile pays the page's interpretation and image
+  decoding: at 400% on ARCH-E a 1024px tile is ~54ms against 251ms for the page, and
+  tile size barely matters. A 20-line device-space early return in hayro's renderer
+  (`examples/hayro-culling.patch`) cuts that to ~13ms; it is proposed upstream. On
+  wasm, four tiles in flight are *slower* than one, so `PapyraBackend` sets
+  `tileConcurrency` to 1 there and tiles queue on their own `Scheduler`. Addendum 13
+  has the numbers.
+- **A tile is the page cut where it sits, within one level, not to the byte.** Away
+  from the origin vello_cpu rounds a handful of edge coverages the other way, so
+  tests compare with a tolerance of 1. In the viewer, tiles **overlap by two
+  pixels** rather than meet: where the page box sits at a fractional device pixel
+  (DPR 1.25, 1.5) two canvases that merely abut both half-cover the seam pixel and
+  the stretched bitmap shows through as a hairline, and snapping edges to device
+  pixels inside the layer does not fix it. Tile DPI steps by √2, rounded up
+  (`tileDpi`), so a pinch reuses one tile set rather than caching one per frame.
 - **`.cargo/config.toml` forces `+simd128` for wasm** — vello_cpu is a SIMD rasteriser and
   is ~1.7x slower without it.
 - **Size renders with `fitWidth`, not `dpi`.** Page sizes vary by two orders of magnitude

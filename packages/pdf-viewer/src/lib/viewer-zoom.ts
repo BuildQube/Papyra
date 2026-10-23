@@ -144,6 +144,172 @@ export function renderWidth(page: Size, zoom: number): number {
   return Math.min(want, cap);
 }
 
+/**
+ * Device pixels on a side of one tile.
+ *
+ * Large, because a tile costs the page's interpretation floor rather than its pixels:
+ * on an ARCH-E sheet at 400% a 256px tile takes what a 1024px one does (Addendum 13
+ * in papyra's spike results), so smaller tiles only mean more of them.
+ */
+export const TILE_SIZE = 1024;
+
+/**
+ * Tile pixels each tile overlaps the next by. Two, because a tile pixel can be as
+ * small as 0.7 of a device pixel — tiles render at the √2 step above the zoom.
+ */
+const TILE_OVERLAP = 2;
+
+/**
+ * The DPI to show a page at in tiles, or 0 when one bitmap of it fits under
+ * `MAX_RENDER_PIXELS` and {@link renderWidth} serves.
+ *
+ * Quantised to steps of √2 and rounded up: a zoom between two steps shows the upper
+ * step's tiles scaled down by CSS, so pinching through 400% does not render and cache
+ * a new set at every frame's scale — and is never blurrier than asked. The cost is at
+ * most twice the pixels, about a third more on average.
+ */
+export function tileDpi(page: Size, zoom: number): number {
+  const scale =
+    CSS_UNITS * zoom * Math.min(MAX_DPR, window.devicePixelRatio || 1);
+  // Exactly when `renderWidth` caps, so a stretched bitmap always has tiles over it.
+  if (renderWidth(page, zoom) >= Math.round(page.width * scale)) return 0;
+  return 72 * Math.SQRT2 ** Math.ceil(2 * Math.log2(scale));
+}
+
+/** A rectangle in CSS pixels, by its edges. */
+export interface Box {
+  /** Left edge. */
+  readonly x0: number;
+  /** Top edge. */
+  readonly y0: number;
+  /** Right edge. */
+  readonly x1: number;
+  /** Bottom edge. */
+  readonly y1: number;
+}
+
+/**
+ * The CSS transform that turns an upright layer the size of the unturned page onto a
+ * page box turned by `rotation`, about its top-left corner so every edge stays on a
+ * whole pixel — rotating about the centre puts them on half pixels whenever the
+ * box's width and height differ by an odd number.
+ */
+export function uprightTransform(
+  box: { width: number; height: number },
+  rotation: Rotation,
+): string {
+  const at = {
+    0: '0px, 0px',
+    90: `${box.width}px, 0px`,
+    180: `${box.width}px, ${box.height}px`,
+    270: `0px, ${box.height}px`,
+  };
+  return `translate(${at[rotation]}) rotate(${rotation}deg)`;
+}
+
+/** `rect`, in a page box turned by `rotation`, mapped back into the upright layer. */
+export function uprightBox(
+  rect: Box,
+  box: { width: number; height: number },
+  rotation: Rotation,
+): Box {
+  const { x0, y0, x1, y1 } = rect;
+  const { width: w, height: h } = box;
+  switch (rotation) {
+    case 0:
+      return rect;
+    case 90:
+      return { x0: y0, y0: w - x1, x1: y1, y1: w - x0 };
+    case 180:
+      return { x0: w - x1, y0: h - y1, x1: w - x0, y1: h - y0 };
+    case 270:
+      return { x0: h - y1, y0: x0, x1: h - y0, y1: x1 };
+  }
+}
+
+/** One tile to show: what to render, and where its canvas goes in the layer. */
+export interface TileSlot {
+  /** Stable across scrolling, for a React key. */
+  readonly key: string;
+  /** The window of the page's render at the tile DPI, in its device pixels. */
+  readonly tile: {
+    /** From the page's left edge. */
+    x: number;
+    /** From the page's top edge. */
+    y: number;
+    /** Across. */
+    width: number;
+    /** Down. */
+    height: number;
+  };
+  /** Where it sits in the upright layer, in CSS pixels. */
+  readonly box: Box;
+}
+
+/**
+ * The tiles of a page at `dpi` that `view` touches, nearest the middle of the view
+ * first: the order a viewer should queue them in. None ahead of the view — each tile
+ * costs about what the whole page does until the renderer culls, so a ring around
+ * a 2x2 view would quadruple the work for tiles that may never be seen.
+ *
+ * `layerWidth` is the upright page's CSS width and `view` is in the same space.
+ */
+export function tileSlots(
+  page: Size,
+  dpi: number,
+  layerWidth: number,
+  view: Box,
+): TileSlot[] {
+  const scale = dpi / 72;
+  const full = {
+    x: Math.floor(page.width * scale),
+    y: Math.floor(page.height * scale),
+  };
+  // CSS pixels per tile pixel; the layer is the unfloored page, as the bitmap's box is.
+  const k = layerWidth / (page.width * scale);
+  const span = TILE_SIZE * k;
+  const cols = Math.ceil(full.x / TILE_SIZE);
+  const rows = Math.ceil(full.y / TILE_SIZE);
+  if (view.x1 <= view.x0 || view.y1 <= view.y0 || !cols || !rows) return [];
+
+  const clamp = (n: number, count: number) =>
+    Math.min(count - 1, Math.max(0, n));
+  const c0 = clamp(Math.floor(view.x0 / span), cols);
+  const c1 = clamp(Math.ceil(view.x1 / span) - 1, cols);
+  const r0 = clamp(Math.floor(view.y0 / span), rows);
+  const r1 = clamp(Math.ceil(view.y1 / span) - 1, rows);
+  const mid = { x: (view.x0 + view.x1) / 2, y: (view.y0 + view.y1) / 2 };
+  const slots: (TileSlot & { distance: number })[] = [];
+  for (let r = r0; r <= r1; r++) {
+    for (let c = c0; c <= c1; c++) {
+      const x = c * TILE_SIZE;
+      const y = r * TILE_SIZE;
+      // Each tile runs on under its neighbour by TILE_OVERLAP: where the page box
+      // sits at a fractional device pixel, as it does at DPR 1.25, two tiles that
+      // merely meet both half-cover the pixel on their seam and the backdrop shows
+      // through it as a hairline. Snapping edges cannot fix that; covering it does.
+      const width = Math.min(TILE_SIZE + TILE_OVERLAP, full.x - x);
+      const height = Math.min(TILE_SIZE + TILE_OVERLAP, full.y - y);
+      const box = {
+        x0: x * k,
+        y0: y * k,
+        x1: (x + width) * k,
+        y1: (y + height) * k,
+      };
+      slots.push({
+        key: `${c},${r}`,
+        tile: { x, y, width, height },
+        box,
+        distance: Math.hypot(
+          (box.x0 + box.x1) / 2 - mid.x,
+          (box.y0 + box.y1) / 2 - mid.y,
+        ),
+      });
+    }
+  }
+  return slots.sort((a, b) => a.distance - b.distance);
+}
+
 /** A scale as a percentage a reader would recognise: `125%`. */
 export function formatZoom(zoom: number): string {
   return `${Math.round(zoom * 100)}%`;
