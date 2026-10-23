@@ -1,7 +1,7 @@
 [package]
 name = "tauri-plugin-papyra"
 description = "papyra's PDF engine inside a Tauri 2 app: native rendering for the viewer's TauriEngine"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/BuildQube/papyra"
@@ -24,11 +24,11 @@ tables = ["dep:papyra-tables", "dep:serde_json"]
 tiff = ["dep:papyra-tiff"]
 
 [dependencies]
-papyra-core = { path = "../papyra-core", version = "0.6.0" }
-papyra-encode = { path = "../papyra-encode", version = "0.6.0" }
-papyra-hayro = { path = "../papyra-hayro", version = "0.6.0" }
-papyra-tables = { path = "../papyra-tables", version = "0.6.0", optional = true }
-papyra-tiff = { path = "../papyra-tiff", version = "0.6.0", optional = true }
+papyra-core = { path = "../papyra-core", version = "0.7.0" }
+papyra-encode = { path = "../papyra-encode", version = "0.7.0" }
+papyra-hayro = { path = "../papyra-hayro", version = "0.7.0" }
+papyra-tables = { path = "../papyra-tables", version = "0.7.0", optional = true }
+papyra-tiff = { path = "../papyra-tiff", version = "0.7.0", optional = true }
 percent-encoding = "2"
 serde = { version = "1", features = ["derive"] }
 # Already in the tree through tauri; reads `open_workbook`'s options header.
