@@ -162,6 +162,16 @@ Measured or decided while implementing; the sections below are kept as written.
   - **Permissions**: each feature has a set (`papyra:tiff`, `papyra:tables`). The
     commands' permission files are generated whatever the features, so they do not
     churn in git; the IPC tests resolve those files rather than a hand-built ACL.
+- **Tiles (workspace N).** `PagedEngine.renderTile(doc, index, tile, options)` beside
+  `render`, with an optional `PagedBackend.renderTile` and `Capabilities.tiles`
+  (optional, so engines written before it still type-check). Tiles share `render`'s
+  cache-queue-coalesce path but not its instances: a tile `Scheduler` at the
+  backend's `tileConcurrency` (1 on papyra's wasm, where four in flight measured
+  slower) and a 64 MB tile cache, so tiles never evict the stretched page under
+  them. On Tauri a tile is the page URL plus `x`/`y`/`width`/`height`; it keeps
+  `dpi` because a PDF page has no pixel size of its own, and `maxWidth`/`maxPixels`
+  stay TIFF's. The viewer tiles only past `renderWidth`'s cap, at √2 DPI steps, and
+  only what is on screen until hayro culls (Addendum 13).
 
 ## Why
 
