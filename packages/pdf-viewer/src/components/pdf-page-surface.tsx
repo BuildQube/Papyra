@@ -339,10 +339,12 @@ function Tiles({
       }
     };
     vp.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', onScroll);
+    // The scroller, not the window: closing a sidebar widens it at the same zoom.
+    const resized = new ResizeObserver(onScroll);
+    resized.observe(vp);
     return () => {
       vp.removeEventListener('scroll', onScroll);
-      window.removeEventListener('resize', onScroll);
+      resized.disconnect();
       if (frame) cancelAnimationFrame(frame);
     };
   }, [
