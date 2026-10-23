@@ -20,17 +20,25 @@ export async function benchPapyra(
   dpi: number,
 ): Promise<BenchResult> {
   const doc = await open(bytes);
-  const [, firstPageMs] = await timed(() => doc.renderPage(0, { dpi }));
-  const [pages, totalMs] = await timed(() =>
-    doc.renderPages(0, doc.pageCount, { dpi }),
-  );
-  return {
-    engine: 'papyra',
-    pages: pages.length,
-    totalMs,
-    msPerPage: totalMs / pages.length,
-    firstPageMs,
-  };
+  try {
+    const [, firstPageMs] = await timed(() => doc.renderPage(0, { dpi }));
+    // Each bitmap is dropped as it arrives, as pdf.js's canvas is below. Holding them
+    // all, as `renderPages` must, is 10 GB for a 90-sheet ARCH-E set at 150 DPI.
+    const [pages, totalMs] = await timed(async () => {
+      let count = 0;
+      for await (const _ of doc.stream({ dpi })) count++;
+      return count;
+    });
+    return {
+      engine: 'papyra',
+      pages,
+      totalMs,
+      msPerPage: totalMs / pages,
+      firstPageMs,
+    };
+  } finally {
+    await doc.close();
+  }
 }
 
 export async function benchPdfjs(
