@@ -15,6 +15,7 @@ import { PdfEngineGuard, usePdfEngine } from '@/components/pdf-engine';
 import { FindBar } from '@/components/pdf-find-bar';
 import { Highlights } from '@/components/pdf-highlights';
 import { Links } from '@/components/pdf-links';
+import { PageTiles } from '@/components/pdf-page-tiles';
 import { PageView, type PageViewHandle } from '@/components/pdf-page-view';
 import { Properties } from '@/components/pdf-properties';
 import type { SidebarPanel } from '@/components/pdf-sidebar';
@@ -43,6 +44,7 @@ import { cn } from '@/lib/utils';
 import {
   pageBox,
   renderWidth,
+  tileDpi,
   type ViewMode,
   type ZoomSpec,
 } from '@/lib/viewer-zoom';
@@ -348,6 +350,18 @@ function ViewerBody({
             className={cn(PAGE, 'max-w-none')}
             ref={surface}
             style={{ width: box.width, height: box.height }}
+          />
+          <PageTiles
+            doc={doc}
+            index={index}
+            width={box.width}
+            height={box.height}
+            pageWidth={pageSize.width}
+            pageHeight={pageSize.height}
+            rotation={rotation}
+            annotations={annotations}
+            dpi={tileDpi(pageSize, zoom.renderScale)}
+            scroller={viewport}
           />
           <Links
             doc={doc}

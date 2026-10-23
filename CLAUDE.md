@@ -398,6 +398,9 @@ gate; CI needed no new job.
   the stretched bitmap shows through as a hairline, and snapping edges to device
   pixels inside the layer does not fix it. Tile DPI steps by √2, rounded up
   (`tileDpi`), so a pinch reuses one tile set rather than caching one per frame.
+  The layer is one item, `pdf-page-tiles`, mounted inside the page box by both the
+  column's `PageSurface` and each single-page view; a page view that stretches its
+  bitmap without mounting it is the bug #66 left in single-page mode.
 - **`.cargo/config.toml` forces `+simd128` for wasm** — vello_cpu is a SIMD rasteriser and
   is ~1.7x slower without it.
 - **Size renders with `fitWidth`, not `dpi`.** Page sizes vary by two orders of magnitude
