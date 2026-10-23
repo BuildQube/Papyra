@@ -1,11 +1,10 @@
 /**
- * Tags the bindings put in front of a load failure's message.
+ * Tags the bindings put in front of a typed failure's message.
  *
  * napi-rs gives every error it throws the same `code`, so the message is the only
  * channel a typed failure can travel through. These are stripped before the error
- * reaches a caller — keep them in step with `TAG_PASSWORD_REQUIRED` and
- * `TAG_INCORRECT_PASSWORD` in `packages/bindings/src/lib.rs`, and `TAG_ENCRYPTED` in
- * `packages/bindings/src/tables.rs`.
+ * reaches a caller — keep them in step with `PapyraError::tagged` in
+ * `crates/papyra-core`, and `TAG_ENCRYPTED` in `packages/bindings/src/tables.rs`.
  */
 const TAGS = {
   'papyra/password-required': (message: string) =>
@@ -14,6 +13,7 @@ const TAGS = {
     new IncorrectPasswordError(message),
   'papyra/encrypted-workbook': (message: string) =>
     new EncryptedWorkbookError(message),
+  'papyra/too-large': (message: string) => new RenderTooLargeError(message),
 } as const;
 
 /**
@@ -77,7 +77,20 @@ export class EncryptedWorkbookError extends Error {
 }
 
 /**
- * Rethrow a load failure as itself, or as the typed error it was tagged as.
+ * A render whose bitmap is too large to make: past papyra's 100 MP cap, past what
+ * the allocator could give it, or a batch past what wasm memory can hold at once.
+ *
+ * A `RangeError`, as the size cap always threw, and an error rather than a crash:
+ * on wasm a failed allocation would otherwise kill the worker it ran on.
+ */
+export class RenderTooLargeError extends RangeError {
+  /** Always `'RenderTooLargeError'`. */
+  override readonly name = 'RenderTooLargeError';
+}
+
+/**
+ * Rethrow a load or render failure as itself, or as the typed error it was tagged
+ * as.
  *
  * Exported for engines whose host answers in the native bindings' shapes, as
  * `tauri-plugin-papyra` does, so they normalise exactly as papyra's own engine does.

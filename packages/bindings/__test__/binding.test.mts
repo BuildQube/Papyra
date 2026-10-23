@@ -236,6 +236,23 @@ describe('encoding', () => {
     assert.deepEqual(viaImage, viaBuffer);
   });
 
+  // On wasm a panic or a failed allocation aborts the worker rather than rejecting,
+  // so both sizes have to be refused before vello_cpu or the allocator sees them:
+  // 65535 wide overflows vello's tile snapping, and 65280x16448 is 4.3 GB.
+  test('refuses an oversized tile with a tag, and keeps rendering', async () => {
+    const doc = load('TAMReview.pdf');
+    for (const [width, height] of [
+      [65535, 1],
+      [65280, 16448],
+    ]) {
+      await assert.rejects(
+        () => doc.renderTileAsync(0, 72, 0, 0, width, height, true),
+        /papyra\/too-large /,
+      );
+    }
+    assert.equal((await doc.renderPageAsync(0, 72, true)).width, 595);
+  });
+
   test('rejects a buffer too small for its dimensions instead of crashing', async () => {
     await assert.rejects(
       () => encodeBitmap(new Uint8Array(16), 100, 100, 400, 'png'),

@@ -6,6 +6,7 @@ import {
   adopt,
   annotationKey,
   attachSignal,
+  batchDpi,
   type Capabilities,
   type DocState,
   type PdfDoc,
@@ -40,7 +41,15 @@ import type {
   SvgOptions,
 } from './types.js';
 
-const DEFAULT_DPI = 72;
+/**
+ * The most bitmap bytes `renderPages` will hold at once on wasm.
+ *
+ * Every page a caller holds pins its bitmap in wasm memory until a GC — emnapi copies
+ * it out and frees the original from a finalizer — and wasm32 stops at 4 GB. A fresh
+ * instance held 33 ARCH-E pages at 150 DPI (3.7 GB) and aborted on the 34th; this
+ * leaves the rest for the post-load floor, the renders in flight and other documents.
+ */
+const MAX_WASM_BATCH_BYTES = 2 * 1024 ** 3;
 
 /**
  * A queued export render. No `cached` flag: unlike {@link RenderHandle} the image path
@@ -498,18 +507,28 @@ export class Document implements PdfDoc {
    * - **wasm** — per-page async tasks. rayon's workers there are Web Workers that the
    *   JS event loop has to create, so a rayon batch cannot be driven from a blocked
    *   thread; per-page tasks map onto the runtime's own worker pool instead.
+   *
+   * Every page is held until the call returns. On wasm a batch past 2 GiB of bitmaps
+   * throws a {@link RenderTooLargeError} up front, since wasm32's 4 GB would end it
+   * part-way: 90 ARCH-E sheets at 150 DPI are 10 GB. Use {@link Document.stream} or
+   * {@link Document.render} to take such a document a page at a time.
    */
   async renderPages(
     start: number,
     end: number,
     options: RenderOptions = {},
   ): Promise<RenderedPage[]> {
-    if (currentRuntime() === 'native' && options.fitWidth === undefined) {
-      // One DPI for the whole batch, so every page in range has to pass the guard —
-      // a document can mix a letter-size cover sheet with ARCH-E drawings.
-      let dpi = DEFAULT_DPI;
-      for (let i = start; i < end; i++)
-        dpi = resolveDpi(this.#state.backend, i, options);
+    const wasm = currentRuntime() === 'wasm';
+    // Every page in range has to pass the guard, even with one DPI for the whole
+    // batch — a document can mix a letter-size cover sheet with ARCH-E drawings.
+    const dpi = batchDpi(
+      this.#state.backend,
+      start,
+      end,
+      options,
+      wasm ? MAX_WASM_BATCH_BYTES : undefined,
+    );
+    if (!wasm && options.fitWidth === undefined) {
       return (await this.#state.backend.native.renderPagesAsync(
         start,
         end,

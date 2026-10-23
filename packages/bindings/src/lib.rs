@@ -80,22 +80,8 @@ fn to_rendered(bmp: papyra_core::Bitmap) -> RenderedPage {
   }
 }
 
-/// Tags a load failure so the TypeScript wrapper can rethrow it as a typed error.
-///
-/// napi-rs gives every error it throws the same `code`, so the message is the only
-/// channel there is. The wrapper strips the tag and never shows it to a caller —
-/// keep these two constants in step with `PASSWORD_TAGS` in `document.ts`.
-const TAG_PASSWORD_REQUIRED: &str = "papyra/password-required";
-const TAG_INCORRECT_PASSWORD: &str = "papyra/incorrect-password";
-
 fn map_err(e: papyra_core::PapyraError) -> Error {
-  use papyra_core::PapyraError as E;
-  let message = match &e {
-    E::PasswordRequired => format!("{TAG_PASSWORD_REQUIRED} {e}"),
-    E::IncorrectPassword => format!("{TAG_INCORRECT_PASSWORD} {e}"),
-    _ => e.to_string(),
-  };
-  Error::new(Status::GenericFailure, message)
+  Error::new(Status::GenericFailure, e.tagged())
 }
 
 // ---------------------------------------------------------------- async tasks

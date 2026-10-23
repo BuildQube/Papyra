@@ -19,7 +19,9 @@ pub use text::extract as extract_text;
 use hayro::vello_cpu::color::palette::css::{TRANSPARENT, WHITE};
 use hayro::vello_cpu::color::{AlphaColor, Srgb};
 use hayro::vello_cpu::peniko::ImageAlphaType;
-use hayro::vello_cpu::{Pixmap, RasterizerSettings, RenderContext, Resources, TargetInit};
+use hayro::vello_cpu::{
+  PixelMetadata, Pixmap, RasterizerSettings, RenderContext, Resources, TargetInit,
+};
 use hayro::{RenderCache, RenderSettings};
 use hayro_interpret::InterpreterSettings;
 use hayro_interpret::util::TransformExt;
@@ -99,7 +101,7 @@ impl HayroDocument {
       .iter()
       .map(|&i| {
         let page = pages.get(i).ok_or(PapyraError::PageOutOfRange(i))?;
-        Ok(render(page, &cache, &interp, opts, None))
+        render(page, &cache, &interp, opts, None)
       })
       .collect()
   }
@@ -122,7 +124,7 @@ impl HayroDocument {
       .par_iter()
       .map_init(RenderCache::new, |cache, &i| {
         let page = pages.get(i).ok_or(PapyraError::PageOutOfRange(i))?;
-        Ok(render(page, cache, &interp, opts, None))
+        render(page, cache, &interp, opts, None)
       })
       .collect()
   }
@@ -191,6 +193,15 @@ fn full_page(page: &Page, opts: &RenderOptions) -> Tile {
   }
 }
 
+/// The most pixels one render may ask for: 2 GiB of RGBA, which no `Vec` can hold on
+/// wasm32 anyway. papyra's TypeScript refuses past 100 MP with a better message; this is
+/// for the bindings called directly, where a 65535x65535 tile would ask for 17 GB.
+const MAX_PIXELS: u64 = 1 << 29;
+
+/// vello_cpu snaps its context out to whole 256-pixel tiles in `u16`, and panics past
+/// this — which on wasm, where a panic aborts, kills the worker.
+const MAX_SIDE: u16 = 65280;
+
 /// What `hayro::render` does, into a context the size of `tile` with the page
 /// transform shifted so the tile's corner is the origin — the whole page when `tile`
 /// is `None`. hayro culls nothing outside the context, so a tile costs about what the
@@ -201,13 +212,29 @@ fn render<'a>(
   interp: &InterpreterSettings,
   opts: &RenderOptions,
   tile: Option<Tile>,
-) -> Bitmap {
+) -> Result<Bitmap> {
   let Tile {
     x,
     y,
     width,
     height,
   } = tile.unwrap_or_else(|| full_page(page, opts));
+  // Reserved before anything else is spent on the render, and fallibly: a failed
+  // allocation aborts rather than panics, and on wasm that kills the worker with the
+  // caller's promise still pending. The pixmap is a render's largest allocation and
+  // the one the ARCH-E crash failed on; Addendum 14 lists what is still infallible.
+  let too_large = PapyraError::TooLarge {
+    width: width.into(),
+    height: height.into(),
+  };
+  if width > MAX_SIDE || height > MAX_SIDE || u64::from(width) * u64::from(height) > MAX_PIXELS {
+    return Err(too_large);
+  }
+  let len = usize::from(width) * usize::from(height) * 4;
+  let mut data = Vec::new();
+  data.try_reserve_exact(len).map_err(|_| too_large)?;
+  data.resize(len, 0);
+
   let mut ctx = RenderContext::new(width, height);
   hayro::render_into(
     page,
@@ -220,7 +247,15 @@ fn render<'a>(
       * page.initial_transform(true).to_kurbo(),
   );
   ctx.flush();
-  let mut pixmap = Pixmap::new(width, height);
+  let mut pixmap = Pixmap::from_parts(
+    data,
+    width,
+    height,
+    PixelMetadata {
+      may_have_transparency: true,
+      alpha_type: ImageAlphaType::AlphaPremultiplied,
+    },
+  );
   ctx.render_with(
     &mut pixmap,
     &mut Resources::default(),
@@ -229,26 +264,26 @@ fn render<'a>(
       ..Default::default()
     },
   );
-  Bitmap {
+  Ok(Bitmap {
     width: width as u32,
     height: height as u32,
     stride: width as u32 * 4,
     format: PixelFormat::Rgba8,
     data: pixmap.take_rgba8(ImageAlphaType::Alpha),
-  }
+  })
 }
 
 impl HayroDocument {
   fn render_one(&self, index: usize, opts: &RenderOptions, tile: Option<Tile>) -> Result<Bitmap> {
     let pages = self.pdf.pages();
     let page = pages.get(index).ok_or(PapyraError::PageOutOfRange(index))?;
-    Ok(render(
+    render(
       page,
       &RenderCache::new(),
       &interpreter_settings(opts),
       opts,
       tile,
-    ))
+    )
   }
 }
 
@@ -383,6 +418,44 @@ mod render {
         bitmap.data[start..start + w].iter().copied()
       })
       .collect()
+  }
+
+  /// Every size the rasteriser cannot take is refused before anything is allocated,
+  /// rather than panicking in vello_cpu or aborting in the allocator — both of which
+  /// kill a wasm worker. The widest side it can take still renders.
+  #[test]
+  fn an_oversized_render_is_an_error() {
+    let doc = drawing();
+    let opts = RenderOptions::default();
+    let tile = |width, height| Tile {
+      x: 0,
+      y: 0,
+      width,
+      height,
+    };
+    for (width, height) in [
+      (65535, 65535),
+      (MAX_SIDE + 1, 1),
+      (1, MAX_SIDE + 1),
+      (MAX_SIDE, 8225),
+    ] {
+      assert!(
+        matches!(
+          doc.render_tile(0, &opts, tile(width, height)),
+          Err(PapyraError::TooLarge { .. })
+        ),
+        "{width}x{height}"
+      );
+    }
+    let huge = RenderOptions {
+      scale: 200.0,
+      ..opts
+    };
+    assert!(matches!(
+      doc.render_page(0, &huge),
+      Err(PapyraError::TooLarge { .. })
+    ));
+    assert!(doc.render_tile(0, &opts, tile(MAX_SIDE, 1)).is_ok());
   }
 
   /// A tile is the page cut where it sits, so tiles laid edge to edge meet with

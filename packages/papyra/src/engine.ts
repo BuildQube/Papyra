@@ -1,8 +1,9 @@
 import type { Attachment } from './attachments.js';
 import { type CacheStats, RenderCache } from './cache.js';
-import type {
-  IncorrectPasswordError,
-  PasswordRequiredError,
+import {
+  type IncorrectPasswordError,
+  type PasswordRequiredError,
+  RenderTooLargeError,
 } from './errors.js';
 import type { PageLink } from './links.js';
 import type { OutlineNode } from './outline.js';
@@ -380,20 +381,54 @@ export function resolveDpi(
 
   const pixels = tile
     ? tile.width * tile.height
-    : ((width * dpi) / 72) * ((height * dpi) / 72);
+    : pagePixels(width, height, dpi);
   if (pixels > MAX_PIXELS) {
     const mb = Math.round((pixels * 4) / 1e6);
     if (tile) {
-      throw new RangeError(
+      throw new RenderTooLargeError(
         `papyra: a ${tile.width}x${tile.height} tile is ${mb} MB; ` +
           'keep a tile under 100 MP.',
       );
     }
-    throw new RangeError(
+    throw new RenderTooLargeError(
       `papyra: page ${index} at ${dpi.toFixed(1)} DPI would be ` +
         `${Math.round((width * dpi) / 72)}x${Math.round((height * dpi) / 72)} ` +
         `(${mb} MB). The page is ${(width / 72).toFixed(1)}x${(height / 72).toFixed(1)}in — ` +
         'use { fitWidth } to size by output pixels instead of DPI.',
+    );
+  }
+  return dpi;
+}
+
+const pagePixels = (width: number, height: number, dpi: number) =>
+  ((width * dpi) / 72) * ((height * dpi) / 72);
+
+/**
+ * {@link resolveDpi} for every page of `[start, end)`, refusing the batch when its
+ * bitmaps, all held at once, would come to more than `budget` bytes. Returns the
+ * last page's DPI — the batch's, when it was given as `dpi`.
+ *
+ * @internal
+ */
+export function batchDpi(
+  backend: PagedBackend,
+  start: number,
+  end: number,
+  options: RenderOptions,
+  budget = Number.POSITIVE_INFINITY,
+): number {
+  let dpi = DEFAULT_DPI;
+  let bytes = 0;
+  for (let i = start; i < end; i++) {
+    dpi = resolveDpi(backend, i, options);
+    const { width, height } = backend.pageSize(i);
+    bytes += pagePixels(width, height, dpi) * 4;
+  }
+  if (bytes > budget) {
+    throw new RenderTooLargeError(
+      `papyra: pages ${start}-${end - 1} are ${Math.round(bytes / 1e6)} MB of ` +
+        `bitmaps held at once, over the ${Math.round(budget / 1e6)} MB budget — ` +
+        'use render() or stream() to take them a page at a time.',
     );
   }
   return dpi;
