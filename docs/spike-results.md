@@ -1065,3 +1065,22 @@ for yet.
 3. **Run tiles one at a time on wasm** until the contention is profiled; native keeps
    the scheduler's normal limit.
 4. Do not pursue record-and-cut or an interpretation cache.
+
+## As shipped
+
+- **Full pages through the tile path are byte-identical to `hayro::render`.**
+  `examples/tiles.rs --identity` renders every page (the first ten of each file) at
+  1x and 2x both ways. That covered 61 pages of the 15-file corpus plus the ARCH-E
+  set, and 3,166 of 3,167 pages of hayro-tests' 1,326 PDFs. The odd one out,
+  `2363.pdf` page 0, panics inside vello_common at 2x on both paths alike.
+- **A tile is the page cut where it sits, within one level.** Away from the origin
+  vello_cpu rounds a few edge coverages the other way: 2 to 24 bytes of 160,000 in
+  the unit test, never more than 1. A seam would be 255.
+- **Tiles overlap by two pixels in the viewer.** With the stretched bitmap hidden
+  and the page box painted magenta, headless Chrome found hairline seams at DPR 1.25
+  and 1.5 when tiles merely abutted. Snapping edges to device pixels did not remove
+  them; a 2px overlap did, at DPR 1, 1.25, 1.5, 2 and 3.
+- **The culling patch went upstream** as LaurenzV/hayro#1609. On hayro `main`, over
+  the same 3,147 pages (the whole page at 1x plus nine 512px tiles at 3x), every
+  page is byte-identical except `2363.pdf`, whose panicking draw falls outside the
+  tiles and is skipped. Total time: 999s → 699s.
