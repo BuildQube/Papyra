@@ -1,5 +1,12 @@
 # @build-qube/papyra
 
+## 0.7.1
+
+### Patch Changes
+
+- @build-qube/papyra-native@0.7.1
+  - @build-qube/papyra-office-native@0.7.1
+
 ## 0.7.0
 
 ### Minor Changes
