@@ -266,8 +266,11 @@ export class Scheduler {
 
       // Stamp the finish time before settling, so `timing` is already populated by
       // the time an awaiting caller resumes — a `.finally()` would run after them.
-      next
-        .run(next.controller?.signal)
+      // Through a promise, so a `run` that throws before returning one rejects the
+      // job and frees its slot instead of leaving it in `#running` for good.
+      new Promise<unknown>((resolve) =>
+        resolve(next.run(next.controller?.signal)),
+      )
         .then(
           (value) => {
             next.finishedAt = performance.now();

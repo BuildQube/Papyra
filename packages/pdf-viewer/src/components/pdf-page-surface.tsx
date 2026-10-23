@@ -13,6 +13,7 @@ import {
 import {
   memo,
   type RefObject,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -23,6 +24,7 @@ import { Highlights } from '@/components/pdf-highlights';
 import { Links } from '@/components/pdf-links';
 import { cn } from '@/lib/utils';
 import {
+  type Box,
   type TileSlot,
   tileSlots,
   uprightBox,
@@ -293,8 +295,22 @@ function Tiles({
   scroller,
 }: TilesProps) {
   const layer = useRef<HTMLDivElement>(null);
-  const [slots, setSlots] = useState<TileSlot[]>([]);
+  // What is on screen, as fractions of the upright page, so the slots below follow a
+  // new box size or DPI in the same render, before anything re-measures: a stale set
+  // would start a wasted tile on every zoom step and trail the bitmap in a pinch.
+  const [view, setView] = useState<Box | null>(null);
   const upright = rotateSize({ width, height }, rotation);
+  const slotsAt = useCallback(
+    (at: Box) =>
+      tileSlots({ width: pageWidth, height: pageHeight }, dpi, upright.width, {
+        x0: at.x0 * upright.width,
+        y0: at.y0 * upright.height,
+        x1: at.x1 * upright.width,
+        y1: at.y1 * upright.height,
+      }),
+    [pageWidth, pageHeight, dpi, upright.width, upright.height],
+  );
+  const slots = useMemo(() => (view ? slotsAt(view) : []), [view, slotsAt]);
 
   // Passive, not layout: the scroller is an ancestor, and on the first commit its ref
   // is attached only after this component's layout effects have run.
@@ -302,10 +318,14 @@ function Tiles({
     const vp = scroller.current;
     const page = layer.current?.parentElement;
     if (!vp || !page) return;
-    const measure = (first = false) => {
+    const keys = (at: Box) =>
+      slotsAt(at)
+        .map((s) => s.key)
+        .join();
+    const measure = () => {
       const v = vp.getBoundingClientRect();
       const p = page.getBoundingClientRect();
-      const view = uprightBox(
+      const box = uprightBox(
         {
           x0: Math.max(0, v.left - p.left),
           y0: Math.max(0, v.top - p.top),
@@ -315,20 +335,16 @@ function Tiles({
         { width, height },
         rotation,
       );
-      const next = tileSlots(
-        { width: pageWidth, height: pageHeight },
-        dpi,
-        upright.width,
-        view,
-      );
-      // Most scroll frames cross no tile edge; those keep the same set and render
-      // nothing. A new box size or DPI moves every tile, so it always replaces them.
-      const keys = next.map((s) => s.key).join();
-      setSlots((prev) =>
-        !first && prev.map((s) => s.key).join() === keys ? prev : next,
-      );
+      const next = {
+        x0: box.x0 / upright.width,
+        y0: box.y0 / upright.height,
+        x1: box.x1 / upright.width,
+        y1: box.y1 / upright.height,
+      };
+      // Most scroll frames cross no tile edge; those keep the view and render nothing.
+      setView((prev) => (prev && keys(prev) === keys(next) ? prev : next));
     };
-    measure(true);
+    measure();
     let frame = 0;
     const onScroll = () => {
       if (!frame) {
@@ -352,10 +368,9 @@ function Tiles({
     width,
     height,
     rotation,
-    pageWidth,
-    pageHeight,
-    dpi,
     upright.width,
+    upright.height,
+    slotsAt,
   ]);
 
   return (
@@ -405,13 +420,20 @@ function TileCanvas({
 
   useEffect(() => {
     let dropped = false;
-    // Queued in mount order, which is nearest the middle of the view first.
-    const handle = engine.renderTile(
-      doc,
-      index,
-      { x, y, width, height },
-      { dpi, annotations },
-    );
+    let handle: RenderHandle<PageBitmap>;
+    try {
+      // Queued in mount order, which is nearest the middle of the view first.
+      handle = engine.renderTile(
+        doc,
+        index,
+        { x, y, width, height },
+        { dpi, annotations },
+      );
+    } catch {
+      // A document closed under us, as the page surface's own render guards against;
+      // the stretched bitmap stays.
+      return;
+    }
     handle.promise
       .then((page) => {
         if (dropped || !canvas.current) return;

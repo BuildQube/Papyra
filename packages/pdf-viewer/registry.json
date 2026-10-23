@@ -1001,7 +1001,7 @@
       "description": "The view behind the PowerPoint and paged Word renderers: a document or deck laid out and drawn by papyra in Rust over WordCraft and DeckCraft, in the PDF viewer's continuous column with its zoom bar. Experimental. Requires @build-qube/papyra-office-native, the optional peer @build-qube/papyra/office loads.",
       "dependencies": [
         "@build-qube/papyra@^0.7.0",
-        "@build-qube/papyra-office-native@^0.6.0",
+        "@build-qube/papyra-office-native@^0.7.0",
         "lucide-react"
       ],
       "registryDependencies": [

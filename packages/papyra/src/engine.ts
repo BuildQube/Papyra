@@ -558,8 +558,22 @@ export abstract class PagedEngine<
     if (!renderTile) {
       throw new RangeError(`papyra: ${this.id} renders no tiles`);
     }
-    const dpi = resolveDpi(backend, index, options, tile);
     const { x, y, width, height } = tile;
+    const whole = (n: number, max: number) =>
+      Number.isInteger(n) && n >= 0 && n <= max;
+    // Here rather than in the addon: napi would wrap -1 to 4294967295 and floor 10.5,
+    // rendering and caching a tile under a key that does not describe it.
+    if (
+      !whole(x, 0xffffffff) ||
+      !whole(y, 0xffffffff) ||
+      !whole(width - 1, 0xfffe) ||
+      !whole(height - 1, 0xfffe)
+    ) {
+      throw new RangeError(
+        `papyra: tile ${x},${y} ${width}x${height} needs whole x, y >= 0 and sides 1 to 65535`,
+      );
+    }
+    const dpi = resolveDpi(backend, index, options, tile);
     return submit(
       state,
       state.tiles,

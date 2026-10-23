@@ -330,6 +330,26 @@ describe('PdfEngine over another backend', () => {
     expect(engine.render(doc, 0, { dpi: 144 }).key).not.toContain('#');
   });
 
+  test('a malformed tile is refused before it reaches the backend', async () => {
+    const engine = new FakeEngine(TiledBackend);
+    const doc = await engine.open(BYTES);
+    for (const bad of [
+      { ...TILE, width: 0 },
+      { ...TILE, height: 65536 },
+      { ...TILE, width: Number.NaN },
+      { ...TILE, x: -1 },
+      { ...TILE, y: 10.5 },
+    ]) {
+      expect(() => engine.renderTile(doc, 0, bad, { dpi: 600 })).toThrow(
+        RangeError,
+      );
+    }
+    expect((engine.backend as TiledBackend).tiles).toEqual([]);
+    // The edges of the range are tiles.
+    const edge = { x: 0, y: 0, width: 1, height: 65535 };
+    await engine.renderTile(doc, 0, edge, { dpi: 600 }).promise;
+  });
+
   test('the pixel guard reads the tile, not the page', async () => {
     const engine = new FakeEngine(TiledBackend);
     const doc = await engine.open(BYTES);
