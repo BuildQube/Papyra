@@ -361,9 +361,12 @@ describe('PdfEngine over another backend', () => {
       );
     }
     expect((engine.backend as TiledBackend).tiles).toEqual([]);
-    // The edges of the range are tiles.
-    const edge = { x: 0, y: 0, width: 1, height: 65535 };
+    // The widest side the rasteriser takes is a tile; one more is too large.
+    const edge = { x: 0, y: 0, width: 1, height: 65280 };
     await engine.renderTile(doc, 0, edge, { dpi: 600 }).promise;
+    expect(() =>
+      engine.renderTile(doc, 0, { ...edge, height: 65281 }, { dpi: 600 }),
+    ).toThrow(RenderTooLargeError);
   });
 
   test('the pixel guard reads the tile, not the page', async () => {

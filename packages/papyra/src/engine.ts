@@ -373,35 +373,50 @@ export function resolveDpi(
   options: RenderOptions,
   tile?: Tile,
 ): number {
+  return resolveSize(backend, index, options, tile).dpi;
+}
+
+/**
+ * The widest side vello_cpu can take: it snaps its context out to 256px tiles in
+ * `u16`. papyra-hayro refuses past it too, as `MAX_SIDE`; this is the same refusal
+ * with a message, before anything crosses into the addon.
+ */
+const MAX_SIDE = 65280;
+
+/** {@link resolveDpi}, and the pixels it allowed. */
+function resolveSize(
+  backend: PagedBackend,
+  index: number,
+  options: RenderOptions,
+  tile?: Tile,
+): { dpi: number; pixels: number } {
   const { width, height } = backend.pageSize(index);
   const dpi =
     options.fitWidth !== undefined && width > 0
       ? (options.fitWidth / width) * 72
       : (options.dpi ?? DEFAULT_DPI);
 
-  const pixels = tile
-    ? tile.width * tile.height
-    : pagePixels(width, height, dpi);
-  if (pixels > MAX_PIXELS) {
+  const [w, h] = tile
+    ? [tile.width, tile.height]
+    : [(width * dpi) / 72, (height * dpi) / 72];
+  const pixels = w * h;
+  if (pixels > MAX_PIXELS || Math.max(w, h) > MAX_SIDE) {
     const mb = Math.round((pixels * 4) / 1e6);
     if (tile) {
       throw new RenderTooLargeError(
         `papyra: a ${tile.width}x${tile.height} tile is ${mb} MB; ` +
-          'keep a tile under 100 MP.',
+          `keep a tile under 100 MP and ${MAX_SIDE}px a side.`,
       );
     }
     throw new RenderTooLargeError(
       `papyra: page ${index} at ${dpi.toFixed(1)} DPI would be ` +
-        `${Math.round((width * dpi) / 72)}x${Math.round((height * dpi) / 72)} ` +
+        `${Math.round(w)}x${Math.round(h)} ` +
         `(${mb} MB). The page is ${(width / 72).toFixed(1)}x${(height / 72).toFixed(1)}in — ` +
         'use { fitWidth } to size by output pixels instead of DPI.',
     );
   }
-  return dpi;
+  return { dpi, pixels };
 }
-
-const pagePixels = (width: number, height: number, dpi: number) =>
-  ((width * dpi) / 72) * ((height * dpi) / 72);
 
 /**
  * {@link resolveDpi} for every page of `[start, end)`, refusing the batch when its
@@ -415,14 +430,14 @@ export function batchDpi(
   start: number,
   end: number,
   options: RenderOptions,
-  budget = Number.POSITIVE_INFINITY,
+  budget: number,
 ): number {
   let dpi = DEFAULT_DPI;
   let bytes = 0;
   for (let i = start; i < end; i++) {
-    dpi = resolveDpi(backend, i, options);
-    const { width, height } = backend.pageSize(i);
-    bytes += pagePixels(width, height, dpi) * 4;
+    const size = resolveSize(backend, i, options);
+    dpi = size.dpi;
+    bytes += size.pixels * 4;
   }
   if (bytes > budget) {
     throw new RenderTooLargeError(

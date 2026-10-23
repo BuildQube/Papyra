@@ -230,10 +230,11 @@ fn render<'a>(
   if width > MAX_SIDE || height > MAX_SIDE || u64::from(width) * u64::from(height) > MAX_PIXELS {
     return Err(too_large);
   }
-  let len = usize::from(width) * usize::from(height) * 4;
-  let mut data = Vec::new();
-  data.try_reserve_exact(len).map_err(|_| too_large)?;
-  data.resize(len, 0);
+  // Zeroed lazily by `alloc_zeroed`; vello writes every pixel anyway.
+  let data =
+    bytemuck::allocation::try_zeroed_slice_box::<u8>(usize::from(width) * usize::from(height) * 4)
+      .map_err(|_| too_large)?
+      .into_vec();
 
   let mut ctx = RenderContext::new(width, height);
   hayro::render_into(

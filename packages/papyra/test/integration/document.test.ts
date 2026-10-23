@@ -14,7 +14,6 @@ import {
   PasswordError,
   PasswordRequiredError,
   quadBounds,
-  RenderTooLargeError,
   viewport,
   viewportQuad,
   viewportRect,
@@ -573,15 +572,6 @@ describeWithCorpus('papyra as an engine', () => {
       }
     }
     expect(off).toBeLessThanOrEqual(1);
-  });
-
-  test("a size only the rasteriser refuses arrives as the wrapper's error", async () => {
-    // Under the 100 MP cap, but wider than vello_cpu can snap to its tiles.
-    const doc = await load('tracemonkey.pdf');
-    const tile = { x: 0, y: 0, width: 65535, height: 1 };
-    await expect(
-      defaultPdfEngine.renderTile(doc, 0, tile, { dpi: 72 }).promise,
-    ).rejects.toThrow(RenderTooLargeError);
   });
 
   test('closing through the engine closes the Document too', async () => {

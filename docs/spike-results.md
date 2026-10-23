@@ -1121,9 +1121,9 @@ past 65280.
 
 - **papyra-hayro refuses before it allocates.** `render` rejects a tile with a side
   over 65280, or more than 2^29 pixels (2 GiB of RGBA, past `isize::MAX` on wasm32,
-  so no `Vec` could hold it there anyway). It then reserves the pixmap with
-  `try_reserve_exact` and gives the buffer to vello as `Pixmap::from_parts`. All
-  three failures are `PapyraError::TooLarge`, which the bindings tag
+  so no `Vec` could hold it there anyway). It then allocates the pixmap with
+  bytemuck's `try_zeroed_slice_box`, a fallible `alloc_zeroed`, and hands it to
+  vello through `Pixmap::from_parts`. All three failures are `PapyraError::TooLarge`, which the bindings tag
   `papyra/too-large` and the wrapper throws as `RenderTooLargeError`.
 - **`renderPages` on wasm refuses past a 2 GiB batch, up front.** The measured cliff
   is ~3.7 GB in a fresh instance. The rest is left for the post-load floor (Addendum

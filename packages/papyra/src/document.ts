@@ -15,6 +15,7 @@ import {
   stateOf,
   textKey,
 } from './engine.js';
+import { rethrowLoadError } from './errors.js';
 import type { PageLink } from './links.js';
 import type { OutlineNode } from './outline.js';
 import {
@@ -412,7 +413,7 @@ export class Document implements PdfDoc {
             options.annotations,
             options.signal,
           ) as Promise<NativePageImage>
-        ).then((img) => new PageImage(img)),
+        ).then((img) => new PageImage(img), rethrowLoadError),
     });
 
     attachSignal(handle, options.signal);
@@ -526,15 +527,12 @@ export class Document implements PdfDoc {
       start,
       end,
       options,
-      wasm ? MAX_WASM_BATCH_BYTES : undefined,
+      wasm ? MAX_WASM_BATCH_BYTES : Number.POSITIVE_INFINITY,
     );
     if (!wasm && options.fitWidth === undefined) {
-      return (await this.#state.backend.native.renderPagesAsync(
-        start,
-        end,
-        dpi,
-        options.annotations,
-      )) as RenderedPage[];
+      return (await this.#state.backend.native
+        .renderPagesAsync(start, end, dpi, options.annotations)
+        .catch(rethrowLoadError)) as RenderedPage[];
     }
     const out: RenderedPage[] = [];
     for await (const { page, bitmap } of this.stream({
