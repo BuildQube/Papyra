@@ -354,7 +354,21 @@ gate; CI needed no new job.
   workers hitting `memory.grow` on a cold heap trap intermittently. Do not remove.
 - **`panic = "abort"` is deliberately absent** from the release profile: papyra parses
   untrusted PDFs and napi-rs turns caught panics into JS exceptions, so a malformed file
-  must reject a promise rather than kill the host process.
+  must reject a promise rather than kill the host process. **That only holds
+  natively.** wasm32-wasip1-threads cannot unwind, so on wasm a panic aborts the
+  worker, and the promise never settles. So does a failed allocation, on both
+  runtimes: `handle_alloc_error` aborts and never panics. Anything sized by its
+  input has to be refused *before* it reaches vello_cpu or the allocator. That is
+  why `render` in papyra-hayro checks the tile's sides and pixels, then reserves
+  the pixmap with `try_reserve_exact`. `PapyraError::TooLarge` is the result, and
+  it reaches TypeScript as `RenderTooLargeError`. What hayro allocates while it
+  interprets (an image decode, say) is still infallible. A render on a nearly full
+  wasm heap can still abort there; Addendum 14 measured it.
+- **On wasm, a bitmap a caller holds pins its wasm memory.** emnapi cannot make a
+  JS `ArrayBuffer` over shared memory, so it copies the bitmap out and frees the
+  Rust `Vec` from a GC finalizer. Every live `RenderedPage` therefore costs its
+  size twice, once in wasm32's 4 GB. That is the reason for `renderPages`' 2 GiB
+  budget on wasm.
 - **View rotation is TypeScript-only, and deliberately not a render option.** hayro's
   `RenderSettings` carries `x_scale`/`y_scale`/`width`/`height`/`bg_color` and nothing
   else, so a rotated render would be a post-hoc buffer shuffle — a copy, a napi field

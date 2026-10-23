@@ -1084,3 +1084,60 @@ for yet.
   the same 3,147 pages (the whole page at 1x plus nine 512px tiles at 3x), every
   page is byte-identical except `2363.pdf`, whose panicking draw falls outside the
   tiles and is skipped. Total time: 999s → 699s.
+
+# Addendum 14: an allocation that fails must reject, not abort
+
+## What happened
+
+The live `/bench` page crashed every wasm worker on a 90-sheet architectural set:
+55 MB, every page 30x42in. Each worker logged `memory allocation of 113400000 bytes
+failed` and then `RuntimeError: unreachable`. 113,400,000 bytes is one page at the
+bench's 150 DPI (6300x4500 RGBA). The viewer opens the same file without trouble.
+
+## Cause
+
+Three things, each needed for the crash:
+
+1. **`benchPapyra` held every page.** `renderPages(0, 90, { dpi: 150 })` returns all
+   90 bitmaps at once, 10 GB in total.
+2. **A held bitmap pins wasm memory.** emnapi's `napi_create_external_arraybuffer`
+   copies the bytes into a fresh JS `ArrayBuffer`, because a JS buffer cannot point
+   into shared wasm memory. It then frees the Rust `Vec` from a GC finalizer. So a
+   live `RenderedPage` costs its size in the JS heap *and* in wasm32's 4 GB. In
+   Node's WASI, holding 150 DPI pages of this set, `process.memoryUsage().arrayBuffers`
+   rose 113 MB per page, and the 34th render aborted with 33 pages (3.7 GB) held.
+3. **On wasm, failure kills the worker.** A failed allocation calls
+   `handle_alloc_error`, which aborts on every target. wasm32-wasip1-threads cannot
+   unwind either, so a *panic* aborts as well. `panic = "abort"` being absent from
+   the release profile protects native only. Either way the worker traps, and the
+   promise it was serving never settles.
+
+The same probe found a second path to the same trap, with no memory pressure at all:
+`renderTileAsync(…, 65535, 1)` panics in vello_common's `snap_to_tile_coordinates`.
+vello_common rounds a side up to a whole 256px wide tile in `u16`, which overflows
+past 65280.
+
+## Fix
+
+- **papyra-hayro refuses before it allocates.** `render` rejects a tile with a side
+  over 65280, or more than 2^29 pixels (2 GiB of RGBA, past `isize::MAX` on wasm32,
+  so no `Vec` could hold it there anyway). It then reserves the pixmap with
+  `try_reserve_exact` and gives the buffer to vello as `Pixmap::from_parts`. All
+  three failures are `PapyraError::TooLarge`, which the bindings tag
+  `papyra/too-large` and the wrapper throws as `RenderTooLargeError`.
+- **`renderPages` on wasm refuses past a 2 GiB batch, up front.** The measured cliff
+  is ~3.7 GB in a fresh instance. The rest is left for the post-load floor (Addendum
+  13: ~540 MB), four renders in flight, and the cache.
+- **The bench streams.** It drops each bitmap as it arrives, as the pdf.js run does
+  with its canvas, and closes the document.
+
+## What this does not cover
+
+The pixmap is the largest allocation in a render, and it is the one this crash
+failed on. It is not the only one. With the pixmap reserved fallibly, the same
+held-pages probe got past it on the 34th page. It then aborted 24,875,520 bytes later
+inside `hayro_syntax::Stream::decoded_image`. hayro's image decoding, vello's
+coarse-rasteriser buffers and everything else the interpreter allocates are still
+infallible. A render on a nearly full wasm heap can still kill its worker. What this
+fix does guarantee: no request is aborted *because of its size*, and `renderPages`
+does not walk a wasm instance into a full heap.
