@@ -189,11 +189,13 @@ export function ZoomBar({
           >
             <ChevronLeftIcon />
           </Button>
-          <InputGroup className="h-7 w-28">
+          {/* As tall as the arrows, whatever size a style gives `icon-sm`: the group
+              stretches to them, and nothing inside it sets a height of its own. */}
+          <InputGroup className="h-auto w-28">
             <InputGroupInput
               type="number"
               aria-label="Page number"
-              className="text-right tabular-nums"
+              className="h-auto self-stretch py-0 text-right tabular-nums"
               min={1}
               max={pageCount}
               value={page + 1}
@@ -204,7 +206,7 @@ export function ZoomBar({
                 }
               }}
             />
-            <InputGroupAddon align="inline-end">
+            <InputGroupAddon align="inline-end" className="py-0">
               <InputGroupText>of {pageCount}</InputGroupText>
             </InputGroupAddon>
           </InputGroup>

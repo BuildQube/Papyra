@@ -152,7 +152,8 @@ export function FilePreview<const R extends readonly FileRenderer[]>({
   const source = files[at];
   const key = source === undefined ? '' : sourceKey(source);
   const signal = useUnmountSignal();
-  const [full, toggleFullscreen] = useFullscreen();
+  const root = useRef<HTMLElement>(null);
+  const [full, toggleFullscreen] = useFullscreen(root);
 
   // A name or size only the response knew — a `Content-Disposition`, a length.
   const [learned, setLearned] = useState<{
@@ -194,7 +195,11 @@ export function FilePreview<const R extends readonly FileRenderer[]>({
 
   return (
     <section
+      ref={root}
       aria-label="File preview"
+      // For a host that has to undo something while the preview takes over — a
+      // dialog's transform, which would trap the `fixed` below in its box.
+      data-fullscreen={full || undefined}
       className={cn(
         'flex min-h-0 min-w-0 flex-col',
         className,

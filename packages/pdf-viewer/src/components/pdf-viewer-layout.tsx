@@ -146,7 +146,7 @@ export function ViewerLayout({
 
   const root = useRef<HTMLElement>(null);
   const compact = useCompact(root);
-  const [full, toggleFullscreen] = useFullscreen();
+  const [full, toggleFullscreen] = useFullscreen(root);
   const panel = useRef<PanelHandle | null>(null);
   // The width the reader last dragged the column to, so the toggle reopens it there.
   // Not the panel's own `expand()`: measured, that came back at the minimum rather
@@ -155,10 +155,12 @@ export function ViewerLayout({
 
   // Becoming narrow closes the sidebar — on first measurement, so a drawer does not
   // cover the document on load, and on a resize, so it does not pop up mid-read.
-  // Becoming wide again leaves it closed: the toggle is right there.
+  // Becoming wide again leaves it closed: the toggle is right there. A one-page
+  // document starts closed too, since a strip of one thumbnail is the page again.
+  const single = doc?.doc.pageCount === 1;
   useEffect(() => {
-    if (compact) setSidebar(false);
-  }, [compact, setSidebar]);
+    if (compact || single) setSidebar(false);
+  }, [compact, single, setSidebar]);
 
   // The store drives the column. The reverse edge is `onResize` below, for a drag.
   useEffect(() => {
@@ -242,6 +244,8 @@ export function ViewerLayout({
     <main
       ref={root}
       data-slot="pdf-viewer"
+      // As on the file preview: what a transformed host keys its undoing on.
+      data-fullscreen={full || undefined}
       className={cn(
         'flex min-h-0 min-w-0 flex-1 @container/pdf-viewer',
         // `dvh`, not `vh`: on a phone the static viewport height is taller than
@@ -269,7 +273,8 @@ export function ViewerLayout({
           >
             {sidebar}
           </ResizablePanel>
-          <ResizableHandle withHandle />
+          {/* Closed, the column is zero wide and a grip beside it is a stray line. */}
+          <ResizableHandle withHandle className={cn(!open && 'hidden')} />
           <ResizablePanel>{pages}</ResizablePanel>
         </ResizablePanelGroup>
       ) : (

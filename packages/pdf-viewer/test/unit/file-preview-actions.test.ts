@@ -84,4 +84,14 @@ describe('fileAction', () => {
     await fileAction(true, file(), new FileCache()).run();
     expect(calls).toEqual(['share a.txt', 'download']);
   });
+
+  test("a host's download replaces both, and is handed the source", async () => {
+    const source = file();
+    const action = fileAction(true, source, new FileCache(), undefined, (s) => {
+      calls.push(`host ${s === source}`);
+    });
+    expect(action.kind).toBe('download');
+    await action.run();
+    expect(calls).toEqual(['host true']);
+  });
 });

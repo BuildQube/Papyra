@@ -188,7 +188,8 @@ export interface PdfViewerStoreOptions {
    * Whether the sidebar starts open. Defaults to open.
    *
    * The layout still closes it on a narrow viewer, whatever this says: a drawer that
-   * covers the document on first load is not a default anyone wants.
+   * covers the document on first load is not a default anyone wants. Likewise for a
+   * document of one page.
    */
   sidebar?: boolean;
   /**

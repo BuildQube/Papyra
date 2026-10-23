@@ -83,7 +83,10 @@ export function zoomIn(zoom: number): number {
 
 /** The next rung down. */
 export function zoomOut(zoom: number): number {
-  return ZOOM_STEPS.findLast((step) => step < zoom - 1e-4) ?? MIN_ZOOM;
+  // Not `findLast`: that is ES2023, and a consumer may compile against ES2022.
+  return (
+    [...ZOOM_STEPS].reverse().find((step) => step < zoom - 1e-4) ?? MIN_ZOOM
+  );
 }
 
 /** The box a fit mode measures itself against, in CSS pixels. */
