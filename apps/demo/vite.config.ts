@@ -209,6 +209,7 @@ export default defineConfig({
       input: {
         main: fileURLToPath(new URL('index.html', import.meta.url)),
         perf: fileURLToPath(new URL('perf.html', import.meta.url)),
+        tiles: fileURLToPath(new URL('tiles-perf.html', import.meta.url)),
       },
     },
   },

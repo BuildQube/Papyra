@@ -377,14 +377,16 @@ gate; CI needed no new job.
   values back. Since the scheduler coalesces on the key and the LRU is looked up by it,
   `annotationKey()` in `document.ts` appends `:noannots`; without it, asking for a page
   with annotations off is silently served the bitmap that still has them drawn on.
-- **Tile rendering would cost N× rather than save.** It is no longer blocked: hayro 0.8
-  made `render_into(page, …, ctx, transform)` public, so a tile is a `RenderContext`
-  of the tile's size and an `Affine::translate` composed into the page transform —
-  `examples/crop.rs` renders its viewport windows this way. But Addendum 10 measured
-  that hayro does **no viewport culling** — a 10%-area viewport cost 93.7ms against
-  104.6ms for the whole page — so N tiles is roughly N full renders. Tiles buy bounded
-  memory and a way past both the 100 MP cap and hayro's `u16` 65535px-per-side ceiling.
-  They do not buy speed.
+- **A tile costs the page's floor, not the page.** hayro 0.8 made
+  `render_into(page, …, ctx, transform)` public, so a tile is a `RenderContext` of the
+  tile's size and an `Affine::translate` composed into the page transform — `render`
+  in `papyra-hayro` is that, and the whole page is just the tile at the origin. hayro
+  still does **no viewport culling**, so every tile pays the page's interpretation and
+  image decoding: at 400% on ARCH-E a 1024px tile is ~54ms against 251ms for the page,
+  and tile size barely matters. A 20-line device-space early return in hayro's
+  renderer (`examples/hayro-culling.patch`) cuts that to ~13ms with byte-identical
+  output; it is upstream's to take. On wasm, four tiles in flight are *slower* than one
+  on these pages. Addendum 13 has the numbers.
 - **`.cargo/config.toml` forces `+simd128` for wasm** — vello_cpu is a SIMD rasteriser and
   is ~1.7x slower without it.
 - **Size renders with `fitWidth`, not `dpi`.** Page sizes vary by two orders of magnitude

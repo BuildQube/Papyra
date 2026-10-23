@@ -136,6 +136,35 @@ impl Task for RenderTask {
   }
 }
 
+/// One window of a page, rendered off the JS thread.
+pub struct TileTask {
+  doc: Arc<HayroDocument>,
+  index: usize,
+  dpi: f64,
+  annotations: bool,
+  tile: papyra_hayro::Tile,
+}
+
+impl Task for TileTask {
+  type Output = papyra_core::Bitmap;
+  type JsValue = RenderedPage;
+
+  fn compute(&mut self) -> Result<Self::Output> {
+    self
+      .doc
+      .render_tile(
+        self.index,
+        &render_opts(self.dpi, self.annotations),
+        self.tile,
+      )
+      .map_err(map_err)
+  }
+
+  fn resolve(&mut self, _env: Env, out: Self::Output) -> Result<Self::JsValue> {
+    Ok(to_rendered(out))
+  }
+}
+
 /// A batch rendered with rayon, driven from one async-work slot.
 ///
 /// Native only in practice: on wasm rayon's workers are Web Workers that the JS event
@@ -964,6 +993,37 @@ impl PdfDocument {
       dpi: dpi.unwrap_or(72.0),
       annotations: annotations.unwrap_or(true),
     })
+  }
+
+  /// Render the `width` x `height` window whose corner is (`x`, `y`) in output pixels
+  /// of the page at `dpi`. Each side is at most 65535, hayro's limit; the page is not.
+  #[napi(ts_return_type = "Promise<RenderedPage>")]
+  #[allow(clippy::too_many_arguments)]
+  pub fn render_tile_async(
+    &self,
+    index: u32,
+    dpi: f64,
+    x: f64,
+    y: f64,
+    width: u32,
+    height: u32,
+    annotations: Option<bool>,
+  ) -> Result<AsyncTask<TileTask>> {
+    let side = |n: u32| {
+      u16::try_from(n).ok().filter(|&n| n > 0).ok_or_else(|| {
+        Error::new(
+          Status::InvalidArg,
+          format!("tile side {n} is not 1..=65535"),
+        )
+      })
+    };
+    Ok(AsyncTask::new(TileTask {
+      doc: self.inner.clone(),
+      index: index as usize,
+      dpi,
+      annotations: annotations.unwrap_or(true),
+      tile: (x, y, side(width)?, side(height)?),
+    }))
   }
 
   /// Render one page and keep it in Rust, for encoding. The pixels never reach JS.

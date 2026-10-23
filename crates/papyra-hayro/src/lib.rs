@@ -16,10 +16,16 @@ pub use links::read_links;
 pub use outline::read_outline;
 pub use text::extract as extract_text;
 
-use hayro::{PixmapSettings, RenderCache, RenderSettings};
+use hayro::vello_cpu::color::palette::css::{TRANSPARENT, WHITE};
+use hayro::vello_cpu::color::{AlphaColor, Srgb};
+use hayro::vello_cpu::peniko::ImageAlphaType;
+use hayro::vello_cpu::{Pixmap, RasterizerSettings, RenderContext, Resources, TargetInit};
+use hayro::{RenderCache, RenderSettings};
 use hayro_interpret::InterpreterSettings;
+use hayro_interpret::util::TransformExt;
 use hayro_syntax::page::Page;
 use hayro_syntax::{DecryptionError, LoadPdfError, Pdf};
+use kurbo::Affine;
 use papyra_core::{
   Attachment, Bitmap, Document, Engine, Link, Metadata, OutlineItem, PageSize, PageText,
   PapyraError, PixelFormat, RenderOptions, Result, StructNode,
@@ -88,13 +94,12 @@ impl HayroDocument {
     let pages = self.pdf.pages();
     let cache = RenderCache::new();
     let interp = interpreter_settings(opts);
-    let settings = pixmap_settings(opts);
 
     indices
       .iter()
       .map(|&i| {
         let page = pages.get(i).ok_or(PapyraError::PageOutOfRange(i))?;
-        Ok(render(page, &cache, &interp, &settings))
+        Ok(render(page, &cache, &interp, opts, full_page(page, opts)))
       })
       .collect()
   }
@@ -112,13 +117,12 @@ impl HayroDocument {
   ) -> Result<Vec<Bitmap>> {
     let pages = self.pdf.pages();
     let interp = interpreter_settings(opts);
-    let settings = pixmap_settings(opts);
 
     indices
       .par_iter()
       .map_init(RenderCache::new, |cache, &i| {
         let page = pages.get(i).ok_or(PapyraError::PageOutOfRange(i))?;
-        Ok(render(page, cache, &interp, &settings))
+        Ok(render(page, cache, &interp, opts, full_page(page, opts)))
       })
       .collect()
   }
@@ -155,15 +159,11 @@ fn interpreter_settings(opts: &RenderOptions) -> InterpreterSettings {
   }
 }
 
-fn pixmap_settings(opts: &RenderOptions) -> PixmapSettings {
-  PixmapSettings {
-    x_scale: opts.scale,
-    y_scale: opts.scale,
-    bg_color: if opts.white_background {
-      hayro::vello_cpu::color::palette::css::WHITE
-    } else {
-      hayro::vello_cpu::color::palette::css::TRANSPARENT
-    },
+fn background(opts: &RenderOptions) -> AlphaColor<Srgb> {
+  if opts.white_background {
+    WHITE
+  } else {
+    TRANSPARENT
   }
 }
 
@@ -180,21 +180,67 @@ fn svg_settings(opts: &RenderOptions) -> hayro_svg::SvgRenderSettings {
   }
 }
 
+/// A window of a page at `opts.scale`, in output pixels: the corner and the size.
+pub type Tile = (f64, f64, u16, u16);
+
+/// The whole page as a [`Tile`]. Floored the way `hayro::render` floors it.
+fn full_page(page: &Page, opts: &RenderOptions) -> Tile {
+  let (w, h) = page.render_dimensions();
+  (0.0, 0.0, (w * opts.scale) as u16, (h * opts.scale) as u16)
+}
+
+/// What `hayro::render` does, into a context the size of `tile` with the page
+/// transform shifted so the tile's corner is the origin. hayro culls nothing outside
+/// the context, so a tile costs about what the page does — see Addendum 13.
 fn render<'a>(
   page: &'a Page<'a>,
   cache: &RenderCache<'a>,
   interp: &InterpreterSettings,
-  settings: &PixmapSettings,
+  opts: &RenderOptions,
+  (x, y, width, height): Tile,
 ) -> Bitmap {
-  let pixmap = hayro::render(page, cache, interp, &RenderSettings::default(), settings);
-  let width = pixmap.width() as u32;
-  let height = pixmap.height() as u32;
+  let scale = opts.scale as f64;
+  let mut ctx = RenderContext::new(width, height);
+  hayro::render_into(
+    page,
+    cache,
+    interp,
+    &RenderSettings::default(),
+    &mut ctx,
+    Affine::translate((-x, -y)) * Affine::scale(scale) * page.initial_transform(true).to_kurbo(),
+  );
+  ctx.flush();
+  let mut pixmap = Pixmap::new(width, height);
+  ctx.render_with(
+    &mut pixmap,
+    &mut Resources::default(),
+    RasterizerSettings {
+      target_init: TargetInit::Clear(background(opts)),
+      ..Default::default()
+    },
+  );
   Bitmap {
-    width,
-    height,
-    stride: width * 4,
+    width: width as u32,
+    height: height as u32,
+    stride: width as u32 * 4,
     format: PixelFormat::Rgba8,
-    data: pixmap.take_rgba8(hayro::vello_cpu::peniko::ImageAlphaType::Alpha),
+    data: pixmap.take_rgba8(ImageAlphaType::Alpha),
+  }
+}
+
+impl HayroDocument {
+  /// Render one window of a page. A tile may sit anywhere on a page whose full size
+  /// is past both the 100 MP cap and hayro's `u16` side, which is what it is for.
+  pub fn render_tile(&self, index: usize, opts: &RenderOptions, tile: Tile) -> Result<Bitmap> {
+    let pages = self.pdf.pages();
+    let page = pages.get(index).ok_or(PapyraError::PageOutOfRange(index))?;
+    Ok(render(
+      page,
+      &RenderCache::new(),
+      &interpreter_settings(opts),
+      opts,
+      tile,
+    ))
   }
 }
 
@@ -265,12 +311,12 @@ impl Document for HayroDocument {
   fn render_page(&self, index: usize, opts: &RenderOptions) -> Result<Bitmap> {
     let pages = self.pdf.pages();
     let page = pages.get(index).ok_or(PapyraError::PageOutOfRange(index))?;
-    let cache = RenderCache::new();
     Ok(render(
       page,
-      &cache,
+      &RenderCache::new(),
       &interpreter_settings(opts),
-      &pixmap_settings(opts),
+      opts,
+      full_page(page, opts),
     ))
   }
 }

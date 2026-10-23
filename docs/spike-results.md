@@ -916,3 +916,152 @@ equivalent.
 
 Our own render cache (Addendum 11) makes *repeat* renders free but cannot help the first
 render of a page. This is the fix for that half.
+
+---
+
+# Addendum 13: tiles, on hayro 0.8
+
+hayro 0.8 made `render_into` public, so a tile is now a `RenderContext` the tile's size
+and the page transform translated by the tile's corner (`render` in
+`crates/papyra-hayro/src/lib.rs`, which the whole-page path now goes through too). The
+question Addendum 10 left is whether that saves anything, given there is no culling.
+Same ARCH-E set (`Attachment-C-Drawings.pdf`, 44 pages, 42x30in), M-series Mac.
+
+## Culling: still none
+
+`examples/crop.rs` re-run unchanged:
+
+| viewport | 0.7 | **0.8** |
+|---|---|---|
+| 100% | 104.6ms | **89.9ms** |
+| 50%  |  94.9ms | **74.6ms** |
+| 25%  |  94.3ms | **65.5ms** |
+| 10%  |  93.7ms | **64.6ms** |
+
+The floor dropped by a third, but a tenth of the page still costs 72% of all of it.
+`interpret_vs_raster` agrees: interpretation is 11-12ms flat, as before. hayro-interpret
+keeps a `bbox` stack on its `Context` and uses it only to elide redundant clips; no draw
+call is ever tested against it, and image XObjects are decoded inside the renderer's
+`draw_image` whether or not they land on the context.
+
+## What a tile costs
+
+`examples/tiles.rs`, page 0, best of 3. 400% is 288 DPI: 12096x8640, 104.5 MP, past the
+100 MP cap. Tiles are rendered in sequence sharing one `RenderCache`.
+
+| | fitWidth 1600 | 400% |
+|---|---|---|
+| full page | 91.4ms | 251.5ms |
+| 4 tiles (2x2) | 287.7ms (3.2x) | 416.4ms (1.7x) |
+| 16 tiles (4x4) | 1083ms (11.9x) | 1057ms (4.2x) |
+| one 256px tile | 67.2ms | 54.7ms |
+| one 1024px tile | 65.4ms | 54.3ms |
+
+Page 2 (41,817 image draws) has the same shape: one 1024px tile at 400% is 99.5ms
+against 559ms for the page, 16 tiles 3.2x the page.
+
+Two things follow. **A tile costs the page's floor, not the page** — at deep zoom the
+per-pixel half of a full render is real (251ms vs 54ms), and a tile skips it. And **tile
+size is free**: 256px and 1024px cost the same, so fewer, larger tiles always win.
+
+A 1920x1080 viewport at the centre of the page at 400% touches six 1024px tiles:
+
+| | 1 thread | 4 threads (rayon) |
+|---|---|---|
+| page 0 | 323.5ms | 145.0ms |
+| page 2 | 577.7ms | 232.4ms |
+
+## Peak memory
+
+Process peak RSS (`/usr/bin/time -l`, one mode per process; ~43 MB is the parsed file).
+
+| | page 0 | page 2 |
+|---|---|---|
+| full page, fitWidth 1600 | 77 MB | 116 MB |
+| **full page, 400%** | **501 MB** | **536 MB** |
+| 16 tiles at 400%, in sequence | 187 MB | 269 MB |
+| one 1024px tile at 400% | 85 MB | 104 MB |
+
+Browser wasm (`apps/demo/tiles-perf.html`, see below) cannot see under its post-load
+size of 543 MB — the glue's initial memory plus the 37 MB file — and every tile case
+stays at that floor. The 400% full page grows it to **1629 MB** (page 2: 1661 MB),
+because wasm memory never shrinks and the pixmap is copied on its way out.
+
+## Browser wasm
+
+Clean headless Chrome, one fresh profile per case, as Addendum 5 requires.
+`apps/demo/tiles-perf.html?case=…&page=…` calls the binding directly (the wrapper's cap
+would refuse the 400% page) and POSTs to `/__perf`.
+
+| page 0 | ms |
+|---|---|
+| full page, fitWidth 1600 | 107.8 |
+| full page, 400% | 356.2 |
+| one 1024px tile, 400% | 72.8 |
+| viewport (6 tiles), 1 in flight | first 76.0, all 443.0 |
+| viewport (6 tiles), **4 in flight** | **first 376.3**, all 518.0 |
+| 16 tiles, 1 in flight | first 84.0, all 1361.5 |
+| 16 tiles, 4 in flight | first 386.8, all 1507.7 |
+
+Page 2: one tile 130.9ms; viewport first 133.4 / all 784.0 serially, first 849.3 / all
+1264.4 with 4 in flight.
+
+**Concurrency is a loss on wasm here**, where native gains 2.2-2.5x from four threads.
+Four tiles of this page in flight make the first one land five times later and finish
+the set *slower*. Addendum 5 measured the opposite on tracemonkey, so it is the content:
+these pages are image decoding and the buffers it allocates (Addendum 12), and the
+likeliest cause is contention in the single wasm allocator. That is a hypothesis — it
+was not profiled.
+
+## Paying the floor once
+
+Three ways to stop every tile paying for the whole page:
+
+**1. Culling inside hayro.** A draw whose device-space bounding box misses the context
+can return before it does anything — before an image is decoded, a path flattened, a
+stroke expanded. To price it, a scratch copy of hayro 0.8 got a 20-line check (`examples/hayro-culling.patch`):
+`Renderer::culled(local, transform, pad)` against `(0, 0, ctx.width(), ctx.height())`,
+called first in `fill_path`, `stroke_path` (padded by line width x miter limit) and
+`draw_pdf_image`. Glyph runs, shadings and groups were left alone. Built through
+`--config patch.crates-io.hayro.path=…`:
+
+| | stock | culled |
+|---|---|---|
+| one 1024px tile at 400%, page 0 | 54.3ms | **12.7ms** |
+| one 1024px tile at 400%, page 2 | 99.5ms | **31.0ms** |
+| 16 tiles at 400%, page 0 | 4.2x full | **1.6x** full |
+| wasm, one 1024px tile, page 0 | 72.8ms | **21.2ms** |
+| wasm, one 1024px tile, page 2 | 130.9ms | **45.4ms** |
+| wasm, viewport serially, page 0 | 443.0ms | **197.3ms** |
+
+The tile is now ~interpretation (10.4ms, 25ms on page 2) plus its own pixels. Every tile
+of a 4x4 grid on pages 0, 2 and 43 at both scales, and every corpus file at 2x and 6x,
+hashed **byte-identical** to stock (`tiles … hash <scale> 4`). Addendum 12 called culling
+"architecturally much larger" than an image cache; this says otherwise — it is a
+per-draw early return, because the renderer already knows its context's size.
+
+**2. Record once, rasterise tiles from it.** A `RenderContext` the size of the whole
+400% page records every draw in 68.7ms; rasterising a 512px cut-out from it then costs
+13.9ms (page 2: 132ms and 41ms), and the recorded context peaks at 101 MB — it holds
+strips, not pixels. It needs no hayro change, but it does need one in vello_cpu:
+`RasterizerSettings::offset` is `(u16, u16)`, so only the top-left cut-out is reachable.
+With culling, a fresh tile is already cheaper than a cut (12.7ms vs 13.9ms), and the
+recording still has a `u16` side, so it cannot reach past 65535px either.
+
+**3. Caching the interpretation.** After culling, interpretation is most of what is
+left. Replaying a recording through hayro's renderer is blocked exactly as Addendum 10
+found — `Renderer` is private — and the ceiling is now ~10ms per tile. Not worth asking
+for yet.
+
+## Recommendation
+
+1. **Build tiles now** on stock hayro 0.8. Even unculled, the first tile of a 400%
+   viewport arrives in ~55ms native / ~75ms wasm against a page that is refused at
+   that size today, with memory bounded by the viewport instead of the page.
+2. **Propose culling upstream**: the device-space early return in `fill_path`,
+   `stroke_path` and `draw_pdf_image`, with `tiles.rs` as the reproduction. It is small,
+   output-identical, and cuts a deep-zoom tile 3-4x. Image-cache (Addendum 12) is still
+   worth asking for separately; it helps the page floor, culling helps the tile.
+3. **Run tiles one at a time on wasm** until the contention is profiled; native keeps
+   the scheduler's normal limit.
+4. Do not pursue record-and-cut or an interpretation cache.
