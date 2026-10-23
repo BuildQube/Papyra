@@ -142,9 +142,9 @@ export interface Tile {
   readonly x: number;
   /** Pixels from the page's top edge. */
   readonly y: number;
-  /** Width in pixels, 1 to 65535. */
+  /** Width in pixels, 1 to 65280: the widest the rasteriser takes. */
   readonly width: number;
-  /** Height in pixels, 1 to 65535. */
+  /** Height in pixels, 1 to 65280. */
   readonly height: number;
 }
 

@@ -9,7 +9,7 @@ use napi_derive::napi;
 use papyra_tables::{LoadOptions, TableError};
 use std::sync::Arc;
 
-/// See `TAG_PASSWORD_REQUIRED` in `lib.rs`. Keep in step with `TAGS` in `errors.ts`.
+/// See `PapyraError::tagged`. Keep in step with `TAGS` in `errors.ts`.
 const TAG_ENCRYPTED: &str = "papyra/encrypted-workbook";
 
 fn map_err(e: TableError) -> Error {

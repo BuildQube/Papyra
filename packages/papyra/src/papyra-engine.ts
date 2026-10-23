@@ -186,11 +186,9 @@ export class PapyraBackend implements PdfBackend {
     index: number,
     options: BackendRenderOptions,
   ): Promise<RenderedPage> {
-    return this.native.renderPageAsync(
-      index,
-      options.dpi,
-      options.annotations,
-    ) as Promise<RenderedPage>;
+    return this.native
+      .renderPageAsync(index, options.dpi, options.annotations)
+      .catch(rethrowLoadError) as Promise<RenderedPage>;
   }
 
   renderTile(
@@ -198,15 +196,17 @@ export class PapyraBackend implements PdfBackend {
     { x, y, width, height }: Tile,
     options: BackendRenderOptions,
   ): Promise<RenderedPage> {
-    return this.native.renderTileAsync(
-      index,
-      options.dpi,
-      x,
-      y,
-      width,
-      height,
-      options.annotations,
-    ) as Promise<RenderedPage>;
+    return this.native
+      .renderTileAsync(
+        index,
+        options.dpi,
+        x,
+        y,
+        width,
+        height,
+        options.annotations,
+      )
+      .catch(rethrowLoadError) as Promise<RenderedPage>;
   }
 
   metadata(): DocumentMetadata {

@@ -8,6 +8,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+bytemuck = { workspace = true }
 papyra-core = { workspace = true }
 # `hayro`'s default features turn on `hayro-interpret/embed-fonts`, which is what makes
 # the 14 standard fonts resolve without a font-resolver callback. Text extraction from

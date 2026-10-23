@@ -32,6 +32,9 @@ hayro-svg = "0.8.0"
 hayro-syntax = "0.8.0"
 
 base64 = "0.22"
+# Already in the tree through vello_cpu; papyra-hayro needs its fallible zeroed
+# allocation, which std has only unstably.
+bytemuck = { version = "1", features = ["extern_crate_alloc"] }
 # Encoders only. hayro already pulls `image` with "png"; cargo unifies features
 # additively, so "jpeg" and "webp" here are the only additions. All three are pure
 # Rust, which is what keeps the wasm32-wasip1-threads target buildable.
