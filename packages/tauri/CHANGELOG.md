@@ -1,5 +1,13 @@
 # @build-qube/papyra-tauri
 
+## 0.7.1
+
+### Patch Changes
+
+- 8286752: `tauri-plugin-papyra` opens files on Android. Tauri never uses its custom-protocol
+  IPC there, so `open`, `openTiff` and `openWorkbook` arrived as a JSON array of bytes
+  and were refused with "this command takes the file's bytes as the request body".
+
 ## 0.7.0
 
 ### Minor Changes

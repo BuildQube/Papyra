@@ -1234,7 +1234,7 @@ dependencies = [
 
 [[package]]
 name = "papyra-bindings"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "napi",
  "napi-build",
@@ -1249,14 +1249,14 @@ dependencies = [
 
 [[package]]
 name = "papyra-core"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "papyra-encode"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "base64",
  "image",
@@ -1265,7 +1265,7 @@ dependencies = [
 
 [[package]]
 name = "papyra-hayro"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "hayro",
  "hayro-interpret",
@@ -1278,7 +1278,7 @@ dependencies = [
 
 [[package]]
 name = "papyra-office"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "deckcraft-fonts",
  "deckcraft-model",
@@ -1296,7 +1296,7 @@ dependencies = [
 
 [[package]]
 name = "papyra-office-bindings"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "napi",
  "napi-build",
@@ -1307,7 +1307,7 @@ dependencies = [
 
 [[package]]
 name = "papyra-tables"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "calamine",
  "chardetng",
@@ -1321,7 +1321,7 @@ dependencies = [
 
 [[package]]
 name = "papyra-tiff"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "hayro-ccitt",
  "papyra-core",

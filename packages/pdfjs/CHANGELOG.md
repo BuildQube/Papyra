@@ -1,5 +1,7 @@
 # @build-qube/papyra-pdfjs
 
+## 0.7.1
+
 ## 0.7.0
 
 ### Patch Changes
