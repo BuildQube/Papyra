@@ -3,6 +3,7 @@
 
 use papyra_core::{Document, Engine};
 use papyra_hayro::{HayroDocument, HayroEngine};
+use serde::Deserialize;
 use tauri::ipc::{InvokeBody, Response as Bytes};
 use tauri::{Runtime, State, Webview};
 
@@ -23,11 +24,14 @@ pub async fn blocking<T: Send + 'static>(
 /// Header the password travels in, percent-encoded: the body is the file's bytes.
 const PASSWORD_HEADER: &str = "x-papyra-password";
 
-/// The file's bytes, which every `open` takes as the raw request body.
+/// The file's bytes, which every `open` takes as the request body.
 pub fn body(request: &tauri::ipc::Request<'_>) -> Result<Vec<u8>> {
   match request.body() {
     InvokeBody::Raw(bytes) => Ok(bytes.clone()),
-    _ => Err(Error::NotBytes),
+    // Android: Tauri never uses the custom-protocol IPC there (a WebView cannot read
+    // a request body), so the bytes arrive over postMessage as a JSON array. Read
+    // through the borrow: cloning the `Value` costs 32 bytes per byte of file.
+    InvokeBody::Json(value) => Vec::deserialize(value).map_err(|_| Error::NotBytes),
   }
 }
 
@@ -48,7 +52,7 @@ pub(crate) fn header(
     .transpose()
 }
 
-/// Open a PDF sent as the raw request body. Answers with its id and every page's
+/// Open a PDF sent as the request body. Answers with its id and every page's
 /// size, its metadata and its version — everything a viewer needs before it renders.
 #[tauri::command]
 pub(crate) async fn open<R: Runtime>(

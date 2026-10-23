@@ -31,7 +31,7 @@ pub struct TiffOpened {
   pub pages: Vec<TiffPage>,
 }
 
-/// Open a TIFF sent as the raw request body, and list its pages. Only the directory
+/// Open a TIFF sent as the request body, and list its pages. Only the directory
 /// is read; each page is decoded when the protocol asks for it.
 #[tauri::command]
 pub(crate) async fn open_tiff<R: Runtime>(

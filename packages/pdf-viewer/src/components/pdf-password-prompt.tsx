@@ -54,7 +54,7 @@ export function PasswordPrompt({
   return (
     <section
       aria-labelledby={titleId}
-      className="grid flex-1 place-items-center p-12"
+      className="grid flex-1 grid-cols-[minmax(0,1fr)] place-items-center p-4 sm:p-12"
     >
       <Card className="w-90 max-w-full">
         <form

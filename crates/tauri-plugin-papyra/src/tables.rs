@@ -72,7 +72,7 @@ fn workbook(docs: &Documents, id: u32) -> Result<(Arc<papyra_tables::Workbook>, 
   }
 }
 
-/// Open a spreadsheet or delimited text sent as the raw request body, its options in
+/// Open a spreadsheet or delimited text sent as the request body, its options in
 /// the `x-papyra-options` header. Lists the sheets; none is read yet.
 #[tauri::command]
 pub(crate) async fn open_workbook<R: Runtime>(
