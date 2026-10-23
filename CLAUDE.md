@@ -359,12 +359,15 @@ gate; CI needed no new job.
   worker, and the promise never settles. So does a failed allocation, on both
   runtimes: `handle_alloc_error` aborts and never panics. Anything sized by its
   input has to be refused *before* it reaches vello_cpu or the allocator. That is
-  why `render` in papyra-hayro checks the tile's sides and pixels, then allocates
-  the pixmap fallibly (bytemuck's `try_zeroed_slice_box`). `PapyraError::TooLarge`
-  is the result, and it reaches TypeScript as `RenderTooLargeError`; `resolveDpi`
-  refuses the same sizes first, with a better message. What hayro allocates while it
-  interprets (an image decode, say) is still infallible. A render on a nearly full
-  wasm heap can still abort there; Addendum 14 measured it.
+  why `render` in papyra-hayro checks the tile's sides and pixels up front, and
+  allocates the pixmap fallibly (bytemuck's `try_zeroed_slice_box`) only *after*
+  interpretation. Allocated before, it is held through every context-sized soft
+  mask hayro draws, and peak memory goes from 5 to 9 bytes a pixel.
+  `PapyraError::TooLarge` is the result, and it reaches TypeScript as
+  `RenderTooLargeError`; `resolveDpi` refuses the same sizes first, with a better
+  message. What hayro allocates while it interprets (soft masks, patterns, image
+  decoding) is still infallible. A render on a nearly full wasm heap can still
+  abort there; Addendum 14 measured it.
 - **On wasm, a bitmap a caller holds pins its wasm memory.** emnapi cannot make a
   JS `ArrayBuffer` over shared memory, so it copies the bitmap out and frees the
   Rust `Vec` from a GC finalizer. Every live `RenderedPage` therefore costs its

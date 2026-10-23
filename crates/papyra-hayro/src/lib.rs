@@ -219,10 +219,9 @@ fn render<'a>(
     width,
     height,
   } = tile.unwrap_or_else(|| full_page(page, opts));
-  // Reserved before anything else is spent on the render, and fallibly: a failed
-  // allocation aborts rather than panics, and on wasm that kills the worker with the
-  // caller's promise still pending. The pixmap is a render's largest allocation and
-  // the one the ARCH-E crash failed on; Addendum 14 lists what is still infallible.
+  // Refused before anything is spent on the render: past these, vello_cpu panics
+  // or the allocator aborts, and on wasm either kills the worker with the caller's
+  // promise still pending.
   let too_large = PapyraError::TooLarge {
     width: width.into(),
     height: height.into(),
@@ -230,11 +229,6 @@ fn render<'a>(
   if width > MAX_SIDE || height > MAX_SIDE || u64::from(width) * u64::from(height) > MAX_PIXELS {
     return Err(too_large);
   }
-  // Zeroed lazily by `alloc_zeroed`; vello writes every pixel anyway.
-  let data =
-    bytemuck::allocation::try_zeroed_slice_box::<u8>(usize::from(width) * usize::from(height) * 4)
-      .map_err(|_| too_large)?
-      .into_vec();
 
   let mut ctx = RenderContext::new(width, height);
   hayro::render_into(
@@ -248,6 +242,15 @@ fn render<'a>(
       * page.initial_transform(true).to_kurbo(),
   );
   ctx.flush();
+  // Fallible, where `hayro::render` makes its own: after interpretation, so the
+  // pixmap is not held through the context-sized soft masks hayro draws on the way.
+  // It is a render's largest allocation and the one the ARCH-E crash failed on;
+  // Addendum 14 lists what is still infallible. Zeroed lazily by `alloc_zeroed`,
+  // and vello writes every pixel anyway.
+  let data =
+    bytemuck::allocation::try_zeroed_slice_box::<u8>(usize::from(width) * usize::from(height) * 4)
+      .map_err(|_| too_large)?
+      .into_vec();
   let mut pixmap = Pixmap::from_parts(
     data,
     width,

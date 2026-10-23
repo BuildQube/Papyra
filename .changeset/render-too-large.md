@@ -5,9 +5,11 @@
 
 A render too large to make now rejects with `RenderTooLargeError` (a `RangeError`)
 instead of aborting. On wasm, a failed allocation or a panic killed the worker and
-left the promise pending forever. The bindings now reserve the bitmap fallibly, and
-refuse any side over 65280 (vello_cpu panics past that) or any bitmap over 2 GiB,
-however they are called. The 100 MP cap papyra already had throws the same class.
+left the promise pending forever. The bindings now refuse any side over 65280
+(vello_cpu panics past that) or any bitmap over 2 GiB, and allocate the bitmap
+fallibly. The 100 MP cap papyra already had throws the same class, and refuses the
+side limit too. hayro's own buffers (soft masks, patterns, image decoding) are
+still allocated infallibly, so a render on a nearly full wasm heap can still abort.
 
 On wasm, `renderPages` now refuses up front a batch whose bitmaps add up to more
 than 2 GiB. Every page it holds stays in wasm memory until it is collected, and

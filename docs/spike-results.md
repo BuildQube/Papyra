@@ -1121,10 +1121,18 @@ past 65280.
 
 - **papyra-hayro refuses before it allocates.** `render` rejects a tile with a side
   over 65280, or more than 2^29 pixels (2 GiB of RGBA, past `isize::MAX` on wasm32,
-  so no `Vec` could hold it there anyway). It then allocates the pixmap with
-  bytemuck's `try_zeroed_slice_box`, a fallible `alloc_zeroed`, and hands it to
-  vello through `Pixmap::from_parts`. All three failures are `PapyraError::TooLarge`, which the bindings tag
-  `papyra/too-large` and the wrapper throws as `RenderTooLargeError`.
+  so no `Vec` could hold it there anyway). After interpretation, where
+  `hayro::render` makes its own, it allocates the pixmap with bytemuck's
+  `try_zeroed_slice_box`, a fallible `alloc_zeroed`, and hands it to vello through
+  `Pixmap::from_parts`. All three failures are `PapyraError::TooLarge`, which the
+  bindings tag `papyra/too-large` and the wrapper throws as `RenderTooLargeError`.
+- **The pixmap is allocated *after* interpretation, not before.** hayro draws each
+  soft mask into a context-sized `RenderContext` and an infallible `Pixmap` of its
+  own while it interprets (`mask.rs`), so a pixmap held from the start stacks on top
+  of every one. Measured with a counting allocator on a 95 MP page under one
+  luminosity mask: `main` peaks at 477 MB (5.03 bytes a pixel), the pixmap
+  allocated first at 857 MB (9.03), and allocated after interpretation at 477 MB
+  again. `tests/soft_mask_peak.rs` holds it under 6.
 - **`renderPages` on wasm refuses past a 2 GiB batch, up front.** The measured cliff
   is ~3.7 GB in a fresh instance. The rest is left for the post-load floor (Addendum
   13: ~540 MB), four renders in flight, and the cache.
@@ -1134,10 +1142,22 @@ past 65280.
 ## What this does not cover
 
 The pixmap is the largest allocation in a render, and it is the one this crash
-failed on. It is not the only one. With the pixmap reserved fallibly, the same
+failed on. It is not the only one. With the pixmap allocated fallibly, the same
 held-pages probe got past it on the 34th page. It then aborted 24,875,520 bytes later
-inside `hayro_syntax::Stream::decoded_image`. hayro's image decoding, vello's
-coarse-rasteriser buffers and everything else the interpreter allocates are still
-infallible. A render on a nearly full wasm heap can still kill its worker. What this
-fix does guarantee: no request is aborted *because of its size*, and `renderPages`
-does not walk a wasm instance into a full heap.
+inside `hayro_syntax::Stream::decoded_image`.
+
+Everything hayro allocates while it interprets is still infallible, and some of it
+is as large as the context:
+
+- each soft mask: a `RenderContext` and a 4 B/px `Pixmap` (`mask.rs:67,89`), then a
+  1 B/px `Mask` it keeps in its soft-mask cache;
+- each tiling pattern's own pixmap (`paint.rs:155-161`);
+- each stencil-masked image's context and pixmap (`image.rs:583-585`);
+- image decoding, and vello's coarse-rasteriser buffers.
+
+So a render on a nearly full wasm heap can still kill its worker. A direct binding
+call near the 2 GiB cap can too: a 65280x8000 tile is 2.09 GB, and its first soft
+mask asks for 2.09 GB more. Through papyra's 100 MP cap, a mask costs at most
+another 500 MB. What this fix does guarantee: a size the rasteriser cannot take, or
+a pixmap the heap cannot hold, rejects. And `renderPages` does not walk a wasm
+instance into a full heap.
