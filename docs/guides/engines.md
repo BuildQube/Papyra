@@ -93,8 +93,10 @@ interpreting the whole page does, because the renderer culls nothing outside it,
 tiles pay only past the cap, not before it. papyra's engine runs them one at a time
 in wasm, where four at once finish later than one does.
 
-The viewer's page column switches to tiles on its own once a page outgrows its
-24 MP bitmap: the bitmap stays underneath, stretched, until the tiles over it land.
+The viewer switches to tiles on its own once a page outgrows its 24 MP bitmap, in
+the page column and in single-page mode alike: the bitmap stays underneath,
+stretched, until the tiles over it land. A single-page view of your own gets the
+same by mounting the `pdf-page-tiles` item inside its page box.
 
 ## In the viewer
 

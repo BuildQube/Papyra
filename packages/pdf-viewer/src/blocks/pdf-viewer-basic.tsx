@@ -11,6 +11,7 @@ import {
   useState,
 } from 'react';
 import { PdfEngineGuard, usePdfEngine } from '@/components/pdf-engine';
+import { PageTiles } from '@/components/pdf-page-tiles';
 import { PageView, type PageViewHandle } from '@/components/pdf-page-view';
 import { ZoomBar } from '@/components/viewer-zoom-bar';
 import {
@@ -21,7 +22,12 @@ import {
 import { useZoom, type ZoomAnchor } from '@/hooks/use-viewer-zoom';
 import { PAGE } from '@/lib/pdf-page-class';
 import { cn } from '@/lib/utils';
-import { pageBox, renderWidth, type ZoomSpec } from '@/lib/viewer-zoom';
+import {
+  pageBox,
+  renderWidth,
+  tileDpi,
+  type ZoomSpec,
+} from '@/lib/viewer-zoom';
 
 /** Padding inside the scroll area, which content cannot use when fitting. */
 const GUTTER = 32;
@@ -210,6 +216,18 @@ export function PdfViewerBasic({
               className={cn(PAGE, 'max-w-none')}
               ref={surface}
               style={{ width: box.width, height: box.height }}
+            />
+            <PageTiles
+              doc={doc}
+              index={index}
+              width={box.width}
+              height={box.height}
+              pageWidth={pageSize.width}
+              pageHeight={pageSize.height}
+              rotation={rotation}
+              annotations={annotations}
+              dpi={tileDpi(pageSize, zoom.renderScale)}
+              scroller={viewport}
             />
           </div>
         </div>

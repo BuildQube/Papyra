@@ -9,6 +9,7 @@ import { usePdfEngine } from '@workspace/pdf-viewer/components/pdf-engine';
 import { FindBar } from '@workspace/pdf-viewer/components/pdf-find-bar';
 import { Highlights } from '@workspace/pdf-viewer/components/pdf-highlights';
 import { Links } from '@workspace/pdf-viewer/components/pdf-links';
+import { PageTiles } from '@workspace/pdf-viewer/components/pdf-page-tiles';
 import {
   PageView,
   type PageViewHandle,
@@ -39,6 +40,7 @@ import {
   formatZoom,
   pageBox,
   renderWidth,
+  tileDpi,
   type ViewMode,
   type ZoomSpec,
 } from '@workspace/pdf-viewer/lib/viewer-zoom';
@@ -362,6 +364,21 @@ export function ViewerRoute() {
             className={cn(PAGE, 'max-w-none')}
             style={box ?? undefined}
           />
+          {doc && pageSize && box && (
+            <PageTiles
+              doc={doc}
+              index={index}
+              width={box.width}
+              height={box.height}
+              pageWidth={pageSize.width}
+              pageHeight={pageSize.height}
+              rotation={rotation}
+              annotations={annotations}
+              // A pinned `?width=` is a like-for-like measurement; tiles would join it.
+              dpi={width ? 0 : tileDpi(pageSize, zoom.renderScale)}
+              scroller={viewport}
+            />
+          )}
           {size && loaded && (
             <>
               <Links

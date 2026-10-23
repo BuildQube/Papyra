@@ -171,7 +171,10 @@ Measured or decided while implementing; the sections below are kept as written.
   them. On Tauri a tile is the page URL plus `x`/`y`/`width`/`height`; it keeps
   `dpi` because a PDF page has no pixel size of its own, and `maxWidth`/`maxPixels`
   stay TIFF's. The viewer tiles only past `renderWidth`'s cap, at √2 DPI steps, and
-  only what is on screen until hayro culls (Addendum 13).
+  only what is on screen until hayro culls (Addendum 13). The layer is its own item,
+  `pdf-page-tiles`, which `PageSurface` and every single-page view mount inside the
+  page box; it measures what is visible against that box, so a centred page needs
+  nothing extra.
 
 ## Why
 

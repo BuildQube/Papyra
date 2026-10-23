@@ -222,7 +222,9 @@
       "registryDependencies": [
         "{{REGISTRY}}/pdf-engine.json",
         "{{REGISTRY}}/pdf-page-class.json",
+        "{{REGISTRY}}/pdf-page-tiles.json",
         "{{REGISTRY}}/pdf-page-view.json",
+        "{{REGISTRY}}/viewer-zoom.json",
         "{{REGISTRY}}/viewer-zoom-bar.json",
         "{{REGISTRY}}/use-pdf-page-labels.json",
         "{{REGISTRY}}/use-viewer-zoom.json"
@@ -247,6 +249,7 @@
         "{{REGISTRY}}/pdf-engine.json",
         "{{REGISTRY}}/pdf-links.json",
         "{{REGISTRY}}/pdf-page-class.json",
+        "{{REGISTRY}}/pdf-page-tiles.json",
         "{{REGISTRY}}/pdf-page-view.json",
         "{{REGISTRY}}/pdf-properties.json",
         "{{REGISTRY}}/pdf-sidebar.json",
@@ -390,11 +393,29 @@
         "{{REGISTRY}}/pdf-highlights.json",
         "{{REGISTRY}}/pdf-links.json",
         "{{REGISTRY}}/pdf-engine.json",
+        "{{REGISTRY}}/pdf-page-tiles.json",
         "{{REGISTRY}}/viewer-zoom.json"
       ],
       "files": [
         {
           "path": "src/components/pdf-page-surface.tsx",
+          "type": "registry:component"
+        }
+      ]
+    },
+    {
+      "name": "pdf-page-tiles",
+      "type": "registry:component",
+      "title": "Page tiles",
+      "description": "Sharp tiles over the part of a page on screen once it is past the bitmap's pixel cap, with the stretched bitmap under them as the placeholder.",
+      "dependencies": ["@build-qube/papyra@^0.7.0"],
+      "registryDependencies": [
+        "{{REGISTRY}}/pdf-engine.json",
+        "{{REGISTRY}}/viewer-zoom.json"
+      ],
+      "files": [
+        {
+          "path": "src/components/pdf-page-tiles.tsx",
           "type": "registry:component"
         }
       ]
