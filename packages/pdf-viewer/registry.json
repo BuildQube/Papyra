@@ -105,7 +105,7 @@
       "name": "use-opened",
       "type": "registry:hook",
       "title": "Opened file",
-      "description": "Open something that holds resources until closed \u2014 a document, a TIFF, a workbook \u2014 and close it when it is replaced, unmounted, or finishes opening too late to be shown.",
+      "description": "Open something that holds resources until closed — a document, a TIFF, a workbook — and close it when it is replaced, unmounted, or finishes opening too late to be shown.",
       "files": [
         {
           "path": "src/hooks/use-opened.ts",
@@ -728,7 +728,7 @@
           "label": "TIFF"
         }
       },
-      "description": "TIFF for the file preview \u2014 scanned drawings and faxes, one page or many \u2014 decoded by papyra in Rust, CCITT Group 4 included, and reduced while it decodes so a sheet of hundreds of megapixels still opens. Zoomed and rotated like an image.",
+      "description": "TIFF for the file preview — scanned drawings and faxes, one page or many — decoded by papyra in Rust, CCITT Group 4 included, and reduced while it decodes so a sheet of hundreds of megapixels still opens. Zoomed and rotated like an image.",
       "dependencies": ["@build-qube/papyra@^0.7.0", "lucide-react"],
       "registryDependencies": [
         "{{REGISTRY}}/use-opened.json",
@@ -782,13 +782,9 @@
       "type": "registry:component",
       "title": "PDF renderer",
       "meta": {
-        "fileRenderer": {
-          "id": "pdf",
-          "export": "pdfRenderer",
-          "label": "PDF"
-        }
+        "fileRenderer": { "id": "pdf", "export": "pdfRenderer", "label": "PDF" }
       },
-      "description": "PDF for the file preview, through papyra: opens the file, asks for a password, and shows the configurable viewer \u2014 a continuous column by default, with options for thumbnails, search, properties and the rest.",
+      "description": "PDF for the file preview, through papyra: opens the file, asks for a password, and shows the configurable viewer — a continuous column by default, with options for thumbnails, search, properties and the rest.",
       "dependencies": ["@build-qube/papyra@^0.7.0", "lucide-react"],
       "registryDependencies": [
         "button",
@@ -814,7 +810,7 @@
       "name": "file-preview-sheet",
       "type": "registry:component",
       "title": "Sheet view",
-      "description": "The grid the spreadsheet and CSV renderers share: opens a workbook through papyra, shows its sheets as tabs, and draws only the cells on screen \u2014 with xlsx column widths, row heights, fonts, fills, borders and alignment.",
+      "description": "The grid the spreadsheet and CSV renderers share: opens a workbook through papyra, shows its sheets as tabs, and draws only the cells on screen — with xlsx column widths, row heights, fonts, fills, borders and alignment.",
       "dependencies": ["@build-qube/papyra@^0.7.0", "lucide-react"],
       "registryDependencies": [
         "{{REGISTRY}}/use-opened.json",
@@ -874,7 +870,7 @@
           "byName": true
         }
       },
-      "description": "CSV and TSV for the file preview, with the encoding and delimiter sniffed \u2014 so an Excel export in windows-1252, split by semicolons, reads correctly.",
+      "description": "CSV and TSV for the file preview, with the encoding and delimiter sniffed — so an Excel export in windows-1252, split by semicolons, reads correctly.",
       "registryDependencies": [
         "{{REGISTRY}}/file-preview-core.json",
         "{{REGISTRY}}/file-preview-sheet.json"

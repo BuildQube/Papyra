@@ -58,8 +58,8 @@ export interface PageTilesProps {
  * placeholder: what is visible is measured against the parent element.
  *
  * Measures what is visible itself, on every scroll frame, rather than taking it as a
- * prop: the column re-renders only when the range of pages changes, and at 400% one
- * page fills the screen for a long scroll.
+ * prop: neither the column nor a single-page view re-renders on scroll, and at 400%
+ * one page fills the screen for a long scroll.
  */
 export function PageTiles(props: PageTilesProps) {
   if (props.dpi <= 0 || !props.doc.capabilities.tiles) return null;
