@@ -6,6 +6,7 @@ import {
   type Quad,
   type RenderHandle,
   type Rotation,
+  rotateSize,
   type SearchMatch,
   viewport,
 } from '@build-qube/papyra/core';
@@ -22,7 +23,6 @@ import { Highlights } from '@/components/pdf-highlights';
 import { Links } from '@/components/pdf-links';
 import { cn } from '@/lib/utils';
 import {
-  type Box,
   type TileSlot,
   tileSlots,
   uprightBox,
@@ -293,9 +293,8 @@ function Tiles({
   scroller,
 }: TilesProps) {
   const layer = useRef<HTMLDivElement>(null);
-  const [view, setView] = useState<Box | null>(null);
-  const turned = rotation === 90 || rotation === 270;
-  const upright = turned ? { width: height, height: width } : { width, height };
+  const [slots, setSlots] = useState<TileSlot[]>([]);
+  const upright = rotateSize({ width, height }, rotation);
 
   // Passive, not layout: the scroller is an ancestor, and on the first commit its ref
   // is attached only after this component's layout effects have run.
@@ -303,10 +302,10 @@ function Tiles({
     const vp = scroller.current;
     const page = layer.current?.parentElement;
     if (!vp || !page) return;
-    const measure = () => {
+    const measure = (first = false) => {
       const v = vp.getBoundingClientRect();
       const p = page.getBoundingClientRect();
-      const next = uprightBox(
+      const view = uprightBox(
         {
           x0: Math.max(0, v.left - p.left),
           y0: Math.max(0, v.top - p.top),
@@ -316,17 +315,20 @@ function Tiles({
         { width, height },
         rotation,
       );
-      setView((prev) =>
-        prev &&
-        prev.x0 === next.x0 &&
-        prev.y0 === next.y0 &&
-        prev.x1 === next.x1 &&
-        prev.y1 === next.y1
-          ? prev
-          : next,
+      const next = tileSlots(
+        { width: pageWidth, height: pageHeight },
+        dpi,
+        upright.width,
+        view,
+      );
+      // Most scroll frames cross no tile edge; those keep the same set and render
+      // nothing. A new box size or DPI moves every tile, so it always replaces them.
+      const keys = next.map((s) => s.key).join();
+      setSlots((prev) =>
+        !first && prev.map((s) => s.key).join() === keys ? prev : next,
       );
     };
-    measure();
+    measure(true);
     let frame = 0;
     const onScroll = () => {
       if (!frame) {
@@ -343,20 +345,16 @@ function Tiles({
       window.removeEventListener('resize', onScroll);
       if (frame) cancelAnimationFrame(frame);
     };
-  }, [scroller, width, height, rotation]);
-
-  const slots = useMemo(
-    () =>
-      view
-        ? tileSlots(
-            { width: pageWidth, height: pageHeight },
-            dpi,
-            upright.width,
-            view,
-          )
-        : [],
-    [pageWidth, pageHeight, dpi, upright.width, view],
-  );
+  }, [
+    scroller,
+    width,
+    height,
+    rotation,
+    pageWidth,
+    pageHeight,
+    dpi,
+    upright.width,
+  ]);
 
   return (
     <div
@@ -399,10 +397,8 @@ function TileCanvas({
   annotations: boolean;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
-  const job = useRef<RenderHandle<PageBitmap> | null>(null);
   const [painted, setPainted] = useState(false);
   const engine = usePageEngine();
-  const priority = slot.visible ? 0 : 1;
   const { x, y, width, height } = slot.tile;
 
   useEffect(() => {
@@ -412,9 +408,8 @@ function TileCanvas({
       doc,
       index,
       { x, y, width, height },
-      { dpi, priority, annotations },
+      { dpi, annotations },
     );
-    job.current = handle;
     handle.promise
       .then((page) => {
         if (dropped || !canvas.current) return;
@@ -424,15 +419,9 @@ function TileCanvas({
       .catch(() => {});
     return () => {
       dropped = true;
-      job.current = null;
       handle.cancel('tile left the view');
     };
-    // `priority` is applied to the live job below, as the page surface does.
   }, [engine, doc, index, x, y, width, height, dpi, annotations]);
-
-  useEffect(() => {
-    job.current?.setPriority(priority);
-  }, [priority]);
 
   const { box } = slot;
   return (

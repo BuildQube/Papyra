@@ -307,6 +307,8 @@ describe('PdfEngine over another backend', () => {
     const tile = await engine.renderTile(doc, 0, TILE, { dpi: 2000 }).promise;
     expect(tile.width).toBe(1024);
     expect(backend.tiles).toEqual([{ index: 0, tile: TILE, dpi: 2000 }]);
+    // Cached, but not among the pages a screenful of tiles would evict.
+    expect(engine.cacheStats(doc).entries).toBe(0);
 
     expect(engine.renderTile(doc, 0, TILE, { dpi: 2000 }).cached).toBe(true);
     for (const other of [
@@ -333,7 +335,7 @@ describe('PdfEngine over another backend', () => {
     const doc = await engine.open(BYTES);
     const huge = { x: 0, y: 0, width: 65535, height: 65535 };
     expect(() => engine.renderTile(doc, 0, huge, { dpi: 72 })).toThrow(
-      RangeError,
+      'a 65535x65535 tile',
     );
   });
 

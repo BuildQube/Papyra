@@ -171,7 +171,8 @@ const TILE_OVERLAP = 2;
 export function tileDpi(page: Size, zoom: number): number {
   const scale =
     CSS_UNITS * zoom * Math.min(MAX_DPR, window.devicePixelRatio || 1);
-  if (page.width * page.height * scale * scale <= MAX_RENDER_PIXELS) return 0;
+  // Exactly when `renderWidth` caps, so a stretched bitmap always has tiles over it.
+  if (renderWidth(page, zoom) >= Math.round(page.width * scale)) return 0;
   return 72 * Math.SQRT2 ** Math.ceil(2 * Math.log2(scale));
 }
 
@@ -243,14 +244,13 @@ export interface TileSlot {
   };
   /** Where it sits in the upright layer, in CSS pixels. */
   readonly box: Box;
-  /** Whether it is on screen, rather than in the margin rendered ahead. */
-  readonly visible: boolean;
 }
 
 /**
- * The tiles of a page at `dpi` that `view` touches, and a ring of `margin` more —
- * visible first, each nearest the middle of the view first: the order a viewer
- * should queue them in.
+ * The tiles of a page at `dpi` that `view` touches, nearest the middle of the view
+ * first: the order a viewer should queue them in. None ahead of the view — each tile
+ * costs about what the whole page does until the renderer culls, so a ring around
+ * a 2x2 view would quadruple the work for tiles that may never be seen.
  *
  * `layerWidth` is the upright page's CSS width and `view` is in the same space.
  */
@@ -259,7 +259,6 @@ export function tileSlots(
   dpi: number,
   layerWidth: number,
   view: Box,
-  margin = 1,
 ): TileSlot[] {
   const scale = dpi / 72;
   const full = {
@@ -275,10 +274,10 @@ export function tileSlots(
 
   const clamp = (n: number, count: number) =>
     Math.min(count - 1, Math.max(0, n));
-  const c0 = clamp(Math.floor(view.x0 / span) - margin, cols);
-  const c1 = clamp(Math.ceil(view.x1 / span) - 1 + margin, cols);
-  const r0 = clamp(Math.floor(view.y0 / span) - margin, rows);
-  const r1 = clamp(Math.ceil(view.y1 / span) - 1 + margin, rows);
+  const c0 = clamp(Math.floor(view.x0 / span), cols);
+  const c1 = clamp(Math.ceil(view.x1 / span) - 1, cols);
+  const r0 = clamp(Math.floor(view.y0 / span), rows);
+  const r1 = clamp(Math.ceil(view.y1 / span) - 1, rows);
   const mid = { x: (view.x0 + view.x1) / 2, y: (view.y0 + view.y1) / 2 };
   const slots: (TileSlot & { distance: number })[] = [];
   for (let r = r0; r <= r1; r++) {
@@ -301,11 +300,6 @@ export function tileSlots(
         key: `${c},${r}`,
         tile: { x, y, width, height },
         box,
-        visible:
-          box.x1 > view.x0 &&
-          box.x0 < view.x1 &&
-          box.y1 > view.y0 &&
-          box.y0 < view.y1,
         distance: Math.hypot(
           (box.x0 + box.x1) / 2 - mid.x,
           (box.y0 + box.y1) / 2 - mid.y,
@@ -313,9 +307,7 @@ export function tileSlots(
       });
     }
   }
-  return slots.sort(
-    (a, b) => Number(b.visible) - Number(a.visible) || a.distance - b.distance,
-  );
+  return slots.sort((a, b) => a.distance - b.distance);
 }
 
 /** A scale as a percentage a reader would recognise: `125%`. */

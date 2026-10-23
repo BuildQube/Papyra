@@ -112,12 +112,13 @@ fn render_opts(dpi: f64, annotations: bool) -> RenderOptions {
   }
 }
 
-/// One page, rendered off the JS thread.
+/// One page, or one tile of it, rendered off the JS thread.
 pub struct RenderTask {
   doc: Arc<HayroDocument>,
   index: usize,
   dpi: f64,
   annotations: bool,
+  tile: Option<papyra_core::Tile>,
 }
 
 impl Task for RenderTask {
@@ -125,39 +126,12 @@ impl Task for RenderTask {
   type JsValue = RenderedPage;
 
   fn compute(&mut self) -> Result<Self::Output> {
-    self
-      .doc
-      .render_page(self.index, &render_opts(self.dpi, self.annotations))
-      .map_err(map_err)
-  }
-
-  fn resolve(&mut self, _env: Env, out: Self::Output) -> Result<Self::JsValue> {
-    Ok(to_rendered(out))
-  }
-}
-
-/// One window of a page, rendered off the JS thread.
-pub struct TileTask {
-  doc: Arc<HayroDocument>,
-  index: usize,
-  dpi: f64,
-  annotations: bool,
-  tile: papyra_core::Tile,
-}
-
-impl Task for TileTask {
-  type Output = papyra_core::Bitmap;
-  type JsValue = RenderedPage;
-
-  fn compute(&mut self) -> Result<Self::Output> {
-    self
-      .doc
-      .render_tile(
-        self.index,
-        &render_opts(self.dpi, self.annotations),
-        self.tile,
-      )
-      .map_err(map_err)
+    let opts = render_opts(self.dpi, self.annotations);
+    match self.tile {
+      Some(tile) => self.doc.render_tile(self.index, &opts, tile),
+      None => self.doc.render_page(self.index, &opts),
+    }
+    .map_err(map_err)
   }
 
   fn resolve(&mut self, _env: Env, out: Self::Output) -> Result<Self::JsValue> {
@@ -992,6 +966,7 @@ impl PdfDocument {
       index: index as usize,
       dpi: dpi.unwrap_or(72.0),
       annotations: annotations.unwrap_or(true),
+      tile: None,
     })
   }
 
@@ -1008,7 +983,7 @@ impl PdfDocument {
     width: u32,
     height: u32,
     annotations: Option<bool>,
-  ) -> Result<AsyncTask<TileTask>> {
+  ) -> Result<AsyncTask<RenderTask>> {
     let side = |n: u32| {
       u16::try_from(n).ok().filter(|&n| n > 0).ok_or_else(|| {
         Error::new(
@@ -1017,17 +992,17 @@ impl PdfDocument {
         )
       })
     };
-    Ok(AsyncTask::new(TileTask {
+    Ok(AsyncTask::new(RenderTask {
       doc: self.inner.clone(),
       index: index as usize,
       dpi,
       annotations: annotations.unwrap_or(true),
-      tile: papyra_core::Tile {
+      tile: Some(papyra_core::Tile {
         x,
         y,
         width: side(width)?,
         height: side(height)?,
-      },
+      }),
     }))
   }
 

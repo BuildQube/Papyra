@@ -90,49 +90,37 @@ describe('tileSlots', () => {
   const layerWidth = ARCH_E.width * (96 / 72) * 4;
   const view: Box = { x0: 5000, y0: 3000, x1: 6920, y1: 4080 };
 
-  test('covers the view, nearest the middle first, with a margin behind', () => {
+  test('covers the view and nothing past it, nearest the middle first', () => {
     const slots = tileSlots(ARCH_E, dpi, layerWidth, view);
-    const visible = slots.filter((s) => s.visible);
-    // 1920x1080 CSS at DPR 2 is 3840x2160 device px: 4 or 5 columns, 3 or 4 rows.
-    expect(visible.length).toBeGreaterThanOrEqual(12);
-    expect(visible.length).toBeLessThanOrEqual(20);
-    expect(slots.length).toBeGreaterThan(visible.length);
-    // Every visible tile is queued before any margin tile.
-    expect(slots.findIndex((s) => !s.visible)).toBe(visible.length);
+    // 1920x1080 CSS is 3 columns and 3 rows of 512 CSS px tiles here: 5 x 3.
+    expect(slots.map((s) => s.key).sort()).toEqual(
+      ['9', '10', '11', '12', '13']
+        .flatMap((c) => ['5', '6', '7'].map((r) => `${c},${r}`))
+        .sort(),
+    );
     const mid = { x: 5960, y: 3540 };
     const [first] = slots;
     expect(first?.box.x0).toBeLessThanOrEqual(mid.x);
     expect(first?.box.x1).toBeGreaterThan(mid.x);
     expect(first?.box.y0).toBeLessThanOrEqual(mid.y);
     expect(first?.box.y1).toBeGreaterThan(mid.y);
-    for (const { box } of visible) {
-      expect(box.x1 > view.x0 && box.x0 < view.x1).toBe(true);
-    }
   });
 
   test('stops at the page edge, with the last tiles cut short', () => {
-    const slots = tileSlots(
-      ARCH_E,
-      dpi,
-      layerWidth,
-      {
-        x0: layerWidth - 10,
-        y0: 0,
-        x1: layerWidth,
-        y1: 10,
-      },
-      2,
-    );
-    const corner = slots.find((s) => s.visible);
-    expect(corner?.tile).toEqual({
+    const slots = tileSlots(ARCH_E, dpi, layerWidth, {
+      x0: layerWidth - 10,
+      y0: 0,
+      x1: layerWidth,
+      y1: 10,
+    });
+    expect(slots).toHaveLength(1);
+    expect(slots[0]?.tile).toEqual({
       x: 31 * TILE_SIZE,
       y: 0,
       width: 32256 - 31 * TILE_SIZE,
       // Overlapping the row below by two pixels, but never past the page.
       height: TILE_SIZE + 2,
     });
-    expect(Math.max(...slots.map((s) => s.tile.x / TILE_SIZE))).toBe(31);
-    expect(Math.min(...slots.map((s) => s.tile.y))).toBe(0);
   });
 
   test('a view off the page asks for nothing', () => {

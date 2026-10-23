@@ -57,6 +57,9 @@ const LINK_CACHE_BYTES = 4 * 1024 * 1024;
 /** Rough bytes per cached link: two objects, a rect, and a short string. */
 const LINK_BYTES = 96;
 
+/** Bytes of tiles to keep: sixteen 1024px tiles, about a screenful at DPR 2. */
+const TILE_CACHE_BYTES = 64 * 1024 * 1024;
+
 /** Used when neither the caller nor the backend names a concurrency. */
 const FALLBACK_CONCURRENCY = 4;
 
@@ -267,6 +270,11 @@ export interface DocState<B extends PagedBackend = PagedBackend> {
   readonly tiles: Scheduler;
   readonly limit: number;
   readonly cache: RenderCache<PageBitmap>;
+  /**
+   * Tiles cache apart from pages: sixteen 1024px tiles would otherwise evict the
+   * 96 MB stretched bitmap they sit on, and every neighbouring page with it.
+   */
+  readonly tileCache: RenderCache<PageBitmap>;
   readonly text: RenderCache<PageText>;
   readonly links: RenderCache<readonly PageLink[]>;
   /** In-flight link reads, so two callers on one page share a single task. */
@@ -375,6 +383,12 @@ export function resolveDpi(
     : ((width * dpi) / 72) * ((height * dpi) / 72);
   if (pixels > MAX_PIXELS) {
     const mb = Math.round((pixels * 4) / 1e6);
+    if (tile) {
+      throw new RangeError(
+        `papyra: a ${tile.width}x${tile.height} tile is ${mb} MB; ` +
+          'keep a tile under 100 MP.',
+      );
+    }
     throw new RangeError(
       `papyra: page ${index} at ${dpi.toFixed(1)} DPI would be ` +
         `${Math.round((width * dpi) / 72)}x${Math.round((height * dpi) / 72)} ` +
@@ -453,6 +467,7 @@ export abstract class PagedEngine<
         options.cacheBytes ?? DEFAULT_CACHE_BYTES,
         pageBytes,
       ),
+      tileCache: new RenderCache<PageBitmap>(TILE_CACHE_BYTES, pageBytes),
       text: new RenderCache<PageText>(
         options.textCacheBytes ?? DEFAULT_TEXT_CACHE_BYTES,
         pageTextBytes,
@@ -481,6 +496,7 @@ export abstract class PagedEngine<
     states.delete(doc);
     // Closed rather than cleared: work already running still resolves into these.
     state.cache.close();
+    state.tileCache.close();
     state.text.close();
     state.links.close();
     try {
@@ -509,6 +525,7 @@ export abstract class PagedEngine<
     return submit(
       state,
       state.scheduler,
+      state.cache,
       `${index}@${dpi.toFixed(4)}${annotationKey(options)}`,
       options,
       (signal) =>
@@ -527,7 +544,7 @@ export abstract class PagedEngine<
    * about what the page's own interpretation does (see Addendum 13).
    *
    * Tiles queue apart from pages, at the backend's tile concurrency, and are cached
-   * and coalesced like pages. Throws on a backend without {@link Capabilities.tiles}.
+   * (apart from pages, in 64 MB) and coalesced like pages. Throws on a backend without {@link Capabilities.tiles}.
    */
   renderTile(
     doc: PagedDoc,
@@ -546,6 +563,7 @@ export abstract class PagedEngine<
     return submit(
       state,
       state.tiles,
+      state.tileCache,
       `${index}@${dpi.toFixed(4)}#${x},${y},${width}x${height}${annotationKey(options)}`,
       options,
       (signal) =>
@@ -827,8 +845,9 @@ export abstract class PdfEngine<
  * second request joins the first, and the result is cached on the way out.
  */
 function submit(
-  { backend, cache }: DocState,
+  { backend }: DocState,
   scheduler: Scheduler,
+  cache: RenderCache<PageBitmap>,
   key: string,
   options: RenderOptions,
   run: (signal?: AbortSignal) => Promise<PageBitmap>,
