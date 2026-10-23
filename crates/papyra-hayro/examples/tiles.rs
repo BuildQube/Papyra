@@ -205,7 +205,11 @@ fn identity(files: &[String]) {
             width: tw.min(pw - x) as u16,
             height: th.min(ph - y) as u16,
           };
-          doc.render_tile(index, &opts, tile).unwrap().data.hash(&mut hasher);
+          doc
+            .render_tile(index, &opts, tile)
+            .unwrap()
+            .data
+            .hash(&mut hasher);
         }
         format!("{:?} {:016x}", same, hasher.finish())
       }))

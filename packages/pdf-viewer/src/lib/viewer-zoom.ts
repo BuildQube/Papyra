@@ -161,7 +161,7 @@ const TILE_OVERLAP = 2;
 
 /**
  * The DPI to show a page at in tiles, or 0 when one bitmap of it fits under
- * {@link MAX_RENDER_PIXELS} and {@link renderWidth} serves.
+ * `MAX_RENDER_PIXELS` and {@link renderWidth} serves.
  *
  * Quantised to steps of √2 and rounded up: a zoom between two steps shows the upper
  * step's tiles scaled down by CSS, so pinching through 400% does not render and cache
@@ -231,7 +231,16 @@ export interface TileSlot {
   /** Stable across scrolling, for a React key. */
   readonly key: string;
   /** The window of the page's render at the tile DPI, in its device pixels. */
-  readonly tile: { x: number; y: number; width: number; height: number };
+  readonly tile: {
+    /** From the page's left edge. */
+    x: number;
+    /** From the page's top edge. */
+    y: number;
+    /** Across. */
+    width: number;
+    /** Down. */
+    height: number;
+  };
   /** Where it sits in the upright layer, in CSS pixels. */
   readonly box: Box;
   /** Whether it is on screen, rather than in the margin rendered ahead. */

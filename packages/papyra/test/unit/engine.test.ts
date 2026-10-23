@@ -315,7 +315,9 @@ describe('PdfEngine over another backend', () => {
       { ...TILE, width: 512 },
       { ...TILE, height: 1024 },
     ]) {
-      expect(engine.renderTile(doc, 0, other, { dpi: 2000 }).cached).toBe(false);
+      expect(engine.renderTile(doc, 0, other, { dpi: 2000 }).cached).toBe(
+        false,
+      );
     }
     expect(
       engine.renderTile(doc, 0, TILE, { dpi: 2000, annotations: false }).cached,

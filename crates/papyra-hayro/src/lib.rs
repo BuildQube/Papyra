@@ -418,7 +418,10 @@ mod render {
       },
     ] {
       let bitmap = doc.render_tile(0, &opts, tile).unwrap();
-      assert_eq!((bitmap.width, bitmap.height), (tile.width.into(), tile.height.into()));
+      assert_eq!(
+        (bitmap.width, bitmap.height),
+        (tile.width.into(), tile.height.into())
+      );
       let off = bitmap
         .data
         .iter()
