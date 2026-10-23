@@ -550,6 +550,30 @@ describeWithCorpus('papyra as an engine', () => {
     expect(viaEngine).toBe(viaDocument); // one cache behind both names
   });
 
+  test('a tile is the page cut where it sits', async () => {
+    const doc = await load('tracemonkey.pdf');
+    expect(doc.capabilities.tiles).toBe(true);
+    const tile = { x: 301, y: 457, width: 400, height: 150 };
+    const options = { dpi: 150, annotations: false };
+    const [page, cut] = await Promise.all([
+      defaultPdfEngine.render(doc, 0, options).promise,
+      defaultPdfEngine.renderTile(doc, 0, tile, options).promise,
+    ]);
+    if (!('data' in page) || !('data' in cut)) throw new Error('not RGBA');
+    expect([cut.width, cut.height]).toEqual([tile.width, tile.height]);
+    // Within one level, as `a_tile_is_the_page_cut_where_it_sits` in papyra-hayro
+    // explains; a misplaced tile is off by far more.
+    let off = 0;
+    for (let row = 0; row < tile.height; row++) {
+      for (let col = 0; col < tile.width * 4; col++) {
+        const want = page.data[(tile.y + row) * page.stride + tile.x * 4 + col];
+        const got = cut.data[row * cut.stride + col];
+        off = Math.max(off, Math.abs((want ?? 0) - (got ?? 0)));
+      }
+    }
+    expect(off).toBeLessThanOrEqual(1);
+  });
+
   test('closing through the engine closes the Document too', async () => {
     const doc = await load('basicapi.pdf');
     defaultPdfEngine.close(doc);

@@ -7,7 +7,12 @@ import {
   RENDER_ONLY,
   stateOf,
 } from '../../src/engine.js';
-import type { OpenOptions, PageBitmap, PdfSource } from '../../src/types.js';
+import type {
+  OpenOptions,
+  PageBitmap,
+  PdfSource,
+  Tile,
+} from '../../src/types.js';
 
 /** A page size and every render asked of it, so a test can count what reached it. */
 class FakeBackend implements PdfBackend {
@@ -98,6 +103,20 @@ class FlakyBackend extends FakeBackend {
   structTree = () => this.#read('structTree');
   attachments = () => this.#read('attachments');
 }
+
+/** Renders tiles too, one at a time, recording each. */
+class TiledBackend extends FakeBackend {
+  readonly tileConcurrency = 1;
+  readonly tiles: { index: number; tile: Tile; dpi: number }[] = [];
+
+  async renderTile(index: number, tile: Tile, options: BackendRenderOptions) {
+    this.tiles.push({ index, tile, dpi: options.dpi });
+    await this.hold;
+    return { width: tile.width, height: tile.height } as unknown as PageBitmap;
+  }
+}
+
+const TILE: Tile = { x: 1024, y: 2048, width: 1024, height: 512 };
 
 const BYTES = new Uint8Array();
 
@@ -278,6 +297,67 @@ describe('PdfEngine over another backend', () => {
       if (page === 0) engine.close(doc);
     }
     expect(pages).toEqual([0, 1]);
+  });
+
+  test('a tile past the page cap renders, keyed by its window', async () => {
+    const engine = new FakeEngine(TiledBackend);
+    const doc = await engine.open(BYTES);
+    const backend = engine.backend as TiledBackend;
+    // 2000 DPI is refused for the whole page; a tile of it is not.
+    const tile = await engine.renderTile(doc, 0, TILE, { dpi: 2000 }).promise;
+    expect(tile.width).toBe(1024);
+    expect(backend.tiles).toEqual([{ index: 0, tile: TILE, dpi: 2000 }]);
+
+    expect(engine.renderTile(doc, 0, TILE, { dpi: 2000 }).cached).toBe(true);
+    for (const other of [
+      { ...TILE, x: 0 },
+      { ...TILE, y: 0 },
+      { ...TILE, width: 512 },
+      { ...TILE, height: 1024 },
+    ]) {
+      expect(engine.renderTile(doc, 0, other, { dpi: 2000 }).cached).toBe(false);
+    }
+    expect(
+      engine.renderTile(doc, 0, TILE, { dpi: 2000, annotations: false }).cached,
+    ).toBe(false);
+    expect(engine.renderTile(doc, 1, TILE, { dpi: 2000 }).cached).toBe(false);
+    expect(engine.renderTile(doc, 0, TILE, { dpi: 1000 }).cached).toBe(false);
+    // Nor is it the page's bitmap at that size.
+    expect(engine.render(doc, 0, { dpi: 144 }).key).not.toContain('#');
+  });
+
+  test('the pixel guard reads the tile, not the page', async () => {
+    const engine = new FakeEngine(TiledBackend);
+    const doc = await engine.open(BYTES);
+    const huge = { x: 0, y: 0, width: 65535, height: 65535 };
+    expect(() => engine.renderTile(doc, 0, huge, { dpi: 72 })).toThrow(
+      RangeError,
+    );
+  });
+
+  test('tiles queue apart from pages, at the tile concurrency', async () => {
+    const engine = new FakeEngine(TiledBackend);
+    const doc = await engine.open(BYTES, { concurrency: 2 });
+    const backend = engine.backend as TiledBackend;
+    const release = backend.gate();
+    const pages = [engine.render(doc, 0), engine.render(doc, 1)];
+    const a = engine.renderTile(doc, 0, TILE, { dpi: 600 });
+    const b = engine.renderTile(doc, 0, { ...TILE, x: 0 }, { dpi: 600 });
+    // Both page slots are taken, yet a tile started; the second waits for it.
+    expect(backend.renders).toHaveLength(2);
+    expect(backend.tiles).toHaveLength(1);
+    release();
+    await Promise.all([...pages, a, b].map((job) => job.promise));
+    expect(backend.tiles).toHaveLength(2);
+  });
+
+  test('a backend without tiles says so', async () => {
+    const engine = new FakeEngine();
+    const doc = await engine.open(BYTES);
+    expect(doc.capabilities.tiles).toBeUndefined();
+    expect(() => engine.renderTile(doc, 0, TILE, { dpi: 600 })).toThrow(
+      'fake renders no tiles',
+    );
   });
 
   test('the handle carries the facts, read once', async () => {

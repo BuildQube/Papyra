@@ -142,7 +142,7 @@ pub struct TileTask {
   index: usize,
   dpi: f64,
   annotations: bool,
-  tile: papyra_hayro::Tile,
+  tile: papyra_core::Tile,
 }
 
 impl Task for TileTask {
@@ -1003,8 +1003,8 @@ impl PdfDocument {
     &self,
     index: u32,
     dpi: f64,
-    x: f64,
-    y: f64,
+    x: u32,
+    y: u32,
     width: u32,
     height: u32,
     annotations: Option<bool>,
@@ -1022,7 +1022,12 @@ impl PdfDocument {
       index: index as usize,
       dpi,
       annotations: annotations.unwrap_or(true),
-      tile: (x, y, side(width)?, side(height)?),
+      tile: papyra_core::Tile {
+        x,
+        y,
+        width: side(width)?,
+        height: side(height)?,
+      },
     }))
   }
 

@@ -21,6 +21,7 @@ import type {
   SearchOptions,
   StreamedPage,
   StreamOptions,
+  Tile,
 } from './types.js';
 
 const DEFAULT_DPI = 72;
@@ -90,6 +91,11 @@ export interface Capabilities {
   readonly pageLabels: boolean;
   /** Whether {@link RenderOptions.annotations} is honoured. */
   readonly annotationsToggle: boolean;
+  /**
+   * {@link PagedEngine.renderTile}: a window of a page at any size. Absent means
+   * false, so an engine written before tiles existed still type-checks.
+   */
+  readonly tiles?: boolean;
 }
 
 /** No capabilities at all: an engine that only renders pages. */
@@ -184,6 +190,8 @@ export interface PagedBackend {
   readonly capabilities: Capabilities;
   /** Pages this backend can usefully render at once, when the caller does not say. */
   readonly concurrency?: number;
+  /** Tiles to render at once. Defaults to {@link concurrency}'s resolved value. */
+  readonly tileConcurrency?: number;
   /**
    * Whether {@link renderPage} stops early when its signal aborts.
    *
@@ -201,6 +209,13 @@ export interface PagedBackend {
    */
   renderPage(
     index: number,
+    options: BackendRenderOptions,
+    signal?: AbortSignal,
+  ): Promise<PageBitmap>;
+  /** Rasterise one window of a page, for {@link Capabilities.tiles}. */
+  renderTile?(
+    index: number,
+    tile: Tile,
     options: BackendRenderOptions,
     signal?: AbortSignal,
   ): Promise<PageBitmap>;
@@ -245,6 +260,11 @@ export interface DocState<B extends PagedBackend = PagedBackend> {
   // One queue for every kind of job: priority and concurrency are the point of this
   // library, and a bulk export must not starve the visible page.
   readonly scheduler: Scheduler;
+  /**
+   * Tiles queue apart from pages: on wasm one tile at a time is faster than four
+   * (Addendum 13), and a page render must not wait behind a screenful of them.
+   */
+  readonly tiles: Scheduler;
   readonly limit: number;
   readonly cache: RenderCache<PageBitmap>;
   readonly text: RenderCache<PageText>;
@@ -334,6 +354,7 @@ export function attachSignal(
  *
  * `fitWidth` exists because page sizes vary by two orders of magnitude in area: a
  * DPI that is sensible for US Letter produces a 113 MB bitmap for an ARCH-E drawing.
+ * A tile is held to the same cap by its own pixels, not the page's.
  *
  * @internal
  */
@@ -341,6 +362,7 @@ export function resolveDpi(
   backend: PagedBackend,
   index: number,
   options: RenderOptions,
+  tile?: Tile,
 ): number {
   const { width, height } = backend.pageSize(index);
   const dpi =
@@ -348,7 +370,9 @@ export function resolveDpi(
       ? (options.fitWidth / width) * 72
       : (options.dpi ?? DEFAULT_DPI);
 
-  const pixels = ((width * dpi) / 72) * ((height * dpi) / 72);
+  const pixels = tile
+    ? tile.width * tile.height
+    : ((width * dpi) / 72) * ((height * dpi) / 72);
   if (pixels > MAX_PIXELS) {
     const mb = Math.round((pixels * 4) / 1e6);
     throw new RangeError(
@@ -421,6 +445,9 @@ export abstract class PagedEngine<
       engine: this,
       backend,
       scheduler: new Scheduler(limit, { yieldToUrgent: options.yieldToUrgent }),
+      tiles: new Scheduler(backend.tileConcurrency ?? limit, {
+        yieldToUrgent: options.yieldToUrgent,
+      }),
       limit,
       cache: new RenderCache<PageBitmap>(
         options.cacheBytes ?? DEFAULT_CACHE_BYTES,
@@ -476,28 +503,59 @@ export abstract class PagedEngine<
     index: number,
     options: RenderOptions = {},
   ): RenderHandle<PageBitmap> {
-    const { backend, cache, scheduler } = stateOf(this, doc);
+    const state = stateOf(this, doc);
+    const { backend } = state;
     const dpi = resolveDpi(backend, index, options);
-    const key = `${index}@${dpi.toFixed(4)}${annotationKey(options)}`;
+    return submit(
+      state,
+      state.scheduler,
+      `${index}@${dpi.toFixed(4)}${annotationKey(options)}`,
+      options,
+      (signal) =>
+        backend.renderPage(
+          index,
+          { dpi, annotations: options.annotations },
+          signal,
+        ),
+    );
+  }
 
-    const hit = cache.get(key);
-    if (hit) return cachedHandle(key, hit);
-
-    const handle = scheduler.submit<PageBitmap>({
-      key,
-      priority: options.priority ?? DEFAULT_PRIORITY,
-      abortable: backend.abortable,
-      run: (signal) =>
-        backend
-          .renderPage(index, { dpi, annotations: options.annotations }, signal)
-          .then((page) => {
-            cache.set(key, page);
-            return page;
-          }),
-    });
-
-    attachSignal(handle, options.signal);
-    return liveHandle(handle);
+  /**
+   * Render one {@link Tile} of a page: the pixels the page would have there at this
+   * `dpi` or `fitWidth`, however large the whole would be. The 100 MP refusal applies
+   * to the tile, so this is how a page past it is shown — in pieces, each one costing
+   * about what the page's own interpretation does (see Addendum 13).
+   *
+   * Tiles queue apart from pages, at the backend's tile concurrency, and are cached
+   * and coalesced like pages. Throws on a backend without {@link Capabilities.tiles}.
+   */
+  renderTile(
+    doc: PagedDoc,
+    index: number,
+    tile: Tile,
+    options: RenderOptions = {},
+  ): RenderHandle<PageBitmap> {
+    const state = stateOf(this, doc);
+    const { backend } = state;
+    const renderTile = backend.renderTile?.bind(backend);
+    if (!renderTile) {
+      throw new RangeError(`papyra: ${this.id} renders no tiles`);
+    }
+    const dpi = resolveDpi(backend, index, options, tile);
+    const { x, y, width, height } = tile;
+    return submit(
+      state,
+      state.tiles,
+      `${index}@${dpi.toFixed(4)}#${x},${y},${width}x${height}${annotationKey(options)}`,
+      options,
+      (signal) =>
+        renderTile(
+          index,
+          tile,
+          { dpi, annotations: options.annotations },
+          signal,
+        ),
+    );
   }
 
   /**
@@ -761,6 +819,36 @@ export abstract class PdfEngine<
   textCacheStats(doc: PdfDoc): CacheStats {
     return stateOf(this, doc).text.stats;
   }
+}
+
+/**
+ * The cache in front of the queue in front of the backend, which is what a render
+ * and a tile render share: a hit costs nothing, a miss is queued under `key` so a
+ * second request joins the first, and the result is cached on the way out.
+ */
+function submit(
+  { backend, cache }: DocState,
+  scheduler: Scheduler,
+  key: string,
+  options: RenderOptions,
+  run: (signal?: AbortSignal) => Promise<PageBitmap>,
+): RenderHandle<PageBitmap> {
+  const hit = cache.get(key);
+  if (hit) return cachedHandle(key, hit);
+
+  const handle = scheduler.submit<PageBitmap>({
+    key,
+    priority: options.priority ?? DEFAULT_PRIORITY,
+    abortable: backend.abortable,
+    run: (signal) =>
+      run(signal).then((page) => {
+        cache.set(key, page);
+        return page;
+      }),
+  });
+
+  attachSignal(handle, options.signal);
+  return liveHandle(handle);
 }
 
 /**

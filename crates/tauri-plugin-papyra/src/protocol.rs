@@ -5,10 +5,14 @@
 //! protocol response is bytes the WebView hands to `createImageBitmap` with no JSON
 //! round trip.
 //!
+//! `&x=…&y=…&width=…&height=…` asks for one tile of that page instead: the window of
+//! its render at `dpi` with that corner and size, so a page too large to render whole
+//! can still be shown in pieces.
+//!
 //! A TIFF page is sized by `maxWidth` and `maxPixels` instead of `dpi`, as papyra's
 //! `TiffImage.renderPage` is, and comes back in the same two formats.
 
-use papyra_core::{Bitmap, RenderOptions};
+use papyra_core::{Bitmap, RenderOptions, Tile};
 use papyra_encode::{EncodeOptions, ImageFormat};
 use tauri::http::{Request, Response, StatusCode};
 
@@ -28,8 +32,8 @@ enum PageFormat {
   Rgba,
 }
 
-/// A page request, parsed from `/<id>/<page>?dpi=…&annots=0|1&format=png|rgba`,
-/// or for a TIFF `?maxWidth=…&maxPixels=…&format=…`.
+/// A page request, parsed from `/<id>/<page>?dpi=…&annots=0|1&format=png|rgba`, plus
+/// `&x=…&y=…&width=…&height=…` for a tile, or for a TIFF `?maxWidth=…&maxPixels=…&format=…`.
 #[derive(Debug, PartialEq)]
 struct PageRequest {
   id: u32,
@@ -39,6 +43,7 @@ struct PageRequest {
   format: PageFormat,
   max_width: Option<u32>,
   max_pixels: Option<u64>,
+  tile: Option<Tile>,
 }
 
 fn parse(path: &str, query: Option<&str>) -> Option<PageRequest> {
@@ -56,7 +61,9 @@ fn parse(path: &str, query: Option<&str>) -> Option<PageRequest> {
     format: PageFormat::Png,
     max_width: None,
     max_pixels: None,
+    tile: None,
   };
+  let (mut x, mut y, mut width, mut height) = (None, None, None, None);
   for pair in query.unwrap_or("").split('&').filter(|p| !p.is_empty()) {
     let (key, value) = pair.split_once('=')?;
     match key {
@@ -69,6 +76,10 @@ fn parse(path: &str, query: Option<&str>) -> Option<PageRequest> {
       "annots" => request.annotations = value != "0",
       "maxWidth" => request.max_width = Some(value.parse().ok().filter(|w| *w > 0)?),
       "maxPixels" => request.max_pixels = Some(value.parse().ok().filter(|p| *p > 0)?),
+      "x" => x = Some(value.parse().ok()?),
+      "y" => y = Some(value.parse().ok()?),
+      "width" => width = Some(value.parse().ok().filter(|w: &u16| *w > 0)?),
+      "height" => height = Some(value.parse().ok().filter(|h: &u16| *h > 0)?),
       "format" => {
         request.format = match value {
           "png" => PageFormat::Png,
@@ -79,6 +90,16 @@ fn parse(path: &str, query: Option<&str>) -> Option<PageRequest> {
       _ => {}
     }
   }
+  request.tile = match (x, y, width, height) {
+    (None, None, None, None) => None,
+    (Some(x), Some(y), Some(width), Some(height)) => Some(Tile {
+      x,
+      y,
+      width,
+      height,
+    }),
+    _ => return None,
+  };
   Some(request)
 }
 
@@ -132,10 +153,13 @@ pub(crate) fn render(docs: &Documents, request: &Request<Vec<u8>>) -> Response<V
   let bitmap = match doc {
     Doc::Paged(doc) => {
       let pixels = match doc.page_size(page.page) {
-        Ok(size) => {
-          let scale = f64::from(page.dpi) / 72.0;
-          (f64::from(size.width) * scale).floor() * (f64::from(size.height) * scale).floor()
-        }
+        Ok(size) => match page.tile {
+          Some(tile) => f64::from(tile.width) * f64::from(tile.height),
+          None => {
+            let scale = f64::from(page.dpi) / 72.0;
+            (f64::from(size.width) * scale).floor() * (f64::from(size.height) * scale).floor()
+          }
+        },
         Err(e) => return failure(StatusCode::UNPROCESSABLE_ENTITY, Error::from(e).to_string()),
       };
       if pixels > MAX_PIXELS {
@@ -151,7 +175,11 @@ pub(crate) fn render(docs: &Documents, request: &Request<Vec<u8>>) -> Response<V
         annotations: page.annotations,
         ..RenderOptions::at_dpi(page.dpi)
       };
-      doc.render_page(page.page, &options).map_err(Error::from)
+      match page.tile {
+        Some(tile) => doc.render_tile(page.page, &options, tile),
+        None => doc.render_page(page.page, &options),
+      }
+      .map_err(Error::from)
     }
     #[cfg(feature = "tiff")]
     Doc::Tiff(tiff) => {
@@ -221,6 +249,16 @@ mod tests {
         format: PageFormat::Rgba,
         max_width: None,
         max_pixels: None,
+        tile: None,
+      })
+    );
+    assert_eq!(
+      parse("/3/12", Some("dpi=600&x=1024&y=0&width=1024&height=512")).and_then(|r| r.tile),
+      Some(Tile {
+        x: 1024,
+        y: 0,
+        width: 1024,
+        height: 512,
       })
     );
   }
@@ -249,6 +287,10 @@ mod tests {
       ("/1/2", Some("maxWidth=0")),
       ("/1/2", Some("maxWidth=-1")),
       ("/1/2", Some("maxPixels=x")),
+      ("/1/2", Some("x=0&y=0&width=8")),
+      ("/1/2", Some("x=-1&y=0&width=8&height=8")),
+      ("/1/2", Some("x=0&y=0&width=0&height=8")),
+      ("/1/2", Some("x=0&y=0&width=65536&height=8")),
     ] {
       assert_eq!(parse(path, query), None, "{path}?{query:?}");
     }
@@ -294,6 +336,22 @@ mod tests {
       .unwrap();
     assert_eq!(rgba.body().len(), width * height * 4);
     assert_eq!(width, 612);
+
+    // 100000 dpi is refused for the page below; one tile of it is not, and the 100 MP
+    // guard reads the tile's pixels instead.
+    let tile = |w: u32| {
+      format!(
+        "papyra://localhost/{id}/0?dpi=100000&x=400000&y=500000&width={w}&height=300&format=rgba"
+      )
+    };
+    let ok = get(&docs, &tile(200));
+    assert_eq!(ok.status(), StatusCode::OK);
+    assert_eq!(ok.headers()["x-width"], "200");
+    assert_eq!(ok.body().len(), 200 * 300 * 4);
+    assert_eq!(
+      get(&docs, &tile(65535).replace("height=300", "height=65535")).status(),
+      StatusCode::PAYLOAD_TOO_LARGE
+    );
   }
 
   #[test]

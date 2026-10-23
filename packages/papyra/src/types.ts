@@ -132,6 +132,22 @@ export interface StreamedPage<P extends PageBitmap = RenderedPage> {
   readonly bitmap: P;
 }
 
+/**
+ * One window of a page's render, in its output pixels: the corner's offset from the
+ * page's top-left and the window's size. For showing a page too large to render
+ * whole; see {@link PagedEngine.renderTile}.
+ */
+export interface Tile {
+  /** Pixels from the page's left edge. */
+  readonly x: number;
+  /** Pixels from the page's top edge. */
+  readonly y: number;
+  /** Width in pixels, 1 to 65535. */
+  readonly width: number;
+  /** Height in pixels, 1 to 65535. */
+  readonly height: number;
+}
+
 /** Page dimensions in PDF points (1/72 inch). */
 export interface PageSize {
   /** Width in points, with rotation and the crop box already applied. */

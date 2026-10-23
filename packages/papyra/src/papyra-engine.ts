@@ -24,6 +24,7 @@ import type {
   PageSize,
   PdfSource,
   RenderedPage,
+  Tile,
 } from './types.js';
 
 const EVERYTHING: Capabilities = {
@@ -34,6 +35,7 @@ const EVERYTHING: Capabilities = {
   structure: true,
   pageLabels: true,
   annotationsToggle: true,
+  tiles: true,
 };
 
 /** napi omits absent strings rather than nulling them; normalise to one shape. */
@@ -137,6 +139,9 @@ export class PapyraEngine extends PdfEngine {
       inner,
       fingerprint(bytes),
       runtime.defaultConcurrency(),
+      // One at a time on wasm, where four in flight finish later than one does —
+      // the first of four lands at ~376ms against ~76ms alone (Addendum 13).
+      runtime.currentRuntime() === 'wasm' ? 1 : undefined,
     );
   }
 }
@@ -166,6 +171,7 @@ export class PapyraBackend implements PdfBackend {
     readonly native: NativeDocument,
     readonly fingerprint: string,
     readonly concurrency: number,
+    readonly tileConcurrency?: number,
   ) {}
 
   get pageCount(): number {
@@ -183,6 +189,22 @@ export class PapyraBackend implements PdfBackend {
     return this.native.renderPageAsync(
       index,
       options.dpi,
+      options.annotations,
+    ) as Promise<RenderedPage>;
+  }
+
+  renderTile(
+    index: number,
+    { x, y, width, height }: Tile,
+    options: BackendRenderOptions,
+  ): Promise<RenderedPage> {
+    return this.native.renderTileAsync(
+      index,
+      options.dpi,
+      x,
+      y,
+      width,
+      height,
       options.annotations,
     ) as Promise<RenderedPage>;
   }

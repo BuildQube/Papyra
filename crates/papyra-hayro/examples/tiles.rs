@@ -11,6 +11,9 @@
 //! usage: cargo run --release -p papyra-hayro --example tiles -- <file.pdf> [page]
 //!   or   … -- <file.pdf> <page> full|tiles|tile|record|hash <scale> [n|px]   (one shot, for
 //!        `/usr/bin/time -l` to read peak memory from)
+//!   or   … -- --identity <file.pdf>…   (per page: whether papyra's full page is
+//!        `hayro::render`'s to the byte, and a hash of a 3x3 tile grid, for diffing two
+//!        hayro builds against each other)
 
 use hayro::vello_cpu::color::palette::css::WHITE;
 use hayro::vello_cpu::{Pixmap, RasterizerSettings, RenderContext, Resources, TargetInit};
@@ -145,8 +148,78 @@ fn record_and_cut(page: &Page, scale: f64, px: u16) -> (f64, f64) {
   (record, raster)
 }
 
+/// One line per page of each file: `papyra::render_page == hayro::render` at 1x and
+/// 2x, and a hash of every tile of a 3x3 grid at 2x. Pages past 32 MP at 2x and the
+/// eleventh page on are skipped, to keep a run over a thousand files to minutes.
+fn identity(files: &[String]) {
+  use papyra_core::{Document, Engine, RenderOptions, Tile};
+  use std::hash::{DefaultHasher, Hash, Hasher};
+  for path in files {
+    let Ok(bytes) = std::fs::read(path) else {
+      continue;
+    };
+    let Ok(pdf) = Pdf::new(bytes.clone()) else {
+      continue;
+    };
+    let Ok(doc) = papyra_hayro::HayroEngine::load(bytes) else {
+      continue;
+    };
+    for (index, page) in pdf.pages().iter().enumerate().take(10) {
+      let (w, h) = page.render_dimensions();
+      if w * h * 4.0 > 32e6 || w < 3.0 || h < 3.0 {
+        continue;
+      }
+      // A malformed page can panic hayro; that is the same on both paths.
+      let line = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let same = [1.0f32, 2.0].map(|scale| {
+          let opts = RenderOptions {
+            scale,
+            ..Default::default()
+          };
+          let ours = doc.render_page(index, &opts).unwrap();
+          let theirs = hayro::render(
+            page,
+            &RenderCache::new(),
+            &InterpreterSettings::default(),
+            &RenderSettings::default(),
+            &hayro::PixmapSettings {
+              x_scale: scale,
+              y_scale: scale,
+              bg_color: WHITE,
+            },
+          );
+          ours.data == theirs.take_rgba8(hayro::vello_cpu::peniko::ImageAlphaType::Alpha)
+        });
+        let opts = RenderOptions {
+          scale: 2.0,
+          ..Default::default()
+        };
+        let (pw, ph) = ((w * 2.0) as u32, (h * 2.0) as u32);
+        let (tw, th) = (pw.div_ceil(3), ph.div_ceil(3));
+        let mut hasher = DefaultHasher::new();
+        for i in 0..9 {
+          let (x, y) = ((i % 3) * tw, (i / 3) * th);
+          let tile = Tile {
+            x,
+            y,
+            width: tw.min(pw - x) as u16,
+            height: th.min(ph - y) as u16,
+          };
+          doc.render_tile(index, &opts, tile).unwrap().data.hash(&mut hasher);
+        }
+        format!("{:?} {:016x}", same, hasher.finish())
+      }))
+      .unwrap_or_else(|_| "panicked".to_string());
+      println!("{path}#{index} {line}");
+    }
+  }
+}
+
 fn main() {
   let args: Vec<String> = std::env::args().collect();
+  if args.get(1).is_some_and(|a| a == "--identity") {
+    return identity(&args[2..]);
+  }
   let path = args.get(1).expect("usage: … <file.pdf> [page]");
   let index: usize = args.get(2).map_or(0, |s| s.parse().expect("page"));
   let pdf = Pdf::new(std::fs::read(path).expect("read")).expect("parse");

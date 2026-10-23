@@ -18,6 +18,7 @@ import {
   type PdfSource,
   rethrowLoadError,
   type StructNode,
+  type Tile,
   toAttachment,
   toBytes,
   toPageLink,
@@ -71,6 +72,7 @@ const EVERYTHING: Capabilities = {
   structure: true,
   pageLabels: true,
   annotationsToggle: true,
+  tiles: true,
 };
 
 /**
@@ -176,12 +178,25 @@ export class TauriBackend implements PdfBackend {
     options: BackendRenderOptions,
     signal?: AbortSignal,
   ): Promise<PageBitmap> {
-    const annots = options.annotations === false ? 0 : 1;
+    return fetchPage(this.#page(index, options), this.format, signal);
+  }
+
+  renderTile(
+    index: number,
+    { x, y, width, height }: Tile,
+    options: BackendRenderOptions,
+    signal?: AbortSignal,
+  ): Promise<PageBitmap> {
     return fetchPage(
-      `${this.#pages}${index}?dpi=${options.dpi}&annots=${annots}`,
+      `${this.#page(index, options)}&x=${x}&y=${y}&width=${width}&height=${height}`,
       this.format,
       signal,
     );
+  }
+
+  #page(index: number, options: BackendRenderOptions): string {
+    const annots = options.annotations === false ? 0 : 1;
+    return `${this.#pages}${index}?dpi=${options.dpi}&annots=${annots}`;
   }
 
   metadata(): DocumentMetadata {
