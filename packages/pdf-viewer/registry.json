@@ -389,7 +389,8 @@
       "registryDependencies": [
         "{{REGISTRY}}/pdf-highlights.json",
         "{{REGISTRY}}/pdf-links.json",
-        "{{REGISTRY}}/pdf-engine.json"
+        "{{REGISTRY}}/pdf-engine.json",
+        "{{REGISTRY}}/viewer-zoom.json"
       ],
       "files": [
         {
