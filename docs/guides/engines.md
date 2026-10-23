@@ -74,6 +74,28 @@ A document belongs to the engine that opened it: hand it back to that engine and
 other. `doc.capabilities` says which commands the engine can answer for it — a viewer
 hides the panels it cannot fill.
 
+## Pages too large for one bitmap
+
+A render past 100 MP is refused: an ARCH-E sheet at 400% is 105 MP, 420 MB of RGBA.
+`renderTile` renders one window of the page instead — the pixels the whole render
+would have there, at any DPI — and the cap applies to the window:
+
+```ts
+const tile = { x: 4096, y: 2048, width: 1024, height: 1024 };
+const { promise } = engine.renderTile(doc, 0, tile, { dpi: 576 });
+```
+
+Tiles are cached and coalesced like pages, on a queue of their own so a screenful of
+them never holds up a page. An engine that can do this says so in
+`doc.capabilities.tiles`; papyra's and the Tauri engine can, pdf.js and the office
+engine cannot, and `renderTile` throws on those. Each tile still costs about what
+interpreting the whole page does, because the renderer culls nothing outside it, so
+tiles pay only past the cap, not before it. papyra's engine runs them one at a time
+in wasm, where four at once finish later than one does.
+
+The viewer's page column switches to tiles on its own once a page outgrows its
+24 MP bitmap: the bitmap stays underneath, stretched, until the tiles over it land.
+
 ## In the viewer
 
 The `pdf-engine` registry item puts an engine in scope:

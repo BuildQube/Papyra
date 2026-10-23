@@ -38,7 +38,7 @@
     "test:integration": "bun test test/integration"
   },
   "peerDependencies": {
-    "@build-qube/papyra": "^0.6.0",
+    "@build-qube/papyra": "^0.7.0",
     "@tauri-apps/api": "^2.0.0"
   },
   "devDependencies": {

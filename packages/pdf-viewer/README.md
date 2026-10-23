@@ -207,13 +207,13 @@ a base derived from `PAPYRA_BASE` would let a local build emit items pointing at
 host that does not serve them — a failure only the person installing them would ever
 see.
 
-**Every item declares the same `@build-qube/papyra@^0.6.0`, and keeps it current.**
-They call APIs older releases lack — 0.6.0's `Workbook.close()` and generic
-`TiffImage` among them — so the range is the oldest minor that has everything *any*
+**Every item declares the same `@build-qube/papyra@^0.7.0`, and keeps it current.**
+They call APIs older releases lack — 0.7.0's `renderTile`, 0.6.0's
+`Workbook.close()` and generic `TiffImage` among them — so the range is the oldest minor that has everything *any*
 item uses, and a raise moves every item at once, ahead of the release if need be: an
 install then stops at `npm error notarget`, which is the honest failure. One range,
 not one per item, because on 0.x a caret stops at the next minor: an item on
-`^0.5.0` installed beside one on `^0.6.0` resolves papyra to 0.5.0, and the newer
+`^0.6.0` installed beside one on `^0.7.0` resolves papyra to 0.6.0, and the newer
 item fails to compile. `scripts/build-registry.ts` refuses a split. An unversioned
 dependency would install whatever is published and fail later, inside the
 consumer's build, with a type error about a property that does not exist.

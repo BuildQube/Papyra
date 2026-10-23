@@ -9,11 +9,25 @@ import {
   type SearchMatch,
   viewport,
 } from '@build-qube/papyra/core';
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  memo,
+  type RefObject,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { usePageEngine } from '@/components/pdf-engine';
 import { Highlights } from '@/components/pdf-highlights';
 import { Links } from '@/components/pdf-links';
 import { cn } from '@/lib/utils';
+import {
+  type Box,
+  type TileSlot,
+  tileSlots,
+  uprightBox,
+  uprightTransform,
+} from '@/lib/viewer-zoom';
 
 /**
  * Whether the overlay may ask for this page's links. Only a PDF engine reads links,
@@ -59,6 +73,16 @@ export interface PageSurfaceProps {
   renderWidth: number;
   /** Lower runs first. Reassigned as the page moves through the viewport. */
   priority: number;
+  /**
+   * DPI to lay tiles over the bitmap at, from `tileDpi`, or 0 for none.
+   *
+   * Past the bitmap's pixel cap a page is stretched; tiles at this DPI cover the part
+   * on screen with sharp pixels, and the stretched bitmap is their placeholder.
+   * Ignored by an engine without the `tiles` capability.
+   */
+  tileDpi?: number;
+  /** The scrolling element, which decides what of the page is on screen to tile. */
+  scroller?: RefObject<HTMLElement | null>;
   /** Every match in the document; the ones on this page are drawn. */
   matches: readonly SearchMatch[];
   /** The match drawn in the active colour, if it is on this page. */
@@ -99,6 +123,8 @@ export const PageSurface = memo(function PageSurface({
   annotations,
   renderWidth,
   priority,
+  tileDpi = 0,
+  scroller,
   matches,
   active,
   regions,
@@ -180,6 +206,20 @@ export const PageSurface = memo(function PageSurface({
       style={{ top, left, width, height }}
     >
       <canvas ref={canvas} className="block size-full" hidden={!painted} />
+      {tileDpi > 0 && scroller && doc.capabilities.tiles && (
+        <Tiles
+          doc={doc}
+          index={index}
+          width={width}
+          height={height}
+          pageWidth={pageWidth}
+          pageHeight={pageHeight}
+          rotation={rotation}
+          annotations={annotations}
+          dpi={tileDpi}
+          scroller={scroller}
+        />
+      )}
       {!painted && (
         /*
          * A placeholder of exactly the right size, from `pageSize()`, before anything
@@ -218,3 +258,194 @@ export const PageSurface = memo(function PageSurface({
     </div>
   );
 });
+
+interface TilesProps {
+  doc: PagedDoc;
+  index: number;
+  width: number;
+  height: number;
+  pageWidth: number;
+  pageHeight: number;
+  rotation: Rotation;
+  annotations: boolean;
+  dpi: number;
+  scroller: RefObject<HTMLElement | null>;
+}
+
+/**
+ * The tiles over the part of a page that is on screen, in an upright layer turned
+ * onto the box — so a tile is always the page's own pixels, as the bitmap is.
+ *
+ * Measures what is visible itself, on every scroll frame, rather than taking it as a
+ * prop: the column re-renders only when the range of pages changes, and at 400% one
+ * page fills the screen for a long scroll.
+ */
+function Tiles({
+  doc,
+  index,
+  width,
+  height,
+  pageWidth,
+  pageHeight,
+  rotation,
+  annotations,
+  dpi,
+  scroller,
+}: TilesProps) {
+  const layer = useRef<HTMLDivElement>(null);
+  const [view, setView] = useState<Box | null>(null);
+  const turned = rotation === 90 || rotation === 270;
+  const upright = turned ? { width: height, height: width } : { width, height };
+
+  // Passive, not layout: the scroller is an ancestor, and on the first commit its ref
+  // is attached only after this component's layout effects have run.
+  useEffect(() => {
+    const vp = scroller.current;
+    const page = layer.current?.parentElement;
+    if (!vp || !page) return;
+    const measure = () => {
+      const v = vp.getBoundingClientRect();
+      const p = page.getBoundingClientRect();
+      const next = uprightBox(
+        {
+          x0: Math.max(0, v.left - p.left),
+          y0: Math.max(0, v.top - p.top),
+          x1: Math.min(width, v.right - p.left),
+          y1: Math.min(height, v.bottom - p.top),
+        },
+        { width, height },
+        rotation,
+      );
+      setView((prev) =>
+        prev &&
+        prev.x0 === next.x0 &&
+        prev.y0 === next.y0 &&
+        prev.x1 === next.x1 &&
+        prev.y1 === next.y1
+          ? prev
+          : next,
+      );
+    };
+    measure();
+    let frame = 0;
+    const onScroll = () => {
+      if (!frame) {
+        frame = requestAnimationFrame(() => {
+          frame = 0;
+          measure();
+        });
+      }
+    };
+    vp.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    return () => {
+      vp.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [scroller, width, height, rotation]);
+
+  const slots = useMemo(
+    () =>
+      view
+        ? tileSlots(
+            { width: pageWidth, height: pageHeight },
+            dpi,
+            upright.width,
+            view,
+          )
+        : [],
+    [pageWidth, pageHeight, dpi, upright.width, view],
+  );
+
+  return (
+    <div
+      ref={layer}
+      className="pointer-events-none absolute top-0 left-0 origin-top-left"
+      style={{
+        width: upright.width,
+        height: upright.height,
+        transform: uprightTransform({ width, height }, rotation),
+      }}
+    >
+      {slots.map((slot) => (
+        <TileCanvas
+          // The DPI is in the key so a new zoom step mounts fresh canvases, and the
+          // stretched bitmap shows until they paint, not the old step's tiles.
+          key={`${dpi}:${slot.key}`}
+          doc={doc}
+          index={index}
+          slot={slot}
+          dpi={dpi}
+          annotations={annotations}
+        />
+      ))}
+    </div>
+  );
+}
+
+/** One tile's canvas: rendered on mount, cancelled on unmount, hidden until painted. */
+function TileCanvas({
+  doc,
+  index,
+  slot,
+  dpi,
+  annotations,
+}: {
+  doc: PagedDoc;
+  index: number;
+  slot: TileSlot;
+  dpi: number;
+  annotations: boolean;
+}) {
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const job = useRef<RenderHandle<PageBitmap> | null>(null);
+  const [painted, setPainted] = useState(false);
+  const engine = usePageEngine();
+  const priority = slot.visible ? 0 : 1;
+  const { x, y, width, height } = slot.tile;
+
+  useEffect(() => {
+    let dropped = false;
+    // Queued in mount order, which is nearest the middle of the view first.
+    const handle = engine.renderTile(
+      doc,
+      index,
+      { x, y, width, height },
+      { dpi, priority, annotations },
+    );
+    job.current = handle;
+    handle.promise
+      .then((page) => {
+        if (dropped || !canvas.current) return;
+        paintToCanvas(page, canvas.current);
+        setPainted(true);
+      })
+      .catch(() => {});
+    return () => {
+      dropped = true;
+      job.current = null;
+      handle.cancel('tile left the view');
+    };
+    // `priority` is applied to the live job below, as the page surface does.
+  }, [engine, doc, index, x, y, width, height, dpi, annotations]);
+
+  useEffect(() => {
+    job.current?.setPriority(priority);
+  }, [priority]);
+
+  const { box } = slot;
+  return (
+    <canvas
+      ref={canvas}
+      className="absolute block"
+      hidden={!painted}
+      style={{
+        left: box.x0,
+        top: box.y0,
+        width: box.x1 - box.x0,
+        height: box.y1 - box.y0,
+      }}
+    />
+  );
+}
