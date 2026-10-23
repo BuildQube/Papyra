@@ -1,5 +1,28 @@
 # @workspace/pdf-viewer
 
+## 0.6.0
+
+### Minor Changes
+
+- 909bac8: Deep zoom stays sharp in single-page mode too. The tile layer is now its own item,
+  `pdf-page-tiles`, and `pdf-viewer-basic` and `pdf-viewer-configurable` with
+  `view: 'page'` mount it over the stretched bitmap, as the continuous column already
+  did. A tile also hides when its page, document or annotation setting changes, so a
+  page turn no longer leaves the previous page's tiles over the new one.
+- d62544f: The page column shows a page past its 24 MP bitmap in sharp 1024px tiles instead of
+  stretching it: an ARCH-E sheet at 400% no longer blurs. The stretched bitmap stays
+  underneath until the tiles over it land, tiles render at steps of √2 so a pinch
+  does not re-render at every frame, and only what is on screen is rendered. Every item now declares `@build-qube/papyra@^0.7.0`.
+
+### Patch Changes
+
+- df7c44f: Every item now declares `@build-qube/papyra@^0.6.0` (and
+  `@build-qube/papyra-office-native@^0.6.0`). The TIFF and sheet items alone had
+  moved to 0.6, so installing either beside any other item resolved papyra to 0.5.0
+  and failed to compile on `Workbook.close()` and `TiffImage<P>`.
+- Updated dependencies [d62544f]
+  - @build-qube/papyra@0.7.0
+
 ## 0.5.0
 
 ### Minor Changes
