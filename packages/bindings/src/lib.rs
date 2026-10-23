@@ -957,7 +957,7 @@ impl PdfDocument {
   }
 
   /// Render the `width` x `height` window whose corner is (`x`, `y`) in output pixels
-  /// of the page at `dpi`. Each side is at most 65535, hayro's limit; the page is not.
+  /// of the page at `dpi`. Each side is at most 65280, vello_cpu's limit; the page is not.
   #[napi(ts_return_type = "Promise<RenderedPage>")]
   #[allow(clippy::too_many_arguments)]
   pub fn render_tile_async(

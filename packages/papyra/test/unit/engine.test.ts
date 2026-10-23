@@ -6,6 +6,7 @@ import {
   type PdfBackend,
   PdfEngine,
   RENDER_ONLY,
+  resolveDpi,
   stateOf,
 } from '../../src/engine.js';
 import { RenderTooLargeError } from '../../src/errors.js';
@@ -160,6 +161,19 @@ describe('PdfEngine over another backend', () => {
     const engine = new FakeEngine();
     const doc = await engine.open(BYTES);
     expect(() => engine.render(doc, 0, { dpi: 2000 })).toThrow(
+      RenderTooLargeError,
+    );
+  });
+
+  test('refuses a page side past the rasteriser, however few its pixels', () => {
+    // A 200in roll drawing one inch tall: 4.4 MP at 400 DPI, but 80000px long.
+    const roll = new (class extends FakeBackend {
+      override pageSize() {
+        return { width: 14400, height: 72 };
+      }
+    })();
+    expect(resolveDpi(roll, 0, { dpi: 326 })).toBe(326);
+    expect(() => resolveDpi(roll, 0, { dpi: 400 })).toThrow(
       RenderTooLargeError,
     );
   });
@@ -351,7 +365,7 @@ describe('PdfEngine over another backend', () => {
     const doc = await engine.open(BYTES);
     for (const bad of [
       { ...TILE, width: 0 },
-      { ...TILE, height: 65536 },
+      { ...TILE, height: 65281 },
       { ...TILE, width: Number.NaN },
       { ...TILE, x: -1 },
       { ...TILE, y: 10.5 },
@@ -361,20 +375,17 @@ describe('PdfEngine over another backend', () => {
       );
     }
     expect((engine.backend as TiledBackend).tiles).toEqual([]);
-    // The widest side the rasteriser takes is a tile; one more is too large.
+    // The widest side the rasteriser takes is a tile.
     const edge = { x: 0, y: 0, width: 1, height: 65280 };
     await engine.renderTile(doc, 0, edge, { dpi: 600 }).promise;
-    expect(() =>
-      engine.renderTile(doc, 0, { ...edge, height: 65281 }, { dpi: 600 }),
-    ).toThrow(RenderTooLargeError);
   });
 
   test('the pixel guard reads the tile, not the page', async () => {
     const engine = new FakeEngine(TiledBackend);
     const doc = await engine.open(BYTES);
-    const huge = { x: 0, y: 0, width: 65535, height: 65535 };
+    const huge = { x: 0, y: 0, width: 20000, height: 20000 };
     expect(() => engine.renderTile(doc, 0, huge, { dpi: 72 })).toThrow(
-      'a 65535x65535 tile',
+      'a 20000x20000 tile',
     );
   });
 

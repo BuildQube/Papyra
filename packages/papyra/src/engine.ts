@@ -616,11 +616,11 @@ export abstract class PagedEngine<
     if (
       !whole(x, 0xffffffff) ||
       !whole(y, 0xffffffff) ||
-      !whole(width - 1, 0xfffe) ||
-      !whole(height - 1, 0xfffe)
+      !whole(width - 1, MAX_SIDE - 1) ||
+      !whole(height - 1, MAX_SIDE - 1)
     ) {
       throw new RangeError(
-        `papyra: tile ${x},${y} ${width}x${height} needs whole x, y >= 0 and sides 1 to 65535`,
+        `papyra: tile ${x},${y} ${width}x${height} needs whole x, y >= 0 and sides 1 to ${MAX_SIDE}`,
       );
     }
     const dpi = resolveDpi(backend, index, options, tile);
