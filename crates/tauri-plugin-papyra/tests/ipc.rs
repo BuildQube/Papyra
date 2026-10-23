@@ -151,6 +151,17 @@ fn passwords_travel_in_a_header_and_failures_are_tagged() {
   assert!(opened.is_ok());
 }
 
+/// Android's IPC: Tauri sends the bytes over postMessage, as a JSON array.
+#[test]
+fn opens_a_json_array_body() {
+  let Some(bytes) = corpus("basicapi.pdf") else {
+    return;
+  };
+  let (_app, webview) = app();
+  let opened = json(call(&webview, "open", InvokeBody::Json(bytes.into()), &[]).unwrap());
+  assert_eq!(opened["sizes"].as_array().unwrap().len(), 3);
+}
+
 #[test]
 fn open_refuses_a_json_body() {
   let (_app, webview) = app();

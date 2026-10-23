@@ -51,6 +51,10 @@ And allow it in a capability file, `src-tauri/capabilities/default.json`:
   `papyra:` and `http://papyra.localhost`, which is the protocol's name on Android and
   Windows. Without them every page fetch is blocked, with no clearer error than a
   failed fetch.
+- **Opening on Android is slower.** Tauri sends no request bodies on Android, since its
+  WebView cannot read one, so a file's bytes cross as a JSON array of numbers: a 2.7 MB
+  PDF opened in 452 ms there against 2 ms on iOS. Pages are unaffected; they travel
+  over the protocol.
 
 ## The engine
 
