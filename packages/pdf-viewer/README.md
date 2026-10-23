@@ -319,6 +319,21 @@ not by renderer, so `with` never imports a view twice.
 The preview also has a full-screen button (`fullscreen={false}` hides it), which uses
 the same `use-fullscreen` hook as the viewer layout: a fixed takeover plus the
 Fullscreen API on the *page*, so popovers that portal to `body` stay visible.
+While it is on, the preview's root (and the viewer's, `[data-slot=pdf-viewer]`)
+carries `data-fullscreen`. A host dialog keys on it twice: to drop a transform
+that would trap the `fixed` takeover in the dialog's box, and to refuse an Escape
+dismissal, which then still ends full screen — Escape inside the viewer is the
+viewer's, whether or not a dialog called `preventDefault` on it:
+
+```tsx
+<DialogContent
+  ref={content}
+  className="has-[[data-fullscreen]]:translate-none"
+  onEscapeKeyDown={(e) => {
+    if (content.current?.querySelector('[data-fullscreen]')) e.preventDefault();
+  }}
+>
+```
 
 **Share and download.** The preview's download button is an anchor download unless
 a `FileActionsProvider` from `file-preview-actions` says otherwise. An iOS WKWebView
@@ -331,6 +346,11 @@ arrived since the last render is shared, and a share that fails for any reason b
 cancelling falls back to the download. It is not the default because desktop Safari
 and Chrome can share files too, and the macOS sheet has no plain save to disk. These
 are not engine commands, so every format has them.
+
+A host that must own the download — to write an audit row, or to re-sign a URL —
+passes `onDownload`: `<FileActionsProvider onDownload={(source) => …}>`. The button
+then always downloads, and calls that with the file's source instead of fetching
+the file itself.
 
 A file the preview never holds whole still gets the download, which in WKWebView does
 nothing: one a video or audio renderer streams, and — whenever a streaming renderer

@@ -7,6 +7,10 @@ import {
 } from '@/lib/file-preview-source';
 
 const ShareContext = createContext(false);
+const DownloadContext = createContext<FileDownload | undefined>(undefined);
+
+/** A host's own download, given the file a preview would have saved. */
+export type FileDownload = (source: FileSource) => void | Promise<void>;
 
 /** Props for {@link FileActionsProvider}. */
 export interface FileActionsProviderProps {
@@ -17,20 +21,32 @@ export interface FileActionsProviderProps {
    * too, and the macOS sheet has no plain save to disk.
    */
   share?: boolean;
+  /**
+   * Saves the file instead of the preview, for a host that has to own the download
+   * — to write an audit row, or to re-sign the URL. Replaces sharing as well: the
+   * button always downloads, through this.
+   */
+  onDownload?: FileDownload;
   /** The tree whose file previews it applies to. */
   children: ReactNode;
 }
 
 /**
- * Sets whether every file preview below it shares or downloads a file. With none,
+ * Sets whether every file preview below it shares or downloads a file, and who does
+ * the download. With none,
  * previews download. Not part of any renderer: every format gets the same actions,
  * whether or not something can display it.
  */
 export function FileActionsProvider({
   share = false,
+  onDownload,
   children,
 }: FileActionsProviderProps) {
-  return <ShareContext value={share}>{children}</ShareContext>;
+  return (
+    <ShareContext value={share}>
+      <DownloadContext value={onDownload}>{children}</DownloadContext>
+    </ShareContext>
+  );
 }
 
 /** What a share-or-download button does for one file. */
@@ -57,13 +73,16 @@ export interface FileAction {
  * @param cache Where downloaded files are kept.
  * @param held The file itself, when the caller holds it — one too large for the
  *   cache is still shareable from the view that has it.
+ * @param download The host's own download, which replaces both.
  */
 export function fileAction(
   share: boolean,
   source: FileSource,
   cache: FileCache,
   held?: File,
+  download?: FileDownload,
 ): FileAction {
+  if (download) return { kind: 'download', run: async () => download(source) };
   const shareable = () => {
     if (!share) return undefined;
     const file = held ?? heldFile(source, cache);
@@ -87,11 +106,17 @@ export function fileAction(
   };
 }
 
-/** {@link fileAction} with the sharing setting in scope. */
+/** {@link fileAction} with the provider's settings in scope. */
 export function useFileAction(
   source: FileSource,
   cache: FileCache,
   held?: File,
 ): FileAction {
-  return fileAction(use(ShareContext), source, cache, held);
+  return fileAction(
+    use(ShareContext),
+    source,
+    cache,
+    held,
+    use(DownloadContext),
+  );
 }

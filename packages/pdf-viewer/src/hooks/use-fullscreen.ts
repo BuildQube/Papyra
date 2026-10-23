@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { type RefObject, useEffect, useState } from 'react';
 
 /**
  * Full screen, as a takeover of the window plus the Fullscreen API on the *page*.
@@ -18,8 +18,17 @@ import { useEffect, useState } from 'react';
  *
  * Escape exits either way: the browser ends the API half itself and this hook
  * hears it, and the takeover half listens for the key where the API is absent.
+ * That press is the viewer's when it lands inside `root`. One landing in a popup
+ * portaled out of it, such as a menu closing, is the popup's. A host dialog can
+ * therefore cancel its own dismissal while `data-fullscreen` is set, and the press
+ * still ends full screen: Radix's `onEscapeKeyDown` calling `preventDefault` does
+ * not hide it from here.
+ *
+ * @param root The element that takes over the window.
  */
-export function useFullscreen(): [boolean, () => void] {
+export function useFullscreen(
+  root: RefObject<HTMLElement | null>,
+): [boolean, () => void] {
   const [on, setOn] = useState(false);
 
   useEffect(() => {
@@ -28,10 +37,13 @@ export function useFullscreen(): [boolean, () => void] {
       if (!document.fullscreenElement) setOn(false);
     };
     const onKey = (event: KeyboardEvent) => {
-      // A menu or popover closing on Escape claims the event first; that press
-      // was for it, not for this.
-      if (event.defaultPrevented || event.key !== 'Escape') return;
-      if (!document.fullscreenElement) setOn(false);
+      if (event.key !== 'Escape' || document.fullscreenElement) return;
+      const target = event.target;
+      // Not `defaultPrevented`: a menu closing and a host dialog refusing to close
+      // both set it, and only the first was not meant for this.
+      if (target === document.body || root.current?.contains(target as Node)) {
+        setOn(false);
+      }
     };
     document.addEventListener('fullscreenchange', exited);
     document.addEventListener('keydown', onKey);
@@ -40,7 +52,7 @@ export function useFullscreen(): [boolean, () => void] {
       document.removeEventListener('keydown', onKey);
       if (document.fullscreenElement) void document.exitFullscreen?.();
     };
-  }, [on]);
+  }, [on, root]);
 
   const toggle = () => {
     if (on) {
