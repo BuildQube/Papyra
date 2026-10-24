@@ -1,4 +1,8 @@
-import type { Availability, PageBitmap } from '@build-qube/papyra/core';
+import {
+  type Availability,
+  type PageBitmap,
+  rethrowLoadError,
+} from '@build-qube/papyra/core';
 import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 
 /** How pages travel from the host. */
@@ -40,7 +44,7 @@ export async function fetchPage(
   signal?: AbortSignal,
 ): Promise<PageBitmap> {
   const res = await fetch(`${url}&format=${format}`, { signal });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) rethrowLoadError(new Error(await res.text()));
   if (format === 'png') return createImageBitmap(await res.blob());
   const width = Number(res.headers.get('x-width'));
   const height = Number(res.headers.get('x-height'));

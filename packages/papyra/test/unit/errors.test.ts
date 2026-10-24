@@ -3,6 +3,7 @@ import {
   IncorrectPasswordError,
   PasswordError,
   PasswordRequiredError,
+  RenderTooLargeError,
   rethrowLoadError,
 } from '../../src/errors.js';
 
@@ -31,6 +32,16 @@ describe('rethrowLoadError', () => {
     );
     expect(thrown).toBeInstanceOf(IncorrectPasswordError);
     expect((thrown as PasswordError).retry).toBe(true);
+  });
+
+  test('turns the too-large tag into a RangeError', () => {
+    const thrown = thrownBy(
+      new Error(
+        'papyra/too-large a 65535x65535 bitmap is too large to allocate',
+      ),
+    );
+    expect(thrown).toBeInstanceOf(RenderTooLargeError);
+    expect(thrown).toBeInstanceOf(RangeError);
   });
 
   test('strips the tag, so a caller never sees it', () => {

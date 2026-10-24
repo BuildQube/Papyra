@@ -63,6 +63,12 @@ const AUTO_MAX = 1.25;
  */
 const MAX_RENDER_PIXELS = 24e6;
 
+/**
+ * The longest side papyra rasterises: vello_cpu snaps to 256px tiles in `u16`. A
+ * roll drawing past about 177:1 reaches it before the pixel cap does.
+ */
+const MAX_RENDER_SIDE = 65280;
+
 /** Above 2 the extra pixels cost real milliseconds and are invisible. */
 const MAX_DPR = 2;
 
@@ -142,7 +148,11 @@ export function renderWidth(page: Size, zoom: number): number {
   if (page.width <= 0 || page.height <= 0) return want;
   const cap = Math.max(
     1,
-    Math.floor(Math.sqrt((MAX_RENDER_PIXELS * page.width) / page.height)),
+    Math.min(
+      Math.sqrt((MAX_RENDER_PIXELS * page.width) / page.height),
+      MAX_RENDER_SIDE,
+      (MAX_RENDER_SIDE * page.width) / page.height,
+    ) | 0,
   );
   return Math.min(want, cap);
 }

@@ -65,6 +65,7 @@ export {
   IncorrectPasswordError,
   PasswordError,
   PasswordRequiredError,
+  RenderTooLargeError,
   rethrowLoadError,
 } from './errors.js';
 export { fingerprint } from './fingerprint.js';

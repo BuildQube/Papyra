@@ -14,12 +14,14 @@ import {
   PasswordError,
   PasswordRequiredError,
   quadBounds,
+  RenderTooLargeError,
   viewport,
   viewportQuad,
   viewportRect,
   walkStructTree,
 } from '../../src/index.js';
 import { PapyraOfficeEngine } from '../../src/office.js';
+import { PapyraBackend } from '../../src/papyra-engine.js';
 
 /**
  * These need the compiled addon and the corpus, which is why they live apart from
@@ -572,6 +574,37 @@ describeWithCorpus('papyra as an engine', () => {
       }
     }
     expect(off).toBeLessThanOrEqual(1);
+  });
+
+  test('every render path turns the too-large tag into the typed error', async () => {
+    // A heap too full to allocate the pixmap is the case the tag is for, and it
+    // cannot be made on demand natively, so the addon is stubbed to answer with it.
+    const tagged = () =>
+      Promise.reject(
+        new Error(
+          'papyra/too-large a 6300x4500 bitmap is too large to allocate',
+        ),
+      );
+    const native = {
+      pageCount: 1,
+      pageSize: () => ({ width: 612, height: 792 }),
+      renderPageAsync: tagged,
+      renderTileAsync: tagged,
+      renderPageImageAsync: tagged,
+      renderPagesAsync: tagged,
+    };
+    const doc = await load('basicapi.pdf');
+    const state = stateOf(null, doc) as { backend: PapyraBackend };
+    state.backend = new PapyraBackend(native as never, 'stub', 1);
+    const tile = { x: 0, y: 0, width: 10, height: 10 };
+    for (const render of [
+      () => doc.renderPage(0),
+      () => defaultPdfEngine.renderTile(doc, 0, tile, {}).promise,
+      () => doc.renderImage(0),
+      () => doc.renderPages(0, 1),
+    ]) {
+      await expect(render()).rejects.toThrow(RenderTooLargeError);
+    }
   });
 
   test('closing through the engine closes the Document too', async () => {

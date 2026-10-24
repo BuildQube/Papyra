@@ -80,22 +80,8 @@ fn to_rendered(bmp: papyra_core::Bitmap) -> RenderedPage {
   }
 }
 
-/// Tags a load failure so the TypeScript wrapper can rethrow it as a typed error.
-///
-/// napi-rs gives every error it throws the same `code`, so the message is the only
-/// channel there is. The wrapper strips the tag and never shows it to a caller —
-/// keep these two constants in step with `PASSWORD_TAGS` in `document.ts`.
-const TAG_PASSWORD_REQUIRED: &str = "papyra/password-required";
-const TAG_INCORRECT_PASSWORD: &str = "papyra/incorrect-password";
-
 fn map_err(e: papyra_core::PapyraError) -> Error {
-  use papyra_core::PapyraError as E;
-  let message = match &e {
-    E::PasswordRequired => format!("{TAG_PASSWORD_REQUIRED} {e}"),
-    E::IncorrectPassword => format!("{TAG_INCORRECT_PASSWORD} {e}"),
-    _ => e.to_string(),
-  };
-  Error::new(Status::GenericFailure, message)
+  Error::new(Status::GenericFailure, e.tagged())
 }
 
 // ---------------------------------------------------------------- async tasks
@@ -971,7 +957,7 @@ impl PdfDocument {
   }
 
   /// Render the `width` x `height` window whose corner is (`x`, `y`) in output pixels
-  /// of the page at `dpi`. Each side is at most 65535, hayro's limit; the page is not.
+  /// of the page at `dpi`. Each side is at most 65280, vello_cpu's limit; the page is not.
   #[napi(ts_return_type = "Promise<RenderedPage>")]
   #[allow(clippy::too_many_arguments)]
   pub fn render_tile_async(

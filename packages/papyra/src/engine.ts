@@ -1,8 +1,9 @@
 import type { Attachment } from './attachments.js';
 import { type CacheStats, RenderCache } from './cache.js';
-import type {
-  IncorrectPasswordError,
-  PasswordRequiredError,
+import {
+  type IncorrectPasswordError,
+  type PasswordRequiredError,
+  RenderTooLargeError,
 } from './errors.js';
 import type { PageLink } from './links.js';
 import type { OutlineNode } from './outline.js';
@@ -372,28 +373,77 @@ export function resolveDpi(
   options: RenderOptions,
   tile?: Tile,
 ): number {
+  return resolveSize(backend, index, options, tile).dpi;
+}
+
+/**
+ * The widest side vello_cpu can take: it snaps its context out to 256px tiles in
+ * `u16`. papyra-hayro refuses past it too, as `MAX_SIDE`; this is the same refusal
+ * with a message, before anything crosses into the addon.
+ */
+const MAX_SIDE = 65280;
+
+/** {@link resolveDpi}, and the pixels it allowed. */
+function resolveSize(
+  backend: PagedBackend,
+  index: number,
+  options: RenderOptions,
+  tile?: Tile,
+): { dpi: number; pixels: number } {
   const { width, height } = backend.pageSize(index);
   const dpi =
     options.fitWidth !== undefined && width > 0
       ? (options.fitWidth / width) * 72
       : (options.dpi ?? DEFAULT_DPI);
 
-  const pixels = tile
-    ? tile.width * tile.height
-    : ((width * dpi) / 72) * ((height * dpi) / 72);
-  if (pixels > MAX_PIXELS) {
+  const [w, h] = tile
+    ? [tile.width, tile.height]
+    : [(width * dpi) / 72, (height * dpi) / 72];
+  const pixels = w * h;
+  if (pixels > MAX_PIXELS || Math.max(w, h) > MAX_SIDE) {
     const mb = Math.round((pixels * 4) / 1e6);
     if (tile) {
-      throw new RangeError(
+      throw new RenderTooLargeError(
         `papyra: a ${tile.width}x${tile.height} tile is ${mb} MB; ` +
-          'keep a tile under 100 MP.',
+          `keep a tile under 100 MP and ${MAX_SIDE}px a side.`,
       );
     }
-    throw new RangeError(
+    throw new RenderTooLargeError(
       `papyra: page ${index} at ${dpi.toFixed(1)} DPI would be ` +
-        `${Math.round((width * dpi) / 72)}x${Math.round((height * dpi) / 72)} ` +
+        `${Math.round(w)}x${Math.round(h)} ` +
         `(${mb} MB). The page is ${(width / 72).toFixed(1)}x${(height / 72).toFixed(1)}in — ` +
         'use { fitWidth } to size by output pixels instead of DPI.',
+    );
+  }
+  return { dpi, pixels };
+}
+
+/**
+ * {@link resolveDpi} for every page of `[start, end)`, refusing the batch when its
+ * bitmaps, all held at once, would come to more than `budget` bytes. Returns the
+ * last page's DPI — the batch's, when it was given as `dpi`.
+ *
+ * @internal
+ */
+export function batchDpi(
+  backend: PagedBackend,
+  start: number,
+  end: number,
+  options: RenderOptions,
+  budget: number,
+): number {
+  let dpi = DEFAULT_DPI;
+  let bytes = 0;
+  for (let i = start; i < end; i++) {
+    const size = resolveSize(backend, i, options);
+    dpi = size.dpi;
+    bytes += size.pixels * 4;
+  }
+  if (bytes > budget) {
+    throw new RenderTooLargeError(
+      `papyra: pages ${start}-${end - 1} are ${Math.round(bytes / 1e6)} MB of ` +
+        `bitmaps held at once, over the ${Math.round(budget / 1e6)} MB budget — ` +
+        'use render() or stream() to take them a page at a time.',
     );
   }
   return dpi;
@@ -566,11 +616,11 @@ export abstract class PagedEngine<
     if (
       !whole(x, 0xffffffff) ||
       !whole(y, 0xffffffff) ||
-      !whole(width - 1, 0xfffe) ||
-      !whole(height - 1, 0xfffe)
+      !whole(width - 1, MAX_SIDE - 1) ||
+      !whole(height - 1, MAX_SIDE - 1)
     ) {
       throw new RangeError(
-        `papyra: tile ${x},${y} ${width}x${height} needs whole x, y >= 0 and sides 1 to 65535`,
+        `papyra: tile ${x},${y} ${width}x${height} needs whole x, y >= 0 and sides 1 to ${MAX_SIDE}`,
       );
     }
     const dpi = resolveDpi(backend, index, options, tile);

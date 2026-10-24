@@ -7,6 +7,7 @@
 use std::fmt::Debug;
 
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum PapyraError {
   #[error("failed to parse PDF: {0}")]
   Parse(String),
@@ -31,6 +32,29 @@ pub enum PapyraError {
   Unsupported(String),
   #[error("failed to encode image: {0}")]
   Encode(String),
+  /// A bitmap this size could not be allocated, or is past the cap that keeps an
+  /// allocation from being tried at all. An error rather than the allocator's abort,
+  /// which on wasm kills the worker and leaves the caller's promise unsettled.
+  #[error("a {width}x{height} bitmap is too large to allocate")]
+  TooLarge { width: u32, height: u32 },
+}
+
+impl PapyraError {
+  /// The message, prefixed with the tag papyra's TypeScript rethrows a typed error by.
+  ///
+  /// napi-rs gives every error it throws the same `code`, so the message is the only
+  /// channel a typed failure has. Both hosts — the napi bindings and
+  /// `tauri-plugin-papyra` — word their errors through this; keep the tags in step
+  /// with `TAGS` in `packages/papyra/src/errors.ts`.
+  pub fn tagged(&self) -> String {
+    let tag = match self {
+      Self::PasswordRequired => "papyra/password-required",
+      Self::IncorrectPassword => "papyra/incorrect-password",
+      Self::TooLarge { .. } => "papyra/too-large",
+      _ => return self.to_string(),
+    };
+    format!("{tag} {self}")
+  }
 }
 
 pub type Result<T> = std::result::Result<T, PapyraError>;

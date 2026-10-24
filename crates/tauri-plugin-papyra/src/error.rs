@@ -3,17 +3,14 @@
 use papyra_core::PapyraError;
 use serde::{Serialize, Serializer};
 
-/// Prefixes `rethrowLoadError` in papyra's TypeScript strips to rethrow a typed
-/// password error, exactly as the napi bindings tag theirs.
-const TAG_PASSWORD_REQUIRED: &str = "papyra/password-required";
-const TAG_INCORRECT_PASSWORD: &str = "papyra/incorrect-password";
+/// Tagged as the napi bindings tag theirs, for `rethrowLoadError` to strip.
 #[cfg(feature = "tables")]
 const TAG_ENCRYPTED: &str = "papyra/encrypted-workbook";
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
   /// The document itself: unparseable, encrypted, a page out of range.
-  #[error("{}", tagged(.0))]
+  #[error("{}", .0.tagged())]
   Papyra(#[from] PapyraError),
   /// An id the WebView holds that the host does not — closed, or freed by a reload.
   #[error("papyra: no open document {0}")]
@@ -41,15 +38,6 @@ pub enum Error {
   /// The host failed around the work: a poisoned lock, a blocking task that died.
   #[error("papyra: {0}")]
   Host(String),
-}
-
-/// A document error as the napi bindings word it, password failures tagged.
-fn tagged(e: &PapyraError) -> String {
-  match e {
-    PapyraError::PasswordRequired => format!("{TAG_PASSWORD_REQUIRED} {e}"),
-    PapyraError::IncorrectPassword => format!("{TAG_INCORRECT_PASSWORD} {e}"),
-    _ => e.to_string(),
-  }
 }
 
 #[cfg(feature = "tables")]
