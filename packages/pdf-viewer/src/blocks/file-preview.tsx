@@ -36,7 +36,7 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty';
 import { Spinner } from '@/components/ui/spinner';
-import { useFullscreen } from '@/hooks/use-fullscreen';
+import { FULLSCREEN_TAKEOVER, useFullscreen } from '@/hooks/use-fullscreen';
 import {
   detectHead,
   type FileInputRenderer,
@@ -203,9 +203,8 @@ export function FilePreview<const R extends readonly FileRenderer[]>({
       className={cn(
         'flex min-h-0 min-w-0 flex-col',
         className,
-        // `dvh`, not `vh`: on a phone the static viewport is taller than what shows
-        // while the address bar is up. After `className`, so it wins over a height.
-        full && 'fixed inset-0 z-50 h-dvh w-screen bg-background',
+        // After `className`, so it wins over a height or padding.
+        full && FULLSCREEN_TAKEOVER,
       )}
       onKeyDown={onKeyDown}
     >

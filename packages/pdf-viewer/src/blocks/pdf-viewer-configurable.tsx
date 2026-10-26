@@ -46,6 +46,7 @@ import {
   renderWidth,
   tileDpi,
   type ViewMode,
+  widestPage,
   type ZoomSpec,
 } from '@/lib/viewer-zoom';
 
@@ -204,10 +205,16 @@ function ViewerBody({
     () => rotateSize(pageSize, rotation),
     [pageSize, rotation],
   );
+  // The column fits its widest page, or the others crop; see `widestPage`.
+  const widest = useMemo(() => widestPage(doc, rotation), [doc, rotation]);
+  const fit = useMemo(
+    () => (mode === 'page' ? shown : { ...shown, width: widest }),
+    [mode, shown, widest],
+  );
 
   const zoom = useZoom({
     viewport,
-    page: shown,
+    page: fit,
     gutter: GUTTER,
     initial: initialZoom,
     anchor,

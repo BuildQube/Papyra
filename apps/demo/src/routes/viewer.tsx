@@ -42,6 +42,7 @@ import {
   renderWidth,
   tileDpi,
   type ViewMode,
+  widestPage,
   type ZoomSpec,
 } from '@workspace/pdf-viewer/lib/viewer-zoom';
 import { cn } from '@workspace/ui/lib/utils';
@@ -144,6 +145,15 @@ export function ViewerRoute() {
     () => (pageSize ? rotateSize(pageSize, rotation) : null),
     [pageSize, rotation],
   );
+  // The column fits its widest page, or the others crop; see `widestPage`.
+  const widest = useMemo(
+    () => (doc ? widestPage(doc, rotation) : 0),
+    [doc, rotation],
+  );
+  const fit = useMemo(
+    () => (shown && mode === 'scroll' ? { ...shown, width: widest } : shown),
+    [mode, shown, widest],
+  );
 
   const patch = useCallback(
     (next: Partial<Search>) => {
@@ -158,7 +168,7 @@ export function ViewerRoute() {
 
   const zoom = useZoom({
     viewport,
-    page: shown,
+    page: fit,
     gutter: GUTTER,
     initial: zoomParam ?? 'auto',
     anchor,
