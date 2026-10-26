@@ -22,7 +22,7 @@ import {
 } from '@/hooks/use-pdf-viewer';
 import { useZoom, type ZoomAnchor } from '@/hooks/use-viewer-zoom';
 import type { PdfViewerStore } from '@/lib/pdf-viewer-store';
-import type { ZoomSpec } from '@/lib/viewer-zoom';
+import { widestPage, type ZoomSpec } from '@/lib/viewer-zoom';
 
 /** The padding inside the scroll area, which content cannot use when fitting. */
 const GUTTER = 48;
@@ -140,9 +140,11 @@ function ViewerBody({
   const label = labelsDiffer(labels) ? pageLabel(labels, index) : '';
   // The fit modes measure the page as shown: turned, "page width" has to fit the
   // page's height, or a landscape view of a portrait page overflows the column.
+  // As wide as the widest page, which the column is; see `widestPage`.
+  const widest = useMemo(() => widestPage(doc, rotation), [doc, rotation]);
   const pageSize = useMemo(
-    () => rotateSize(doc.pageSize(index), rotation),
-    [doc, index, rotation],
+    () => ({ ...rotateSize(doc.pageSize(index), rotation), width: widest }),
+    [doc, index, rotation, widest],
   );
 
   const zoom = useZoom({

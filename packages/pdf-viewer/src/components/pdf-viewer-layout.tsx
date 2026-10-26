@@ -9,7 +9,7 @@ import {
   ResizablePanelGroup,
 } from '@/components/ui/resizable';
 import { Toggle } from '@/components/ui/toggle';
-import { useFullscreen } from '@/hooks/use-fullscreen';
+import { FULLSCREEN_TAKEOVER, useFullscreen } from '@/hooks/use-fullscreen';
 import {
   usePdfDocument,
   usePdfPage,
@@ -248,11 +248,10 @@ export function ViewerLayout({
       data-fullscreen={full || undefined}
       className={cn(
         'flex min-h-0 min-w-0 flex-1 @container/pdf-viewer',
-        // `dvh`, not `vh`: on a phone the static viewport height is taller than
-        // what is visible while the address bar is up, and the toolbar would sit
-        // under it.
-        full && 'fixed inset-0 z-50 h-dvh w-screen bg-background',
         className,
+        // After `className`, as in file-preview.tsx, so a caller's height or
+        // padding cannot drop the takeover's safe-area insets.
+        full && FULLSCREEN_TAKEOVER,
       )}
     >
       {showThumbs && compact === false ? (

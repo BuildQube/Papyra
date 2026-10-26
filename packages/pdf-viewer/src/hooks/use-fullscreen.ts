@@ -1,10 +1,22 @@
 import { type RefObject, useEffect, useState } from 'react';
 
 /**
+ * The takeover half: what the caller puts on the element that fills the window.
+ * `dvh`, not `vh`: on a phone the static viewport is taller than what shows while
+ * the address bar is up. Padded by the safe-area insets, or under
+ * `viewport-fit=cover` (iOS, Android edge-to-edge WebViews) the header draws
+ * beneath the status bar; they are 0 without it. Border-box, so the padding comes
+ * out of `h-dvh w-screen`. Apply it after any caller `className`, so a caller's
+ * height or padding cannot win over it.
+ */
+export const FULLSCREEN_TAKEOVER =
+  'fixed inset-0 z-50 h-dvh w-screen bg-background pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]';
+
+/**
  * Full screen, as a takeover of the window plus the Fullscreen API on the *page*.
  *
  * Returns whether it is on and a toggle. The caller applies the takeover half
- * itself — `fixed inset-0 z-50` on whatever should fill the window — since only it
+ * itself — `FULLSCREEN_TAKEOVER` on whatever should fill the window — since only it
  * knows which element that is.
  *
  * Two halves, on purpose. The element going `fixed inset-0` is what gives it the

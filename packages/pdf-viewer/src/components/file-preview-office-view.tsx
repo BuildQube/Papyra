@@ -22,7 +22,7 @@ import { ZoomBar } from '@/components/viewer-zoom-bar';
 import { useOpened } from '@/hooks/use-opened';
 import { useZoom, type ZoomAnchor } from '@/hooks/use-viewer-zoom';
 import type { FileViewProps } from '@/lib/file-preview-core';
-import type { Size } from '@/lib/viewer-zoom';
+import { type Size, widestPage } from '@/lib/viewer-zoom';
 
 /** Padding inside the scroll area, which content cannot use when fitting. */
 const GUTTER = 48;
@@ -188,10 +188,12 @@ function OfficePages({ doc }: { doc: OfficeDoc }) {
   const [page, setPage] = useState(0);
   const [rotation, setRotation] = useState<Rotation>(0);
 
-  // Fit modes measure the page as shown, so a turned portrait page fits by height.
+  // Fit modes measure the page as shown, so a turned portrait page fits by height,
+  // and as wide as the column's widest page, or the others crop; see `widestPage`.
+  const widest = useMemo(() => widestPage(doc, rotation), [doc, rotation]);
   const shown: Size = useMemo(
-    () => rotateSize(doc.pageSize(page), rotation),
-    [doc, page, rotation],
+    () => ({ ...rotateSize(doc.pageSize(page), rotation), width: widest }),
+    [doc, page, rotation, widest],
   );
   const zoom = useZoom({
     viewport,

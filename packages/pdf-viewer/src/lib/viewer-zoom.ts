@@ -108,7 +108,8 @@ export interface Viewport {
  *
  * The fit modes measure against the page on screen rather than the first page: a
  * document that mixes portrait text with landscape plates would otherwise fit one of
- * them and crop the other.
+ * them and crop the other. A continuous column passes that page widened to
+ * {@link widestPage}.
  */
 export function resolveZoom(
   spec: ZoomSpec,
@@ -125,6 +126,28 @@ export function resolveZoom(
   return clampZoom(
     Math.min(byWidth, viewport.height / (page.height * CSS_UNITS)),
   );
+}
+
+/**
+ * The widest page as shown, in points: what the fit modes measure in a continuous
+ * column.
+ *
+ * The column is as wide as its widest page and centres the rest in it, so fitting
+ * the page on screen crops the wider ones and pushes a narrow one right by half the
+ * difference. A revision set mixing 459pt and 585pt pages showed both on a phone.
+ * Fitting this instead crops nothing and holds `auto` steady while scrolling; a
+ * single page still fits itself.
+ */
+export function widestPage(
+  doc: { readonly pageCount: number; pageSize(index: number): Size },
+  rotation: Rotation,
+): number {
+  let widest = 0;
+  for (let i = 0; i < doc.pageCount; i++) {
+    const size = doc.pageSize(i);
+    widest = Math.max(widest, rotation % 180 ? size.height : size.width);
+  }
+  return widest;
 }
 
 /** The CSS box a page occupies at a given zoom. */

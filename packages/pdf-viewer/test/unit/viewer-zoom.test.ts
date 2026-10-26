@@ -1,12 +1,16 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import {
   type Box,
+  CSS_UNITS,
   type Rotation,
+  resolveZoom,
+  type Size,
   TILE_SIZE,
   tileDpi,
   tileSlots,
   uprightBox,
   uprightTransform,
+  widestPage,
 } from '@/lib/viewer-zoom';
 
 const ARCH_E = { width: 42 * 72, height: 30 * 72 };
@@ -159,4 +163,32 @@ describe('tileSlots', () => {
       }
     });
   }
+});
+
+describe('widestPage', () => {
+  // A revision set as aldoa's arrive: a narrow cover, then a wider sheet.
+  const sizes: Size[] = [
+    { width: 459, height: 594 },
+    { width: 585, height: 450 },
+  ];
+  const doc = { pageCount: 2, pageSize: (i: number) => sizes[i] as Size };
+
+  test('measures the page as turned', () => {
+    expect(widestPage(doc, 0)).toBe(585);
+    expect(widestPage(doc, 90)).toBe(594);
+    expect(widestPage({ pageCount: 0, pageSize: () => LETTER }, 0)).toBe(0);
+  });
+
+  test('a column fitted to it crops no page, whichever is on screen', () => {
+    const phone = { width: 358, height: 700 };
+    const widest = widestPage(doc, 0);
+    for (const page of sizes) {
+      const zoom = resolveZoom('auto', { ...page, width: widest }, phone);
+      for (const other of sizes)
+        expect(other.width * CSS_UNITS * zoom).toBeLessThanOrEqual(phone.width);
+    }
+    // Fitting the narrow page alone is the bug: the wide one overflows.
+    const narrow = resolveZoom('auto', sizes[0] as Size, phone);
+    expect(585 * CSS_UNITS * narrow).toBeGreaterThan(phone.width);
+  });
 });
