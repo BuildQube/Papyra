@@ -274,8 +274,9 @@ impl Package {
     let names: Vec<String> = self
       .zip
       .file_names()
+      .filter_map(|n| n.ok())
       .filter(|n| n.to_ascii_lowercase().ends_with("sharedstrings.xml"))
-      .map(str::to_string)
+      .map(|n| n.into_owned())
       .collect();
     for name in names {
       let Ok(file) = self.zip.by_name(&name) else {
@@ -304,8 +305,8 @@ impl Package {
     };
     let mut out = Vec::new();
     each_element(&workbook, |e| {
-      if e.local_name().as_ref() == b"sheet" {
-        let path = attr(e, b"id")
+      if e.local_name().as_ref() == "sheet" {
+        let path = attr(e, "id")
           .and_then(|id| rels.get(&id))
           .map(|t| part_path(t));
         out.push(path);
@@ -362,8 +363,8 @@ fn part_path(target: &str) -> String {
 fn relationships(xml: &[u8]) -> HashMap<String, String> {
   let mut out = HashMap::new();
   each_element(xml, |e| {
-    if e.local_name().as_ref() == b"Relationship"
-      && let (Some(id), Some(target)) = (attr(e, b"Id"), attr(e, b"Target"))
+    if e.local_name().as_ref() == "Relationship"
+      && let (Some(id), Some(target)) = (attr(e, "Id"), attr(e, "Target"))
     {
       out.insert(id, target);
     }
@@ -389,7 +390,7 @@ fn each_element(xml: &[u8], mut f: impl FnMut(&BytesStart<'_>)) {
 
 /// An attribute by local name, unescaped. OOXML parts are UTF-8 by specification,
 /// so there is no declared encoding to decode from first.
-fn attr(e: &BytesStart<'_>, name: &[u8]) -> Option<String> {
+fn attr(e: &BytesStart<'_>, name: &str) -> Option<String> {
   e.attributes()
     .flatten()
     .find(|a| a.key.local_name().as_ref() == name)
@@ -400,22 +401,22 @@ fn attr(e: &BytesStart<'_>, name: &[u8]) -> Option<String> {
     })
 }
 
-fn attr_f32(e: &BytesStart<'_>, name: &[u8]) -> Option<f32> {
+fn attr_f32(e: &BytesStart<'_>, name: &str) -> Option<f32> {
   attr(e, name)?.parse().ok()
 }
 
-fn attr_u32(e: &BytesStart<'_>, name: &[u8]) -> Option<u32> {
+fn attr_u32(e: &BytesStart<'_>, name: &str) -> Option<u32> {
   attr(e, name)?.parse().ok()
 }
 
 /// `1`, `true` and `on` are all true in OOXML; an absent flag is false.
-fn attr_bool(e: &BytesStart<'_>, name: &[u8]) -> bool {
+fn attr_bool(e: &BytesStart<'_>, name: &str) -> bool {
   attr(e, name).is_some_and(|v| matches!(v.as_str(), "1" | "true" | "on"))
 }
 
 /// A boolean element such as `<b/>` or `<b val="0"/>`.
 fn flag(e: &BytesStart<'_>) -> bool {
-  attr(e, b"val").is_none_or(|v| !matches!(v.as_str(), "0" | "false" | "off"))
+  attr(e, "val").is_none_or(|v| !matches!(v.as_str(), "0" | "false" | "off"))
 }
 
 // ----------------------------------------------------------------- colours
@@ -429,12 +430,12 @@ fn theme_colors(xml: &[u8]) -> Vec<u32> {
   let mut buf = Vec::new();
   loop {
     match reader.read_event_into(&mut buf) {
-      Ok(Event::Start(e)) if e.local_name().as_ref() == b"clrScheme" => in_scheme = true,
-      Ok(Event::End(e)) if e.local_name().as_ref() == b"clrScheme" => break,
+      Ok(Event::Start(e)) if e.local_name().as_ref() == "clrScheme" => in_scheme = true,
+      Ok(Event::End(e)) if e.local_name().as_ref() == "clrScheme" => break,
       Ok(Event::Start(e) | Event::Empty(e)) if in_scheme => match e.local_name().as_ref() {
-        b"srgbClr" => out.extend(attr(&e, b"val").and_then(|v| hex(&v))),
+        "srgbClr" => out.extend(attr(&e, "val").and_then(|v| hex(&v))),
         // A system colour carries what it last resolved to, which is the best guess.
-        b"sysClr" => out.extend(attr(&e, b"lastClr").and_then(|v| hex(&v))),
+        "sysClr" => out.extend(attr(&e, "lastClr").and_then(|v| hex(&v))),
         _ => {}
       },
       Ok(Event::Eof) | Err(_) => break,
@@ -457,12 +458,12 @@ fn hex(s: &str) -> Option<u32> {
 
 /// A `<color>` element's colour, or `None` for automatic.
 fn color(e: &BytesStart<'_>, theme: &[u32]) -> Option<u32> {
-  if attr_bool(e, b"auto") {
+  if attr_bool(e, "auto") {
     return None;
   }
-  let base = if let Some(rgb) = attr(e, b"rgb") {
+  let base = if let Some(rgb) = attr(e, "rgb") {
     hex(&rgb)?
-  } else if let Some(t) = attr_u32(e, b"theme") {
+  } else if let Some(t) = attr_u32(e, "theme") {
     // Excel swaps the first two pairs: theme 0 is lt1 and 1 is dk1, so that the
     // default text colour (1) is dark on the default background (0).
     let t = match t {
@@ -474,9 +475,9 @@ fn color(e: &BytesStart<'_>, theme: &[u32]) -> Option<u32> {
     };
     *theme.get(t as usize)?
   } else {
-    indexed_color(attr_u32(e, b"indexed")? as usize)?
+    indexed_color(attr_u32(e, "indexed")? as usize)?
   };
-  Some(match attr(e, b"tint").and_then(|t| t.parse::<f64>().ok()) {
+  Some(match attr(e, "tint").and_then(|t| t.parse::<f64>().ok()) {
     Some(tint) if tint != 0.0 => apply_tint(base, tint),
     _ => base,
   })
@@ -567,7 +568,7 @@ fn parse_styles(xml: &[u8], theme: &[u32]) -> StyleSheet {
     Border(usize),
     CellXf,
   }
-  let mut section: &[u8] = b"";
+  let mut section: &str = "";
   let mut at = In::Nothing;
   let mut pattern_solid = false;
 
@@ -580,10 +581,10 @@ fn parse_styles(xml: &[u8], theme: &[u32]) -> StyleSheet {
       Ok(Event::Empty(e)) => (e.clone(), true),
       Ok(Event::End(e)) => {
         match e.local_name().as_ref() {
-          b"font" | b"fill" | b"xf" => at = In::Nothing,
-          b"left" | b"right" | b"top" | b"bottom" => at = In::Border(usize::MAX),
-          b"border" => at = In::Nothing,
-          b"fonts" | b"fills" | b"borders" | b"cellXfs" | b"numFmts" => section = b"",
+          "font" | "fill" | "xf" => at = In::Nothing,
+          "left" | "right" | "top" | "bottom" => at = In::Border(usize::MAX),
+          "border" => at = In::Nothing,
+          "fonts" | "fills" | "borders" | "cellXfs" | "numFmts" => section = "",
           _ => {}
         }
         buf.clear();
@@ -597,46 +598,46 @@ fn parse_styles(xml: &[u8], theme: &[u32]) -> StyleSheet {
     };
     let name = e.local_name();
     match name.as_ref() {
-      b"numFmts" => section = b"numFmts",
-      b"fonts" => section = b"fonts",
-      b"fills" => section = b"fills",
-      b"borders" => section = b"borders",
-      b"cellXfs" => section = b"cellXfs",
-      b"cellStyleXfs" | b"dxfs" | b"cellStyles" => section = b"other",
-      b"numFmt" if section == b"numFmts" => {
-        if let (Some(id), Some(code)) = (attr_u32(&e, b"numFmtId"), attr(&e, b"formatCode")) {
+      "numFmts" => section = "numFmts",
+      "fonts" => section = "fonts",
+      "fills" => section = "fills",
+      "borders" => section = "borders",
+      "cellXfs" => section = "cellXfs",
+      "cellStyleXfs" | "dxfs" | "cellStyles" => section = "other",
+      "numFmt" if section == "numFmts" => {
+        if let (Some(id), Some(code)) = (attr_u32(&e, "numFmtId"), attr(&e, "formatCode")) {
           custom.insert(id, code);
         }
       }
-      b"font" if section == b"fonts" => {
+      "font" if section == "fonts" => {
         fonts.push(Font::default());
         at = if empty { In::Nothing } else { In::Font };
       }
-      b"b" if at == In::Font => fonts.last_mut().expect("pushed").bold = flag(&e),
-      b"i" if at == In::Font => fonts.last_mut().expect("pushed").italic = flag(&e),
-      b"strike" if at == In::Font => fonts.last_mut().expect("pushed").strike = flag(&e),
-      b"u" if at == In::Font => {
-        fonts.last_mut().expect("pushed").underline = attr(&e, b"val").is_none_or(|v| v != "none")
+      "b" if at == In::Font => fonts.last_mut().expect("pushed").bold = flag(&e),
+      "i" if at == In::Font => fonts.last_mut().expect("pushed").italic = flag(&e),
+      "strike" if at == In::Font => fonts.last_mut().expect("pushed").strike = flag(&e),
+      "u" if at == In::Font => {
+        fonts.last_mut().expect("pushed").underline = attr(&e, "val").is_none_or(|v| v != "none")
       }
-      b"sz" if at == In::Font => fonts.last_mut().expect("pushed").size = attr_f32(&e, b"val"),
-      b"color" if at == In::Font => fonts.last_mut().expect("pushed").color = color(&e, theme),
-      b"fill" if section == b"fills" => {
+      "sz" if at == In::Font => fonts.last_mut().expect("pushed").size = attr_f32(&e, "val"),
+      "color" if at == In::Font => fonts.last_mut().expect("pushed").color = color(&e, theme),
+      "fill" if section == "fills" => {
         fills.push(None);
         pattern_solid = false;
         at = if empty { In::Nothing } else { In::Fill };
       }
-      b"patternFill" if at == In::Fill => {
+      "patternFill" if at == In::Fill => {
         // `gray125` is the reserved second fill every file carries; `none` is none.
-        pattern_solid = attr(&e, b"patternType").is_some_and(|p| p != "none" && p != "gray125");
+        pattern_solid = attr(&e, "patternType").is_some_and(|p| p != "none" && p != "gray125");
       }
-      b"fgColor" if at == In::Fill && pattern_solid => {
+      "fgColor" if at == In::Fill && pattern_solid => {
         *fills.last_mut().expect("pushed") = color(&e, theme);
       }
       // A gradient shows as its first stop: a flat approximation beats none.
-      b"color" if at == In::Fill && fills.last().is_some_and(Option::is_none) => {
+      "color" if at == In::Fill && fills.last().is_some_and(Option::is_none) => {
         *fills.last_mut().expect("pushed") = color(&e, theme);
       }
-      b"border" if section == b"borders" => {
+      "border" if section == "borders" => {
         borders.push([None; 4]);
         at = if empty {
           In::Nothing
@@ -644,14 +645,14 @@ fn parse_styles(xml: &[u8], theme: &[u32]) -> StyleSheet {
           In::Border(usize::MAX)
         };
       }
-      side @ (b"top" | b"right" | b"bottom" | b"left") if matches!(at, In::Border(_)) => {
+      side @ ("top" | "right" | "bottom" | "left") if matches!(at, In::Border(_)) => {
         let edge = match side {
-          b"top" => 0,
-          b"right" => 1,
-          b"bottom" => 2,
+          "top" => 0,
+          "right" => 1,
+          "bottom" => 2,
           _ => 3,
         };
-        if let Some(style) = attr(&e, b"style").and_then(|s| border_style(&s)) {
+        if let Some(style) = attr(&e, "style").and_then(|s| border_style(&s)) {
           borders.last_mut().expect("pushed")[edge] = Some(Edge { style, color: None });
           at = if empty {
             In::Border(usize::MAX)
@@ -660,7 +661,7 @@ fn parse_styles(xml: &[u8], theme: &[u32]) -> StyleSheet {
           };
         }
       }
-      b"color" => {
+      "color" => {
         if let In::Border(edge) = at
           && edge < 4
           && let Some(Some(e2)) = borders.last_mut().map(|b| &mut b[edge])
@@ -668,8 +669,8 @@ fn parse_styles(xml: &[u8], theme: &[u32]) -> StyleSheet {
           e2.color = color(&e, theme);
         }
       }
-      b"xf" if section == b"cellXfs" => {
-        let font = attr_u32(&e, b"fontId")
+      "xf" if section == "cellXfs" => {
+        let font = attr_u32(&e, "fontId")
           .and_then(|i| fonts.get(i as usize))
           .cloned()
           .unwrap_or_default();
@@ -680,20 +681,20 @@ fn parse_styles(xml: &[u8], theme: &[u32]) -> StyleSheet {
           strike: font.strike,
           font_scale: 1.0,
           color: font.color,
-          fill: attr_u32(&e, b"fillId")
+          fill: attr_u32(&e, "fillId")
             .and_then(|i| fills.get(i as usize).copied())
             .flatten(),
-          border: attr_u32(&e, b"borderId")
+          border: attr_u32(&e, "borderId")
             .and_then(|i| borders.get(i as usize).copied())
             .unwrap_or_default(),
           ..Default::default()
         };
-        xfs.push((style, attr_u32(&e, b"numFmtId").unwrap_or(0), font.size));
+        xfs.push((style, attr_u32(&e, "numFmtId").unwrap_or(0), font.size));
         at = if empty { In::Nothing } else { In::CellXf };
       }
-      b"alignment" if at == In::CellXf => {
+      "alignment" if at == In::CellXf => {
         let s = &mut xfs.last_mut().expect("pushed").0;
-        s.h_align = attr(&e, b"horizontal").and_then(|h| {
+        s.h_align = attr(&e, "horizontal").and_then(|h| {
           Some(match h.as_str() {
             "left" => HAlign::Left,
             "center" => HAlign::Center,
@@ -705,7 +706,7 @@ fn parse_styles(xml: &[u8], theme: &[u32]) -> StyleSheet {
             _ => return None,
           })
         });
-        s.v_align = attr(&e, b"vertical").and_then(|v| {
+        s.v_align = attr(&e, "vertical").and_then(|v| {
           Some(match v.as_str() {
             "top" => VAlign::Top,
             "center" => VAlign::Center,
@@ -715,8 +716,8 @@ fn parse_styles(xml: &[u8], theme: &[u32]) -> StyleSheet {
             _ => return None,
           })
         });
-        s.wrap = attr_bool(&e, b"wrapText");
-        s.indent = attr_u32(&e, b"indent").unwrap_or(0);
+        s.wrap = attr_bool(&e, "wrapText");
+        s.indent = attr_u32(&e, "indent").unwrap_or(0);
       }
       _ => {}
     }
@@ -805,39 +806,39 @@ fn parse_sheet<R: BufRead>(
   loop {
     match reader.read_event_into(&mut buf) {
       Ok(Event::Start(e) | Event::Empty(e)) => match e.local_name().as_ref() {
-        b"sheetView" => {
-          if attr(&e, b"showGridLines").is_some_and(|v| v == "0" || v == "false") {
+        "sheetView" => {
+          if attr(&e, "showGridLines").is_some_and(|v| v == "0" || v == "false") {
             layout.show_grid_lines = false;
           }
         }
-        b"sheetFormatPr" => {
-          if let Some(w) = attr_f32(&e, b"defaultColWidth") {
+        "sheetFormatPr" => {
+          if let Some(w) = attr_f32(&e, "defaultColWidth") {
             layout.default_col_width = width_px(w);
-          } else if let Some(base) = attr_f32(&e, b"baseColWidth") {
+          } else if let Some(base) = attr_f32(&e, "baseColWidth") {
             // Base width in characters, plus padding, rounded up to 8px as Excel does.
             layout.default_col_width = ((base * 7.0 + 5.0) / 8.0).ceil() * 8.0;
           }
-          if let Some(h) = attr_f32(&e, b"defaultRowHeight") {
+          if let Some(h) = attr_f32(&e, "defaultRowHeight") {
             layout.default_row_height = points_px(h);
           }
         }
-        b"col" => {
-          let first = attr_u32(&e, b"min").unwrap_or(1).max(1) - 1;
+        "col" => {
+          let first = attr_u32(&e, "min").unwrap_or(1).max(1) - 1;
           // A span to the last column (16384) is common; it changes nothing past the
           // data, so it is kept as given and clamped by whoever reads it.
-          let last = attr_u32(&e, b"max").unwrap_or(first + 1).max(1) - 1;
-          let width = if attr_bool(&e, b"hidden") {
+          let last = attr_u32(&e, "max").unwrap_or(first + 1).max(1) - 1;
+          let width = if attr_bool(&e, "hidden") {
             0.0
           } else {
-            attr_f32(&e, b"width").map_or(layout.default_col_width, width_px)
+            attr_f32(&e, "width").map_or(layout.default_col_width, width_px)
           };
           layout.cols.push(ColSpan { first, last, width });
         }
-        b"row" => {
-          row = attr_u32(&e, b"r").map_or(row + 1, |r| r.max(1)) - 1;
+        "row" => {
+          row = attr_u32(&e, "r").map_or(row + 1, |r| r.max(1)) - 1;
           col = 0;
-          let hidden = attr_bool(&e, b"hidden");
-          let height = attr_f32(&e, b"ht").filter(|_| attr_bool(&e, b"customHeight") || hidden);
+          let hidden = attr_bool(&e, "hidden");
+          let height = attr_f32(&e, "ht").filter(|_| attr_bool(&e, "customHeight") || hidden);
           if hidden {
             layout.rows.push(RowSize { row, height: 0.0 });
           } else if let Some(h) = height {
@@ -845,7 +846,7 @@ fn parse_sheet<R: BufRead>(
               row,
               height: points_px(h),
             });
-          } else if let Some(h) = attr_f32(&e, b"ht") {
+          } else if let Some(h) = attr_f32(&e, "ht") {
             // Not custom, but Excel measured it — usually for a larger font — and a
             // row drawn at the default would clip the text it was sized for.
             let h = points_px(h);
@@ -854,15 +855,15 @@ fn parse_sheet<R: BufRead>(
             }
           }
         }
-        b"c" => {
-          let (r, c) = attr(&e, b"r")
+        "c" => {
+          let (r, c) = attr(&e, "r")
             .and_then(|r| cell_ref(&r))
             .unwrap_or((row, col));
           row = r;
           col = c + 1;
           // Capped like the values are: a sheet of styled-but-empty cells is a
           // bomb of another kind, and costs 12 bytes a cell here.
-          if let Some(s) = attr_u32(&e, b"s")
+          if let Some(s) = attr_u32(&e, "s")
             && s > 0
             && (s as usize) < styles.styles.len()
             && meta.cells.len() < max_cells
