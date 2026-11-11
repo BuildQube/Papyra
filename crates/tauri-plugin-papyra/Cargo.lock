@@ -2922,14 +2922,14 @@ dependencies = [
 
 [[package]]
 name = "papyra-core"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "thiserror 2.0.21",
 ]
 
 [[package]]
 name = "papyra-encode"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "base64 0.22.1",
  "image",
@@ -2938,7 +2938,7 @@ dependencies = [
 
 [[package]]
 name = "papyra-hayro"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "bytemuck",
  "hayro",
@@ -2952,7 +2952,7 @@ dependencies = [
 
 [[package]]
 name = "papyra-office"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "deckcraft-fonts",
  "deckcraft-model",
@@ -2970,7 +2970,7 @@ dependencies = [
 
 [[package]]
 name = "papyra-tables"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "calamine",
  "chardetng",
@@ -2984,7 +2984,7 @@ dependencies = [
 
 [[package]]
 name = "papyra-tiff"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "hayro-ccitt",
  "papyra-core",
@@ -4217,7 +4217,7 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-papyra"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "glob",
  "papyra-core",
@@ -4237,7 +4237,7 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-papyra-office"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "glob",
  "papyra-core",

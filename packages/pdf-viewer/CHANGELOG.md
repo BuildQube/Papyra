@@ -1,5 +1,11 @@
 # @workspace/pdf-viewer
 
+## 0.7.2
+
+### Patch Changes
+
+- @build-qube/papyra@0.8.1
+
 ## 0.7.1
 
 ### Patch Changes
