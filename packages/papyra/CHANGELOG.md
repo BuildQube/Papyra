@@ -1,5 +1,13 @@
 # @build-qube/papyra
 
+## 0.8.1
+
+### Patch Changes
+
+- Updated dependencies [041eb37]
+  - @build-qube/papyra-native@0.8.1
+  - @build-qube/papyra-office-native@0.8.1
+
 ## 0.8.0
 
 ### Minor Changes
